@@ -1,5 +1,5 @@
 package com.insurance.aml.module.screening.service.impl;
-import com.insurance.aml.common.result.PageResult;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -8,6 +8,8 @@ import com.insurance.aml.common.result.PageQuery;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.common.util.IdGenerator;
+import com.insurance.aml.module.kyc.mapper.CustomerMapper;
+import com.insurance.aml.module.kyc.model.entity.Customer;
 import com.insurance.aml.module.screening.mapper.*;
 import com.insurance.aml.module.screening.model.dto.ReviewRequest;
 import com.insurance.aml.module.screening.model.dto.ScreeningResultVO;
@@ -41,6 +43,7 @@ public class ScreeningServiceImpl implements ScreeningService {
     private final WatchlistAliasMapper watchlistAliasMapper;
     private final WatchlistIdentityMapper watchlistIdentityMapper;
     private final WhitelistMapper whitelistMapper;
+    private final CustomerMapper customerMapper;
     private final NameMatcher nameMatcher;
     private final IdGenerator idGenerator;
 
@@ -79,10 +82,12 @@ public class ScreeningServiceImpl implements ScreeningService {
 
         try {
             // 2. 查询客户基本信息（通过客户表查询姓名和证件号）
-            // TODO: 此处需对接KYC模块的CustomerMapper获取客户详情
-            // 暂时使用筛查请求中的数据，后续KYC模块完成后需替换
-            String customerName = null;
-            String customerIdNumber = null;
+            Customer customer = customerMapper.selectById(customerId);
+            if (customer == null) {
+                throw new BusinessException(ResultCode.NOT_FOUND, "客户不存在: " + customerId);
+            }
+            String customerName = customer.getName();
+            String customerIdNumber = customer.getIdNumber();
 
             // 查询该客户是否有白名单记录
             List<Whitelist> whitelists = whitelistMapper.selectList(
@@ -104,6 +109,8 @@ public class ScreeningServiceImpl implements ScreeningService {
 
             // 4. 遍历每个制裁名单条目进行匹配
             for (Watchlist entry : watchlistEntries) {
+                boolean matchedEntry = false;
+
                 // 加载该条目的别名和证件信息
                 List<WatchlistAlias> aliases = watchlistAliasMapper.selectList(
                         new LambdaQueryWrapper<WatchlistAlias>()
@@ -133,9 +140,14 @@ public class ScreeningServiceImpl implements ScreeningService {
 
                             screeningResultMapper.insert(result);
                             totalHit++;
+                            matchedEntry = true;
                             break; // 该条目已通过证件匹配命中，无需继续检查名称
                         }
                     }
+                }
+
+                if (matchedEntry) {
+                    continue;
                 }
 
                 // 4b. 检查名称相似度
@@ -202,6 +214,12 @@ public class ScreeningServiceImpl implements ScreeningService {
             log.info("客户制裁名单筛查完成，customerId={}, 扫描={}, 命中={}", customerId, watchlistEntries.size(), totalHit);
             return (long) totalHit;
 
+        } catch (BusinessException e) {
+            log.error("制裁名单筛查业务异常，customerId={}", customerId, e);
+            request.setStatus("FAILED");
+            request.setErrorMessage(e.getMessage());
+            screeningRequestMapper.updateById(request);
+            throw e;
         } catch (Exception e) {
             log.error("制裁名单筛查异常，customerId={}", customerId, e);
             request.setStatus("FAILED");
@@ -257,13 +275,19 @@ public class ScreeningServiceImpl implements ScreeningService {
         result.setReviewedTime(LocalDateTime.now());
         screeningResultMapper.updateById(result);
 
-        // 如果确认命中，标记客户为制裁状态
-        // TODO: 对接KYC模块，设置客户 is_sanctioned = true
+        // 如果确认命中，标记客户为制裁状态并提升为高风险
         if ("CONFIRMED".equals(req.getReviewStatus())) {
             log.warn("客户被确认命中制裁名单，customerId={}, watchlistEntryId={}",
                     result.getCustomerId(), result.getWatchlistEntryId());
-            // 此处需要调用KYC模块的CustomerService来更新客户制裁状态
-            // customerService.markAsSanctioned(result.getCustomerId());
+            if (result.getCustomerId() != null) {
+                Customer customerUpdate = new Customer();
+                customerUpdate.setId(result.getCustomerId());
+                customerUpdate.setIsSanctioned(true);
+                customerUpdate.setRiskLevel("HIGH");
+                customerUpdate.setRiskScore(100);
+                customerUpdate.setRiskUpdateTime(LocalDateTime.now());
+                customerMapper.updateById(customerUpdate);
+            }
         }
 
         log.info("筛查结果审核完成，resultId={}", req.getResultId());

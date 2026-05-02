@@ -1,5 +1,6 @@
 package com.insurance.aml.common.service;
 
+import com.insurance.aml.common.config.AsyncConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,7 +28,7 @@ public class AuditLogService {
     /**
      * 异步写入审计日志
      */
-    @Async("taskExecutor")
+    @Async(AsyncConfig.TASK_EXECUTOR)
     public void writeAuditLog(String traceId, Long userId, String username,
                                String operationType, String module,
                                String targetType, String targetId,

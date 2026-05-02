@@ -41,8 +41,8 @@
             <el-table-column prop="sourceList" label="来源名单" width="120" />
             <el-table-column prop="reviewStatus" label="复核状态" width="120">
               <template #default="{ row }">
-                <el-tag :type="{ PENDING_REVIEW:'warning', CONFIRMED:'danger', EXCLUDED:'info' }[row.reviewStatus] as any" size="small">
-                  {{ { PENDING_REVIEW:'待复核', CONFIRMED:'已确认', EXCLUDED:'已排除' }[row.reviewStatus] || row.reviewStatus }}
+                <el-tag :type="reviewStatusTagType(row.reviewStatus)" size="small">
+                  {{ reviewStatusLabel(row.reviewStatus) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -111,7 +111,7 @@
             <el-table-column prop="name" label="姓名" width="120" />
             <el-table-column prop="idType" label="证件类型" width="120">
               <template #default="{ row }">
-                {{ { ID_CARD:'身份证', PASSPORT:'护照', BUSINESS_LICENSE:'营业执照' }[row.idType] || row.idType }}
+                {{ idTypeLabel(row.idType) }}
               </template>
             </el-table-column>
             <el-table-column prop="idNumber" label="证件号码" width="180" />
@@ -184,6 +184,29 @@ const resultsLoading = ref(false)
 const screening = ref(false)
 const results = ref<any[]>([])
 const screenForm = ref({ name: '', idType: 'ID_CARD', idNumber: '', nationality: '' })
+
+function mapLabel(map: Record<string, string>, value: unknown) {
+  const key = typeof value === 'string' ? value : ''
+  return map[key] || key || '-'
+}
+
+function reviewStatusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
+  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+    PENDING_REVIEW: 'warning',
+    CONFIRMED: 'danger',
+    EXCLUDED: 'info'
+  }
+  const key = typeof status === 'string' ? status : ''
+  return map[key] || 'info'
+}
+
+function reviewStatusLabel(status: unknown) {
+  return mapLabel({ PENDING_REVIEW: '待复核', CONFIRMED: '已确认', EXCLUDED: '已排除' }, status)
+}
+
+function idTypeLabel(idType: unknown) {
+  return mapLabel({ ID_CARD: '身份证', PASSPORT: '护照', BUSINESS_LICENSE: '营业执照' }, idType)
+}
 
 async function loadResults() {
   resultsLoading.value = true

@@ -162,21 +162,21 @@
         <el-descriptions-item label="预警编号">{{ detailData.alertNo }}</el-descriptions-item>
         <el-descriptions-item label="客户名称">{{ detailData.customerName }}</el-descriptions-item>
         <el-descriptions-item label="预警类型">
-          <el-tag size="small">{{ typeMap[detailData.alertType] || detailData.alertType }}</el-tag>
+          <el-tag size="small">{{ mapLabel(typeMap, detailData.alertType) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="风险等级">
           <el-tag :type="riskLevelTagType(detailData.riskLevel)" size="small">
-            {{ riskLevelMap[detailData.riskLevel] || detailData.riskLevel }}
+            {{ mapLabel(riskLevelMap, detailData.riskLevel) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="风险分数">
-          <span :style="{ color: detailData.riskScore >= 80 ? '#f56c6c' : '#606266', fontWeight: 'bold' }">
-            {{ detailData.riskScore }}
+          <span :style="{ color: alertRiskScore(detailData) >= 80 ? '#f56c6c' : '#606266', fontWeight: 'bold' }">
+            {{ alertRiskScore(detailData) }}
           </span>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="statusTagType(detailData.status)" size="small">
-            {{ statusMap[detailData.status] || detailData.status }}
+            {{ mapLabel(statusMap, detailData.status) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="预警摘要" :span="2">{{ detailData.alertSummary || '-' }}</el-descriptions-item>
@@ -365,17 +365,27 @@ const batchProcessVisible = ref(false)
 const batchForm = reactive({ processResult: 'CONFIRMED', processRemark: '' })
 
 // ===================== Tag类型辅助 =====================
-function riskLevelTagType(level: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+function mapLabel(map: Record<string, string>, value: unknown) {
+  const key = typeof value === 'string' ? value : ''
+  return map[key] || key || '-'
+}
+
+function alertRiskScore(alert: Partial<AlertItem>) {
+  return alert.riskScore ?? 0
+}
+
+function riskLevelTagType(level: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
   const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
     LOW: 'success',
     MEDIUM: 'warning',
     HIGH: 'danger',
     CRITICAL: 'danger'
   }
-  return map[level] || 'info'
+  const key = typeof level === 'string' ? level : ''
+  return map[key] || 'info'
 }
 
-function statusTagType(status: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+function statusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
   const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
     NEW: 'danger',
     ASSIGNED: 'warning',
@@ -383,7 +393,8 @@ function statusTagType(status: string): '' | 'success' | 'warning' | 'danger' | 
     CONFIRMED: 'success',
     EXCLUDED: 'info'
   }
-  return map[status] || 'info'
+  const key = typeof status === 'string' ? status : ''
+  return map[key] || 'info'
 }
 
 // ===================== 数据加载 =====================

@@ -84,11 +84,16 @@ onMounted(async () => {
   // 加载仪表盘数据
   try {
     const res: any = await request.get('/dashboard/overview')
-    const data = res.data
-    statCards[0].value = data.totalCustomers || 0
-    statCards[1].value = data.activeAlerts || 0
-    statCards[2].value = data.openCases || 0
-    statCards[3].value = data.pendingReports || 0
+    const data = res.data || {}
+    const valuesByTitle: Record<string, number> = {
+      客户总数: data.totalCustomers || 0,
+      活跃预警: data.activeAlerts || 0,
+      进行中案件: data.openCases || 0,
+      待报送报告: data.pendingReports || 0
+    }
+    statCards.forEach((card) => {
+      card.value = valuesByTitle[card.title] ?? 0
+    })
   } catch (e) { /* 使用默认值 */ }
 
   // 加载预警趋势

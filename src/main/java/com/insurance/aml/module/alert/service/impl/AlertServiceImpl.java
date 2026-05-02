@@ -16,6 +16,8 @@ import com.insurance.aml.module.alert.model.entity.AlertAssignmentLog;
 import com.insurance.aml.module.alert.model.entity.AlertRuleDetail;
 import com.insurance.aml.module.alert.controller.AlertController;
 import com.insurance.aml.module.alert.service.AlertService;
+import com.insurance.aml.module.case_.model.dto.CaseCreateRequest;
+import com.insurance.aml.module.case_.service.CaseService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +52,9 @@ public class AlertServiceImpl implements AlertService {
 
     @Autowired
     private IdGenerator idGenerator;
+
+    @Autowired
+    private CaseService caseService;
 
     /**
      * 创建预警
@@ -218,7 +223,7 @@ public class AlertServiceImpl implements AlertService {
     /**
      * 处理预警
      * 校验状态（必须为ASSIGNED或PROCESSING），更新处理结果
-     * CONFIRMED_SUSPICIOUS -> 状态变为CONFIRMED（后续触发案件创建）
+     * CONFIRMED_SUSPICIOUS -> 状态变为CONFIRMED并触发案件创建
      * EXCLUDED -> 状态变为EXCLUDED
      */
     @Override
@@ -245,12 +250,14 @@ public class AlertServiceImpl implements AlertService {
         alert.setProcessTime(now);
         alert.setUpdatedTime(now);
 
+        boolean shouldCreateCase = false;
+
         // 根据处理结果设置状态
         switch (req.getProcessResult()) {
             case "CONFIRMED_SUSPICIOUS":
                 alert.setStatus("CONFIRMED");
-                log.info("预警已确认可疑，预警ID：{}，后续将触发案件创建", req.getAlertId());
-                // TODO: 触发案件创建流程（由案件模块负责）
+                shouldCreateCase = true;
+                log.info("预警已确认可疑，预警ID：{}，准备创建案件", req.getAlertId());
                 break;
             case "EXCLUDED":
                 alert.setStatus("EXCLUDED");
@@ -265,6 +272,10 @@ public class AlertServiceImpl implements AlertService {
         }
 
         alertMapper.updateById(alert);
+        if (shouldCreateCase) {
+            caseService.createCase(buildCaseCreateRequest(alert));
+            log.info("预警确认后已创建案件，预警ID：{}", req.getAlertId());
+        }
         log.info("预警处理完成，预警ID：{}，新状态：{}", req.getAlertId(), alert.getStatus());
     }
 
@@ -464,6 +475,36 @@ public class AlertServiceImpl implements AlertService {
         logEntry.setAssignedBy(String.valueOf(assignedBy));
         logEntry.setAssignedTime(LocalDateTime.now());
         assignmentLogMapper.insert(logEntry);
+    }
+
+    /**
+     * 根据已确认预警构造案件创建请求。
+     */
+    private CaseCreateRequest buildCaseCreateRequest(Alert alert) {
+        CaseCreateRequest req = new CaseCreateRequest();
+        req.setAlertId(alert.getId());
+        req.setCaseType(alert.getAlertType());
+        req.setPriority(resolveCasePriority(alert.getRiskLevel()));
+        req.setSummary(StringUtils.hasText(alert.getAlertSummary())
+                ? alert.getAlertSummary()
+                : "预警确认可疑：" + alert.getAlertNo());
+        return req;
+    }
+
+    private Integer resolveCasePriority(String riskLevel) {
+        if ("CRITICAL".equals(riskLevel)) {
+            return 5;
+        }
+        if ("HIGH".equals(riskLevel)) {
+            return 4;
+        }
+        if ("MEDIUM".equals(riskLevel)) {
+            return 3;
+        }
+        if ("LOW".equals(riskLevel)) {
+            return 2;
+        }
+        return 3;
     }
 
     /**

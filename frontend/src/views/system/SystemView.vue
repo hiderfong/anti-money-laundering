@@ -382,6 +382,14 @@ const auditFilter = reactive({ username: '', module: '', operationType: '', date
 const auditDetailVisible = ref(false)
 const auditDetail = ref<any>(null)
 
+function auditStartTime() {
+  return auditFilter.dateRange?.[0] ? `${auditFilter.dateRange[0]}T00:00:00` : undefined
+}
+
+function auditEndTime() {
+  return auditFilter.dateRange?.[1] ? `${auditFilter.dateRange[1]}T23:59:59` : undefined
+}
+
 async function fetchAuditLogs() {
   loadingAudit.value = true
   try {
@@ -391,8 +399,8 @@ async function fetchAuditLogs() {
       username: auditFilter.username || undefined,
       module: auditFilter.module || undefined,
       operationType: auditFilter.operationType || undefined,
-      startDate: auditFilter.dateRange?.[0] || undefined,
-      endDate: auditFilter.dateRange?.[1] || undefined,
+      startTime: auditStartTime(),
+      endTime: auditEndTime(),
     }
     const res: any = await request.get('/system/audit-logs/page', { params })
     const data = res.data || res
@@ -422,8 +430,8 @@ async function handleExportAudit() {
         username: auditFilter.username || undefined,
         module: auditFilter.module || undefined,
         operationType: auditFilter.operationType || undefined,
-        startDate: auditFilter.dateRange?.[0] || undefined,
-        endDate: auditFilter.dateRange?.[1] || undefined,
+        startTime: auditStartTime(),
+        endTime: auditEndTime(),
       },
       responseType: 'blob',
     })

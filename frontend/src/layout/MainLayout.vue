@@ -1,14 +1,14 @@
 <template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
-    <el-aside :width="isCollapse ? '64px' : '220px'" class="aside">
+    <el-aside :width="effectiveCollapse ? '64px' : '220px'" class="aside">
       <div class="logo">
-        <el-icon size="24"><Shield /></el-icon>
-        <span v-show="!isCollapse" class="logo-text">反洗钱系统</span>
+        <el-icon size="24"><Lock /></el-icon>
+        <span v-show="!effectiveCollapse" class="logo-text">反洗钱系统</span>
       </div>
       <el-menu
         :default-active="currentRoute"
-        :collapse="isCollapse"
+        :collapse="effectiveCollapse"
         background-color="#001529"
         text-color="#ffffffa6"
         active-text-color="#ffffff"
@@ -69,8 +69,8 @@
     <el-container>
       <el-header class="header">
         <div class="header-left">
-          <el-icon class="collapse-btn" @click="isCollapse = !isCollapse" size="20">
-            <Fold v-if="!isCollapse" />
+          <el-icon class="collapse-btn" :class="{ disabled: isMobile }" @click="toggleSidebar" size="20">
+            <Fold v-if="!effectiveCollapse" />
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
@@ -108,9 +108,20 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const isCollapse = ref(false)
+const isMobile = ref(false)
 
 const currentRoute = computed(() => route.path)
 const currentTitle = computed(() => (route.meta?.title as string) || '首页')
+const effectiveCollapse = computed(() => isMobile.value || isCollapse.value)
+
+function syncViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+
+function toggleSidebar() {
+  if (isMobile.value) return
+  isCollapse.value = !isCollapse.value
+}
 
 async function handleCommand(command: string) {
   if (command === 'logout') {
@@ -118,6 +129,15 @@ async function handleCommand(command: string) {
     router.push('/login')
   }
 }
+
+onMounted(() => {
+  syncViewport()
+  window.addEventListener('resize', syncViewport)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewport)
+})
 </script>
 
 <style scoped>
@@ -149,6 +169,35 @@ async function handleCommand(command: string) {
 }
 .header-left { display: flex; align-items: center; gap: 16px; }
 .collapse-btn { cursor: pointer; }
+.collapse-btn.disabled { cursor: default; opacity: 0.45; }
 .user-info { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .main { background: #f0f2f5; padding: 20px; }
+
+@media (max-width: 767px) {
+  .header {
+    padding: 0 12px;
+  }
+
+  .header-left {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .header-left :deep(.el-breadcrumb) {
+    max-width: 120px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .user-info {
+    max-width: 112px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .main {
+    padding: 12px;
+    overflow-x: auto;
+  }
+}
 </style>

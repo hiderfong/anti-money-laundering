@@ -203,6 +203,26 @@ CREATE TABLE IF NOT EXISTS t_screening_result (
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_audit_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  trace_id VARCHAR(64),
+  user_id BIGINT,
+  username VARCHAR(64),
+  operation_type VARCHAR(32) NOT NULL,
+  module VARCHAR(64) NOT NULL,
+  target_type VARCHAR(64),
+  target_id VARCHAR(64),
+  detail CLOB,
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(512),
+  request_uri VARCHAR(512),
+  request_method VARCHAR(16),
+  response_code INT,
+  duration_ms BIGINT,
+  error_message CLOB,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 插入测试数据
 INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');

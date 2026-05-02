@@ -13,6 +13,8 @@ import com.insurance.aml.module.alert.model.dto.AlertProcessRequest;
 import com.insurance.aml.module.alert.model.entity.Alert;
 import com.insurance.aml.module.alert.model.entity.AlertRuleDetail;
 import com.insurance.aml.module.alert.service.impl.AlertServiceImpl;
+import com.insurance.aml.module.case_.model.dto.CaseCreateRequest;
+import com.insurance.aml.module.case_.service.CaseService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +52,9 @@ class AlertServiceImplTest {
 
     @Mock
     private IdGenerator idGenerator;
+
+    @Mock
+    private CaseService caseService;
 
     @InjectMocks
     private AlertServiceImpl alertService;
@@ -98,7 +103,7 @@ class AlertServiceImplTest {
     // ==================== processAlert 测试 ====================
 
     @Test
-    @DisplayName("处理预警 - 确认可疑，状态变更为CONFIRMED")
+    @DisplayName("处理预警 - 确认可疑，状态变更为CONFIRMED并创建案件")
     void processAlert_confirmSuspicous() {
         // 准备预警数据（状态为ASSIGNED）
         Alert alert = buildTestAlert();
@@ -125,6 +130,13 @@ class AlertServiceImplTest {
             return "CONFIRMED".equals(updated.getStatus())
                     && "CONFIRMED_SUSPICIOUS".equals(updated.getProcessResult());
         }));
+        // 验证：确认可疑后创建案件
+        verify(caseService, times(1)).createCase(argThat((CaseCreateRequest caseReq) ->
+                Long.valueOf(1L).equals(caseReq.getAlertId())
+                        && "SUSPICIOUS".equals(caseReq.getCaseType())
+                        && Integer.valueOf(4).equals(caseReq.getPriority())
+                        && "可疑交易预警".equals(caseReq.getSummary())
+        ));
     }
 
     @Test
@@ -155,6 +167,7 @@ class AlertServiceImplTest {
             return "EXCLUDED".equals(updated.getStatus())
                     && "EXCLUDED".equals(updated.getProcessResult());
         }));
+        verify(caseService, never()).createCase(any(CaseCreateRequest.class));
     }
 
     @Test
@@ -180,6 +193,7 @@ class AlertServiceImplTest {
 
         // 验证 updateById 未被调用
         verify(alertMapper, never()).updateById(any(Alert.class));
+        verify(caseService, never()).createCase(any(CaseCreateRequest.class));
     }
 
     // ==================== assignAlert 测试 ====================

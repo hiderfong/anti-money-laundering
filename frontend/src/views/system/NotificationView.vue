@@ -20,9 +20,9 @@
     <el-card shadow="never" class="filter-card">
       <div class="filter-row">
         <el-radio-group v-model="filterReadStatus" @change="handleFilterChange">
-          <el-radio-button label="">全部</el-radio-button>
-          <el-radio-button label="false">未读</el-radio-button>
-          <el-radio-button label="true">已读</el-radio-button>
+          <el-radio-button value="">全部</el-radio-button>
+          <el-radio-button value="false">未读</el-radio-button>
+          <el-radio-button value="true">已读</el-radio-button>
         </el-radio-group>
         <el-select v-model="filterType" placeholder="通知类型" clearable @change="handleFilterChange" style="width: 160px;">
           <el-option label="系统通知" value="SYSTEM" />

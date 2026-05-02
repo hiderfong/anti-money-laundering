@@ -1,5 +1,6 @@
 package com.insurance.aml.common.util;
 
+import com.insurance.aml.module.auth.model.JwtUserDetails;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,6 +26,9 @@ public final class SecurityUtils {
             return null;
         }
         Object principal = authentication.getPrincipal();
+        if (principal instanceof JwtUserDetails jwtUserDetails) {
+            return jwtUserDetails.getUserId();
+        }
         if (principal instanceof UserDetails userDetails) {
             // 假设用户名存储了ID信息，需根据实际UserDetails实现调整
             try {

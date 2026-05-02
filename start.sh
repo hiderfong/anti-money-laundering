@@ -41,9 +41,9 @@ sleep 15
 # Step 3: 检查服务健康
 echo ""
 echo "[3/5] 检查服务状态..."
-echo -n "  MySQL:        " && docker exec mysql-dev mysqladmin ping -h localhost -u root -paml_dev_123 2>/dev/null && echo "OK" || echo "WAITING..."
-echo -n "  Redis:        " && docker exec redis-dev redis-cli ping 2>/dev/null && echo "" || echo "WAITING..."
-echo -n "  Kafka:        " && docker exec kafka-dev kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null && echo "OK" || echo "WAITING..."
+echo -n "  MySQL:        " && docker exec aml-mysql-dev mysqladmin ping -h localhost -u root -paml_dev_123 2>/dev/null && echo "OK" || echo "WAITING..."
+echo -n "  Redis:        " && docker exec aml-redis-dev redis-cli ping 2>/dev/null && echo "" || echo "WAITING..."
+echo -n "  Kafka:        " && docker exec aml-kafka-dev /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null && echo "OK" || echo "WAITING..."
 echo -n "  Elasticsearch:" && curl -s http://localhost:9200/_cluster/health | grep -q '"status"' && echo "OK" || echo "WAITING..."
 echo -n "  MinIO:        " && curl -s http://localhost:9000/minio/health/live && echo "OK" || echo "WAITING..."
 

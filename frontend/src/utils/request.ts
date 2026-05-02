@@ -9,6 +9,20 @@ const request: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
+function normalizePageTotal(payload: any) {
+  const total = payload?.data?.total
+  if (typeof total === 'string' && /^\d+$/.test(total)) {
+    return {
+      ...payload,
+      data: {
+        ...payload.data,
+        total: Number(total)
+      }
+    }
+  }
+  return payload
+}
+
 // 请求拦截器：添加 Token
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -24,7 +38,7 @@ request.interceptors.request.use(
 // 响应拦截器：统一错误处理
 request.interceptors.response.use(
   (response: AxiosResponse) => {
-    const data = response.data
+    const data = normalizePageTotal(response.data)
     // 业务错误
     if (data.code && data.code !== 200) {
       ElMessage.error(data.message || '请求失败')

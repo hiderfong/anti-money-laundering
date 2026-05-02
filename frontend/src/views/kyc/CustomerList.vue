@@ -37,15 +37,15 @@
         </el-table-column>
         <el-table-column prop="riskLevel" label="风险等级" width="100">
           <template #default="{ row }">
-            <el-tag :type="{ LOW:'success', MEDIUM:'warning', HIGH:'danger' }[row.riskLevel] as any" size="small">
-              {{ { LOW:'低', MEDIUM:'中', HIGH:'高' }[row.riskLevel as string] || row.riskLevel }}
+            <el-tag :type="riskLevelTagType(row.riskLevel)" size="small">
+              {{ riskLevelLabel(row.riskLevel) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="kycStatus" label="KYC状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="{ COMPLETE:'success', INCOMPLETE:'warning', REVIEWING:'info' }[row.kycStatus] as any" size="small">
-              {{ { COMPLETE:'已完成', INCOMPLETE:'未完成', REVIEWING:'审核中' }[row.kycStatus as string] || row.kycStatus }}
+            <el-tag :type="kycStatusTagType(row.kycStatus)" size="small">
+              {{ kycStatusLabel(row.kycStatus) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -114,6 +114,39 @@ const total = ref(0)
 
 const query = reactive({ page: 1, size: 10, name: '', customerType: '', riskLevel: '' })
 const createForm = reactive({ customerType: 'INDIVIDUAL', name: '', idType: 'IDCARD', idNumber: '', phone: '', email: '' })
+
+function mapLabel(map: Record<string, string>, value: unknown) {
+  const key = typeof value === 'string' ? value : ''
+  return map[key] || key || '-'
+}
+
+function riskLevelTagType(level: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
+  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+    LOW: 'success',
+    MEDIUM: 'warning',
+    HIGH: 'danger'
+  }
+  const key = typeof level === 'string' ? level : ''
+  return map[key] || 'info'
+}
+
+function riskLevelLabel(level: unknown) {
+  return mapLabel({ LOW: '低', MEDIUM: '中', HIGH: '高' }, level)
+}
+
+function kycStatusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
+  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+    COMPLETE: 'success',
+    INCOMPLETE: 'warning',
+    REVIEWING: 'info'
+  }
+  const key = typeof status === 'string' ? status : ''
+  return map[key] || 'info'
+}
+
+function kycStatusLabel(status: unknown) {
+  return mapLabel({ COMPLETE: '已完成', INCOMPLETE: '未完成', REVIEWING: '审核中' }, status)
+}
 
 async function loadData() {
   loading.value = true

@@ -1,8 +1,9 @@
 package com.insurance.aml.module.screening.service;
 
 import com.insurance.aml.common.util.IdGenerator;
-import com.insurance.aml.module.screening.mapper.*;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
+import com.insurance.aml.module.kyc.model.entity.Customer;
+import com.insurance.aml.module.screening.mapper.*;
 import com.insurance.aml.module.screening.model.dto.ReviewRequest;
 import com.insurance.aml.module.screening.model.entity.*;
 import com.insurance.aml.module.screening.service.impl.ScreeningServiceImpl;
@@ -26,10 +27,6 @@ import static org.mockito.Mockito.*;
 /**
  * 制裁名单筛查服务单元测试
  * 覆盖 screenCustomer 和 reviewHit 核心方法
- *
- * 注意：当前screenCustomer实现中客户信息（customerName/customerIdNumber）
- * 尚未对接KYC模块（代码中标注TODO），部分测试依赖该集成完成后方可通过。
- * 此处测试用例定义了预期行为，作为后续实现的验收标准。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -79,12 +76,17 @@ class ScreeningServiceImplTest {
         return entry;
     }
 
+    private Customer createCustomer(Long id, String name, String idNumber) {
+        Customer customer = new Customer();
+        customer.setId(id);
+        customer.setName(name);
+        customer.setIdNumber(idNumber);
+        return customer;
+    }
+
     /**
      * 测试证件号码精确匹配
      * 场景：客户证件号与制裁名单中的证件号完全一致，应返回score=100的精确匹配结果
-     *
-     * 注意：此测试需要CustomerMapper集成完成后才能通过，
-     * 当前实现中customerIdNumber为null（TODO: 对接KYC模块）
      */
     @Test
     @DisplayName("证件号码精确匹配 -> 命中制裁名单，匹配分数100")
@@ -103,6 +105,9 @@ class ScreeningServiceImplTest {
         when(idGenerator.generate("SCR_REQ")).thenReturn("SCR_REQ_001");
         when(idGenerator.generateScreeningNo()).thenReturn("SCR20260101001");
 
+        // mock客户信息
+        when(customerMapper.selectById(100L)).thenReturn(createCustomer(100L, "张三", "E12345678"));
+
         // mock白名单为空
         when(whitelistMapper.selectList(any())).thenReturn(Collections.emptyList());
 
@@ -116,17 +121,23 @@ class ScreeningServiceImplTest {
         // mock证件精确匹配
         when(nameMatcher.isExactIdMatch(eq("E12345678"), eq("E12345678"))).thenReturn(true);
 
-        // 执行筛查（需要KYC模块集成后customerIdNumber才会被正确赋值）
-        // 当前实现中customerIdNumber为null，此测试作为预期行为的规范
+        // 执行筛查
         Long hitCount = screeningService.screenCustomer(100L, "REGULAR");
 
-        // 验证：预期命中1条（当KYC集成完成后）
-        // 当前由于customerIdNumber为null，实际返回0
-        // assertNotNull(hitCount, "命中数不应为空");
-        // assertTrue(hitCount > 0, "证件匹配应至少命中1条");
+        // 验证：命中1条精确匹配结果
+        assertNotNull(hitCount, "命中数不应为空");
+        assertEquals(1L, hitCount, "证件匹配应命中1条");
 
         // 验证请求记录已创建
         verify(screeningRequestMapper, atLeastOnce()).insert(any(ScreeningRequest.class));
+        verify(screeningResultMapper).insert(argThat(result ->
+                100L == result.getCustomerId()
+                        && "张三".equals(result.getCustomerName())
+                        && "E12345678".equals(result.getCustomerIdNumber())
+                        && BigDecimal.valueOf(100).compareTo(result.getMatchScore()) == 0
+                        && "EXACT".equals(result.getMatchType())
+                        && "id_number".equals(result.getMatchField())
+        ));
     }
 
     /**
@@ -139,6 +150,9 @@ class ScreeningServiceImplTest {
         // mock ID生成器
         when(idGenerator.generate("SCR_REQ")).thenReturn("SCR_REQ_002");
         when(idGenerator.generateScreeningNo()).thenReturn("SCR20260101002");
+
+        // mock客户信息
+        when(customerMapper.selectById(200L)).thenReturn(createCustomer(200L, "不匹配客户", "NO_MATCH_ID"));
 
         // mock白名单为空
         when(whitelistMapper.selectList(any())).thenReturn(Collections.emptyList());
@@ -156,16 +170,13 @@ class ScreeningServiceImplTest {
         assertNotNull(hitCount, "命中数不应为空");
         assertEquals(0L, hitCount, "无匹配时命中数应为0");
 
-        // 验证未创建筛查结果（因为当前customerName为null，名称匹配分支不会执行）
+        // 验证未创建筛查结果
         verify(screeningResultMapper, never()).insert(any(ScreeningResult.class));
     }
 
     /**
      * 测试名称模糊匹配
      * 场景：客户名称与制裁名单名称相似度为0.9（90%），超过85%阈值，应创建模糊匹配结果
-     *
-     * 注意：此测试需要CustomerMapper集成完成后才能通过，
-     * 当前实现中customerName为null（TODO: 对接KYC模块）
      */
     @Test
     @DisplayName("名称模糊匹配 -> 相似度90%超过阈值，创建筛查结果")
@@ -177,6 +188,9 @@ class ScreeningServiceImplTest {
         when(idGenerator.generate("SCR_REQ")).thenReturn("SCR_REQ_003");
         when(idGenerator.generateScreeningNo()).thenReturn("SCR20260101003");
 
+        // mock客户信息
+        when(customerMapper.selectById(300L)).thenReturn(createCustomer(300L, "王五", "ID_300"));
+
         // mock白名单为空
         when(whitelistMapper.selectList(any())).thenReturn(Collections.emptyList());
 
@@ -187,19 +201,24 @@ class ScreeningServiceImplTest {
 
         // mock名称相似度计算：返回0.9（90%相似度）
         when(nameMatcher.containsChinese(anyString())).thenReturn(true);
-        when(nameMatcher.calculateSimilarity(anyString(), anyString(), eq(true))).thenReturn(0.9);
+        when(nameMatcher.calculateSimilarity(anyString(), anyString(), eq(true))).thenReturn(90.0);
 
-        // 执行筛查（需要KYC集成后customerName才会被正确赋值）
-        // 当前实现中customerName为null，此测试作为预期行为的规范
+        // 执行筛查
         Long hitCount = screeningService.screenCustomer(300L, "REGULAR");
 
-        // 验证：预期命中1条（当KYC集成完成后）
-        // 当前由于customerName为null，实际返回0
-        // assertNotNull(hitCount, "命中数不应为空");
-        // assertTrue(hitCount > 0, "模糊匹配应至少命中1条");
+        // 验证：命中1条模糊匹配结果
+        assertNotNull(hitCount, "命中数不应为空");
+        assertEquals(1L, hitCount, "模糊匹配应命中1条");
 
         // 验证请求记录已创建
         verify(screeningRequestMapper, atLeastOnce()).insert(any(ScreeningRequest.class));
+        verify(screeningResultMapper).insert(argThat(result ->
+                300L == result.getCustomerId()
+                        && "王五".equals(result.getCustomerName())
+                        && BigDecimal.valueOf(90.00).compareTo(result.getMatchScore()) == 0
+                        && "FUZZY".equals(result.getMatchType())
+                        && "name".equals(result.getMatchField())
+        ));
     }
 
     /**
@@ -216,6 +235,9 @@ class ScreeningServiceImplTest {
         when(idGenerator.generate("SCR_REQ")).thenReturn("SCR_REQ_004");
         when(idGenerator.generateScreeningNo()).thenReturn("SCR20260101004");
 
+        // mock客户信息
+        when(customerMapper.selectById(400L)).thenReturn(createCustomer(400L, "赵六", "ID_400"));
+
         // mock白名单为空
         when(whitelistMapper.selectList(any())).thenReturn(Collections.emptyList());
 
@@ -226,7 +248,7 @@ class ScreeningServiceImplTest {
 
         // mock名称相似度计算：返回0.7（70%相似度，低于85%阈值）
         when(nameMatcher.containsChinese(anyString())).thenReturn(true);
-        when(nameMatcher.calculateSimilarity(anyString(), anyString(), eq(true))).thenReturn(0.7);
+        when(nameMatcher.calculateSimilarity(anyString(), anyString(), eq(true))).thenReturn(70.0);
 
         // 执行筛查
         Long hitCount = screeningService.screenCustomer(400L, "REGULAR");
@@ -273,6 +295,13 @@ class ScreeningServiceImplTest {
                 "CONFIRMED".equals(result.getReviewStatus())
                         && result.getReviewedTime() != null
         ));
+        verify(customerMapper).updateById(argThat(customer ->
+                100L == customer.getId()
+                        && Boolean.TRUE.equals(customer.getIsSanctioned())
+                        && "HIGH".equals(customer.getRiskLevel())
+                        && Integer.valueOf(100).equals(customer.getRiskScore())
+                        && customer.getRiskUpdateTime() != null
+        ));
     }
 
     /**
@@ -309,5 +338,6 @@ class ScreeningServiceImplTest {
                 "EXCLUDED".equals(result.getReviewStatus())
                         && result.getReviewedTime() != null
         ));
+        verify(customerMapper, never()).updateById(any(Customer.class));
     }
 }

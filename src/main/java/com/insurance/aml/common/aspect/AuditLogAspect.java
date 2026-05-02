@@ -1,6 +1,7 @@
 package com.insurance.aml.common.aspect;
 
 import com.insurance.aml.common.annotation.AuditLog;
+import com.insurance.aml.common.service.AuditLogService;
 import com.insurance.aml.common.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 审计日志切面
@@ -27,7 +30,10 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 public class AuditLogAspect {
 
-    // private final AuditLogService auditLogService;
+    private final AuditLogService auditLogService;
+
+    private static final Pattern SENSITIVE_VALUE_PATTERN = Pattern.compile(
+            "(?i)(password|token|secret|idNumber|phone|email)=([^,)}\\]]+)");
 
     /**
      * 环绕通知：记录审计日志
@@ -39,15 +45,21 @@ public class AuditLogAspect {
         // 获取请求信息
         String uri = null;
         String ip = null;
+        String requestMethod = null;
+        String userAgent = null;
         String username = null;
+        Long userId = null;
         try {
             username = SecurityUtils.getCurrentUsername();
+            userId = SecurityUtils.getCurrentUserId();
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 uri = request.getRequestURI();
                 ip = getClientIp(request);
+                requestMethod = request.getMethod();
+                userAgent = request.getHeader("User-Agent");
             }
         } catch (Exception e) {
             log.warn("获取请求信息失败", e);
@@ -78,7 +90,7 @@ public class AuditLogAspect {
 
             // 异步记录审计日志，确保不影响业务流程
             try {
-                logAudit(auditLog, username, uri, ip, methodName, maskedArgs,
+                logAudit(auditLog, userId, username, uri, requestMethod, ip, userAgent, methodName, maskedArgs,
                         success, errorMsg, duration);
             } catch (Exception e) {
                 log.error("记录审计日志失败，不影响业务流程", e);
@@ -89,10 +101,29 @@ public class AuditLogAspect {
     /**
      * 异步记录审计日志
      */
-    private void logAudit(AuditLog auditLog, String username, String uri,
-                          String ip, String methodName, String args,
+    private void logAudit(AuditLog auditLog, Long userId, String username, String uri,
+                          String requestMethod, String ip, String userAgent, String methodName, String args,
                           boolean success, String errorMsg, long duration) {
-        // TODO: 调用AuditLogService异步保存审计日志
+        String detail = String.format("description=%s, method=%s, args=%s",
+                auditLog.description(), methodName, args);
+        int responseCode = success ? 200 : 500;
+        auditLogService.writeAuditLog(
+                UUID.randomUUID().toString().replace("-", ""),
+                userId,
+                username,
+                auditLog.operationType(),
+                auditLog.module(),
+                auditLog.module(),
+                null,
+                detail,
+                ip,
+                userAgent,
+                uri,
+                requestMethod,
+                responseCode,
+                duration,
+                errorMsg
+        );
         log.info("审计日志 - 模块: {}, 操作: {}, 描述: {}, 用户: {}, URI: {}, IP: {}, " +
                         "方法: {}, 参数: {}, 成功: {}, 耗时: {}ms",
                 auditLog.module(), auditLog.operationType(), auditLog.description(),
@@ -134,13 +165,12 @@ public class AuditLogAspect {
         // 简单处理：对参数列表做基本脱敏
         return Arrays.toString(Arrays.stream(args)
                 .map(arg -> {
-                    if (arg instanceof String str) {
-                        // 对可能是敏感信息的字符串做长度截断
-                        if (str.length() > 50) {
-                            return str.substring(0, 20) + "...(已截断)";
-                        }
+                    String text = String.valueOf(arg);
+                    text = SENSITIVE_VALUE_PATTERN.matcher(text).replaceAll("$1=***");
+                    if (text.length() > 200) {
+                        return text.substring(0, 200) + "...(已截断)";
                     }
-                    return arg;
+                    return text;
                 })
                 .toArray());
     }

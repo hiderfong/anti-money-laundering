@@ -2,7 +2,7 @@
   <div class="login-container">
     <el-card class="login-card">
       <div class="login-header">
-        <el-icon size="48" color="#409eff"><Shield /></el-icon>
+        <el-icon size="48" color="#409eff"><Lock /></el-icon>
         <h1>反洗钱管理系统</h1>
         <p>Anti-Money Laundering System</p>
       </div>
