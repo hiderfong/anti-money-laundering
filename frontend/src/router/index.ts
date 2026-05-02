@@ -21,8 +21,10 @@ const router = createRouter({
         { path: 'alerts', name: 'Alerts', component: () => import('@/views/alert/AlertList.vue'), meta: { title: '预警管理' } },
         { path: 'cases', name: 'Cases', component: () => import('@/views/case/CaseList.vue'), meta: { title: '案件管理' } },
         { path: 'reporting', name: 'Reporting', component: () => import('@/views/reporting/ReportingView.vue'), meta: { title: '监管报送' } },
+        { path: 'str-reports', name: 'StrReports', component: () => import('@/views/reporting/StrReportView.vue'), meta: { title: 'STR报告' } },
         { path: 'products', name: 'Products', component: () => import('@/views/product/ProductList.vue'), meta: { title: '产品管理' } },
         { path: 'assessment', name: 'Assessment', component: () => import('@/views/assessment/AssessmentView.vue'), meta: { title: '自评估' } },
+        { path: 'notifications', name: 'Notifications', component: () => import('@/views/system/NotificationView.vue'), meta: { title: '通知中心' } },
         { path: 'system', name: 'System', component: () => import('@/views/system/SystemView.vue'), meta: { title: '系统管理' } }
       ]
     }

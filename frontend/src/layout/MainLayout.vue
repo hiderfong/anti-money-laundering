@@ -38,6 +38,10 @@
           <el-icon><FolderOpened /></el-icon>
           <template #title>案件管理</template>
         </el-menu-item>
+        <el-menu-item index="/str-reports">
+          <el-icon><Warning /></el-icon>
+          <template #title>STR报告</template>
+        </el-menu-item>
         <el-menu-item index="/reporting">
           <el-icon><Document /></el-icon>
           <template #title>监管报送</template>
@@ -49,6 +53,10 @@
         <el-menu-item index="/assessment">
           <el-icon><DataAnalysis /></el-icon>
           <template #title>自评估</template>
+        </el-menu-item>
+        <el-menu-item index="/notifications">
+          <el-icon><Notification /></el-icon>
+          <template #title>通知中心</template>
         </el-menu-item>
         <el-menu-item index="/system">
           <el-icon><Setting /></el-icon>
