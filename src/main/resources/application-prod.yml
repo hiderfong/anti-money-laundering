@@ -1,0 +1,84 @@
+# ============================================================
+# AML System - Production Environment Configuration
+# ============================================================
+
+# ---- Datasource (MySQL) ----
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # TODO: Replace with production database URL
+    url: jdbc:mysql://TODO_PROD_DB_HOST:3306/aml_system?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai
+    # TODO: Replace with production credentials (use secrets manager)
+    username: TODO_PROD_DB_USER
+    password: TODO_PROD_DB_PASSWORD
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      pool-name: AmlHikariCP-Prod
+
+  # ---- Redis ----
+  redis:
+    # TODO: Replace with production Redis host
+    host: TODO_PROD_REDIS_HOST
+    port: 6379
+    # TODO: Replace with production Redis password
+    password: TODO_PROD_REDIS_PASSWORD
+    database: 0
+    timeout: 10000
+    lettuce:
+      pool:
+        max-active: 16
+        max-idle: 8
+        min-idle: 4
+
+  # ---- Kafka ----
+  kafka:
+    # TODO: Replace with production Kafka brokers
+    bootstrap-servers: TODO_PROD_KAFKA_BROKERS
+    consumer:
+      group-id: aml-consumer-group-prod
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# ---- Elasticsearch ----
+elasticsearch:
+  # TODO: Replace with production Elasticsearch host
+  host: TODO_PROD_ES_HOST
+  port: 9200
+  scheme: https
+
+# ---- MinIO Object Storage ----
+minio:
+  # TODO: Replace with production MinIO endpoint
+  endpoint: http://TODO_PROD_MINIO_HOST:9000
+  # TODO: Replace with production MinIO credentials
+  access-key: TODO_PROD_MINIO_ACCESS_KEY
+  secret-key: TODO_PROD_MINIO_SECRET_KEY
+  bucket-name: aml-documents-prod
+
+# ---- JWT Authentication ----
+jwt:
+  # TODO: Generate a strong random secret key for production
+  secret-key: TODO_GENERATE_STRONG_SECRET_KEY_FOR_PRODUCTION_64CHARS
+  access-token-expire: 3600000      # 1小时 (毫秒)
+  refresh-token-expire: 604800000   # 7天 (毫秒)
+
+# ---- AML Business Config ----
+aml:
+  encryption:
+    # TODO: Use a secure 32-character encryption key from vault
+    key: TODO_PROD_32_CHAR_ENCRYPTION_KEY
+  screening:
+    match-threshold: 85
+  kafka:
+    topic: aml-transactions
+
+# ---- Logging ----
+logging:
+  level:
+    root: WARN

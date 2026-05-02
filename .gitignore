@@ -1,0 +1,79 @@
+# =============================================================
+# AML System - Git Ignore
+# =============================================================
+
+# ---- Build Output ----
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# ---- Maven ----
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+dependency-reduced-pom.xml
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+*.swp
+*.swo
+*~
+nbproject/
+
+# ---- OS Files ----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---- Logs ----
+logs/
+*.log
+*.log.gz
+*.log.1
+app.log*
+
+# ---- Environment / Secrets ----
+.env
+.env.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.p12
+*.jks
+
+# ---- Docker Volumes (local mount data) ----
+docker/mysql/data/
+docker/redis/data/
+docker/elasticsearch/data/
+docker/minio/data/
+docker/kafka/data/
+
+# ---- Spring Boot ----
+spring-shell.log
+
+# ---- Test / Coverage ----
+hs_err_pid*
+replay_pid*
+jacoco.exec
+test-output/
+
+# ---- Misc ----
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
+node_modules/
