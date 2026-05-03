@@ -362,7 +362,7 @@ function scoreLevelLabel(score: number | null) {
 async function loadRectifications() {
   rectLoading.value = true
   try {
-    const res: any = await request.get('/rectifications/list')
+    const res: any = await request.get('/assessments/rectifications/list')
     rectifications.value = res.data || []
   } catch { /* handled */ } finally {
     rectLoading.value = false
@@ -374,7 +374,7 @@ async function submitRectification() {
   if (!valid) return
   submitting.value = true
   try {
-    await request.post('/rectifications', { ...rectForm })
+    await request.post('/assessments/rectifications', { ...rectForm })
     ElMessage.success('创建整改任务成功')
     showCreateRectification.value = false
     Object.assign(rectForm, { assessmentId: '', issueDescription: '', rectificationMeasure: '', responsiblePerson: '', deadline: '' })
@@ -384,7 +384,7 @@ async function submitRectification() {
 
 async function updateRectStatus(id: string | number, status: string) {
   try {
-    await request.put(`/rectifications/${id}/status`, { status })
+    await request.put(`/assessments/rectifications/${id}/status`, { status })
     ElMessage.success('状态更新成功')
     loadRectifications()
   } catch { ElMessage.error('状态更新失败') }
@@ -393,7 +393,7 @@ async function updateRectStatus(id: string | number, status: string) {
 async function verifyRectification(id: string | number) {
   await ElMessageBox.confirm('确认验证通过该整改任务？', '提示', { type: 'warning' })
   try {
-    await request.post(`/rectifications/${id}/verify`)
+    await request.post(`/assessments/rectifications/${id}/verify`)
     ElMessage.success('验证通过')
     loadRectifications()
   } catch { ElMessage.error('验证失败') }
