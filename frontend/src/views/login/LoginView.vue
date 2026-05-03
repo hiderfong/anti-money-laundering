@@ -1,5 +1,8 @@
 <template>
   <div class="login-container">
+    <div class="theme-toggle-corner">
+      <ThemeToggle />
+    </div>
     <div class="login-card">
       <div class="login-header">
         <div class="login-logo">
@@ -30,6 +33,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -84,11 +88,12 @@ async function handleLogin() {
 .login-card {
   width: 380px;
   padding: 40px 36px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
   position: relative;
   z-index: 1;
+  box-shadow: var(--shadow-dialog);
 }
 
 .login-header {
@@ -128,5 +133,12 @@ async function handleLogin() {
   font-size: 13px;
   margin: 0;
   font-weight: 400;
+}
+
+.theme-toggle-corner {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
 }
 </style>

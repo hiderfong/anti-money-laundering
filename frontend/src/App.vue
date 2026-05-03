@@ -3,6 +3,5 @@
 </template>
 
 <script setup lang="ts">
-// 根组件 — 启用 Element Plus dark 模式
-document.documentElement.classList.add('dark')
+// 根组件 — 主题由 ThemeToggle 组件管理
 </script>

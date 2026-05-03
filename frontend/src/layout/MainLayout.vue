@@ -75,6 +75,7 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <ThemeToggle />
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-icon><UserFilled /></el-icon>
@@ -100,6 +101,7 @@
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -211,6 +213,12 @@ onBeforeUnmount(() => {
 .collapse-btn.disabled {
   cursor: default;
   opacity: 0.35;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .user-info {
