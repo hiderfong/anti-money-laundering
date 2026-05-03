@@ -3,12 +3,6 @@
 </template>
 
 <script setup lang="ts">
-// 根组件
+// 根组件 — 启用 Element Plus dark 模式
+document.documentElement.classList.add('dark')
 </script>
-
-<style>
-body {
-  margin: 0;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
-}
-</style>

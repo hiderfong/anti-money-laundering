@@ -3,15 +3,12 @@
     <!-- 侧边栏 -->
     <el-aside :width="effectiveCollapse ? '64px' : '220px'" class="aside">
       <div class="logo">
-        <el-icon size="24"><Lock /></el-icon>
+        <div class="logo-icon">A</div>
         <span v-show="!effectiveCollapse" class="logo-text">反洗钱系统</span>
       </div>
       <el-menu
         :default-active="currentRoute"
         :collapse="effectiveCollapse"
-        background-color="#001529"
-        text-color="#ffffffa6"
-        active-text-color="#ffffff"
         router
       >
         <el-menu-item index="/dashboard">
@@ -69,7 +66,7 @@
     <el-container>
       <el-header class="header">
         <div class="header-left">
-          <el-icon class="collapse-btn" :class="{ disabled: isMobile }" @click="toggleSidebar" size="20">
+          <el-icon class="collapse-btn" :class="{ disabled: isMobile }" @click="toggleSidebar" size="18">
             <Fold v-if="!effectiveCollapse" />
             <Expand v-else />
           </el-icon>
@@ -141,37 +138,101 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.layout-container { height: 100vh; }
+.layout-container {
+  height: 100vh;
+  background: var(--bg-deepest);
+}
+
 .aside {
-  background: #001529;
-  transition: width 0.3s;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-subtle);
+  transition: width 0.2s ease;
   overflow: hidden;
 }
+
 .logo {
-  height: 60px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 16px;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--accent-primary);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 18px;
-  font-weight: bold;
-  gap: 8px;
-  border-bottom: 1px solid #ffffff1a;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
 }
-.logo-text { white-space: nowrap; }
+
+.logo-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e8e8e8;
-  background: #fff;
+  height: 52px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
   padding: 0 20px;
 }
-.header-left { display: flex; align-items: center; gap: 16px; }
-.collapse-btn { cursor: pointer; }
-.collapse-btn.disabled { cursor: default; opacity: 0.45; }
-.user-info { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.main { background: #f0f2f5; padding: 20px; }
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.collapse-btn {
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color 0.15s ease;
+}
+
+.collapse-btn:hover {
+  color: var(--text-primary);
+}
+
+.collapse-btn.disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: 510;
+  transition: color 0.15s ease;
+}
+
+.user-info:hover {
+  color: var(--text-primary);
+}
+
+.main {
+  background: var(--bg-deepest);
+  padding: 24px;
+  overflow-y: auto;
+}
 
 @media (max-width: 767px) {
   .header {
