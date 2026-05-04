@@ -33,9 +33,12 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 案件管理服务实现
@@ -233,25 +236,43 @@ public class CaseServiceImpl implements CaseService {
 
         IPage<Case> page = caseMapper.selectPage(req.toPage(), wrapper);
 
-        // 转换为VO
+        List<Case> cases = page.getRecords();
+
+        // 批量查询关联数据（消除N+1）
+        Map<Long, Long> investigationCountMap = Collections.emptyMap();
+        Set<Long> caseIdsWithStr = Collections.emptySet();
+
+        if (!cases.isEmpty()) {
+            List<Long> caseIds = cases.stream().map(Case::getId).collect(Collectors.toList());
+
+            // 批量查询调查记录，按caseId分组计数
+            List<CaseInvestigation> investigations = caseInvestigationMapper.selectList(
+                    new LambdaQueryWrapper<CaseInvestigation>()
+                            .in(CaseInvestigation::getCaseId, caseIds)
+                            .select(CaseInvestigation::getCaseId)
+            );
+            investigationCountMap = investigations.stream()
+                    .collect(Collectors.groupingBy(CaseInvestigation::getCaseId, Collectors.counting()));
+
+            // 批量查询STR报告，只需知道哪些caseId有报告
+            List<StrReport> strReports = strReportMapper.selectList(
+                    new LambdaQueryWrapper<StrReport>()
+                            .in(StrReport::getCaseId, caseIds)
+                            .select(StrReport::getCaseId)
+            );
+            caseIdsWithStr = strReports.stream()
+                    .map(StrReport::getCaseId)
+                    .collect(Collectors.toSet());
+        }
+
+        // 转换为VO并组装关联数据
+        final Map<Long, Long> finalInvestigationCountMap = investigationCountMap;
+        final Set<Long> finalCaseIdsWithStr = caseIdsWithStr;
         IPage<CaseVO> voPage = page.convert(caseEntity -> {
             CaseVO vo = new CaseVO();
             BeanUtils.copyProperties(caseEntity, vo);
-
-            // 查询调查记录数
-            Long investigationCount = caseInvestigationMapper.selectCount(
-                    new LambdaQueryWrapper<CaseInvestigation>()
-                            .eq(CaseInvestigation::getCaseId, caseEntity.getId())
-            );
-            vo.setInvestigationCount(investigationCount.intValue());
-
-            // 查询是否有STR报告
-            Long strCount = strReportMapper.selectCount(
-                    new LambdaQueryWrapper<StrReport>()
-                            .eq(StrReport::getCaseId, caseEntity.getId())
-            );
-            vo.setHasStrReport(strCount > 0);
-
+            vo.setInvestigationCount(finalInvestigationCountMap.getOrDefault(caseEntity.getId(), 0L).intValue());
+            vo.setHasStrReport(finalCaseIdsWithStr.contains(caseEntity.getId()));
             return vo;
         });
 

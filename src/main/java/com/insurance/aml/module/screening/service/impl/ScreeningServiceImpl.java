@@ -16,8 +16,10 @@ import com.insurance.aml.module.screening.model.dto.ScreeningResultVO;
 import com.insurance.aml.module.screening.model.entity.*;
 import com.insurance.aml.module.screening.service.NameMatcher;
 import com.insurance.aml.module.screening.service.ScreeningService;
+import com.insurance.aml.module.screening.service.WatchlistCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.insurance.aml.module.screening.service.WhitelistCacheService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +29,16 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 制裁名单筛查服务实现
  * 实现客户筛查、批量筛查、结果审核等核心逻辑
+ *
+ * 优化说明：
+ * - 使用WatchlistCacheService批量加载名单数据到Redis缓存（TTL 5分钟）
+ * - 消除N+1查询：一次加载所有名单、别名、证件信息，内存分组匹配
+ * - 名单数据变更时自动清除缓存
  */
 @Service
 @Slf4j
@@ -46,6 +54,8 @@ public class ScreeningServiceImpl implements ScreeningService {
     private final CustomerMapper customerMapper;
     private final NameMatcher nameMatcher;
     private final IdGenerator idGenerator;
+    private final WatchlistCacheService watchlistCacheService;
+    private final WhitelistCacheService whitelistCacheService;
 
     /**
      * 命中阈值（分数>=此值即视为命中），可通过配置调整
@@ -62,8 +72,8 @@ public class ScreeningServiceImpl implements ScreeningService {
      * 流程：
      * 1. 创建筛查请求记录
      * 2. 加载客户信息
-     * 3. 遍历所有有效制裁名单条目，进行名称和证件匹配
-     * 4. 达到阈值的记录为筛查结果
+     * 3. 从Redis缓存批量加载所有制裁名单数据（消除N+1）
+     * 4. 内存中遍历匹配
      * 5. 更新筛查请求统计
      */
     @Override
@@ -89,19 +99,18 @@ public class ScreeningServiceImpl implements ScreeningService {
             String customerName = customer.getName();
             String customerIdNumber = customer.getIdNumber();
 
-            // 查询该客户是否有白名单记录
-            List<Whitelist> whitelists = whitelistMapper.selectList(
-                    new LambdaQueryWrapper<Whitelist>()
-                            .eq(Whitelist::getCustomerId, customerId)
-                            .eq(Whitelist::getReviewStatus, "ACTIVE")
-            );
+            // 查询该客户是否有白名单记录（通过WhitelistCacheService从缓存加载）
+            List<Whitelist> allActiveWhitelists = whitelistCacheService.getAllActiveWhitelists();
+            List<Whitelist> whitelists = allActiveWhitelists.stream()
+                    .filter(w -> customerId.equals(w.getCustomerId()))
+                    .toList();
             boolean hasWhitelist = !whitelists.isEmpty();
 
-            // 3. 加载所有有效的制裁名单条目
-            List<Watchlist> watchlistEntries = watchlistMapper.selectList(
-                    new LambdaQueryWrapper<Watchlist>()
-                            .eq(Watchlist::getStatus, "ACTIVE")
-            );
+            // 3. 从缓存批量加载所有制裁名单数据（消除N+1查询）
+            //    名单+别名+证件信息全部一次性加载，Redis缓存5分钟TTL
+            List<Watchlist> watchlistEntries = watchlistCacheService.getAllActiveWatchlists();
+            Map<Long, List<WatchlistAlias>> aliasesMap = watchlistCacheService.getAllAliasesGrouped();
+            Map<Long, List<WatchlistIdentity>> identitiesMap = watchlistCacheService.getAllIdentitiesGrouped();
 
             log.info("加载到 {} 条有效制裁名单条目", watchlistEntries.size());
 
@@ -111,15 +120,9 @@ public class ScreeningServiceImpl implements ScreeningService {
             for (Watchlist entry : watchlistEntries) {
                 boolean matchedEntry = false;
 
-                // 加载该条目的别名和证件信息
-                List<WatchlistAlias> aliases = watchlistAliasMapper.selectList(
-                        new LambdaQueryWrapper<WatchlistAlias>()
-                                .eq(WatchlistAlias::getWatchlistId, entry.getId())
-                );
-                List<WatchlistIdentity> identities = watchlistIdentityMapper.selectList(
-                        new LambdaQueryWrapper<WatchlistIdentity>()
-                                .eq(WatchlistIdentity::getWatchlistId, entry.getId())
-                );
+                // 从预加载的Map中获取该条目的别名和证件信息（内存查找，无DB查询）
+                List<WatchlistAlias> aliases = aliasesMap.getOrDefault(entry.getId(), List.of());
+                List<WatchlistIdentity> identities = identitiesMap.getOrDefault(entry.getId(), List.of());
 
                 // 4a. 检查证件精确匹配
                 if (customerIdNumber != null && !customerIdNumber.isBlank()) {
@@ -353,6 +356,7 @@ public class ScreeningServiceImpl implements ScreeningService {
         return whitelists.stream()
                 .anyMatch(w -> w.getWatchlistEntryId() != null && w.getWatchlistEntryId().equals(watchlistEntryId));
     }
+
 
     /**
      * 将实体转换为展示VO

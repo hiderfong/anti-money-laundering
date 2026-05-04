@@ -21,6 +21,8 @@ import com.insurance.aml.module.kyc.model.entity.CustomerRiskRatingLog;
 import com.insurance.aml.module.kyc.model.entity.VerificationRecord;
 import com.insurance.aml.module.kyc.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -107,6 +109,7 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "customer", key = "'customer::' + #req.id")
     public Customer updateCustomer(CustomerUpdateRequest req) {
         log.info("更新客户信息，客户ID：{}", req.getId());
 
@@ -151,6 +154,7 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
      * 加载客户基本信息和受益所有人列表，转换为VO并脱敏
      */
     @Override
+    @Cacheable(value = "customer", key = "'customer::' + #id")
     public CustomerVO getCustomerDetail(Long id) {
         log.debug("获取客户详情，客户ID：{}", id);
 

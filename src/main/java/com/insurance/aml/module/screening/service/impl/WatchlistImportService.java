@@ -7,6 +7,7 @@ import com.insurance.aml.module.screening.mapper.WatchlistMapper;
 import com.insurance.aml.module.screening.model.entity.Watchlist;
 import com.insurance.aml.module.screening.model.entity.WatchlistAlias;
 import com.insurance.aml.module.screening.model.entity.WatchlistIdentity;
+import com.insurance.aml.module.screening.service.WatchlistCacheService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class WatchlistImportService {
     private final WatchlistAliasMapper watchlistAliasMapper;
     private final WatchlistIdentityMapper watchlistIdentityMapper;
     private final ObjectMapper objectMapper;
+    private final WatchlistCacheService watchlistCacheService;
 
     /**
      * 从CSV文件导入制裁名单
@@ -113,6 +115,8 @@ public class WatchlistImportService {
                     watchlistMapper.insert(entry);
                 }
                 log.info("CSV导入完成，共导入 {} 条制裁名单记录", entries.size());
+            // 导入完成后清除缓存，下次筛查将从DB重新加载
+            watchlistCacheService.evictCache();
             }
 
             // 关联别名到对应条目（通过遍历顺序对应）
@@ -211,6 +215,8 @@ public class WatchlistImportService {
             }
 
             log.info("JSON导入完成，共导入 {} 条制裁名单记录", importedCount);
+            // 导入完成后清除缓存，下次筛查将从DB重新加载
+            watchlistCacheService.evictCache();
 
         } catch (BusinessException e) {
             throw e;

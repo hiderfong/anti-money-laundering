@@ -19,6 +19,9 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import java.time.Duration;
 
 /**
@@ -93,10 +96,21 @@ public class RedisConfig {
                 // 不缓存null值
                 .disableCachingNullValues();
 
+        // 为不同缓存空间配置不同的TTL
+        Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
+        // 客户详情缓存: 10分钟
+        cacheConfigurations.put("customer", config.entryTtl(Duration.ofMinutes(10)));
+        // 字典数据缓存: 30分钟
+        cacheConfigurations.put("dict", config.entryTtl(Duration.ofMinutes(30)));
+        // 白名单缓存: 5分钟
+        cacheConfigurations.put("whitelist", config.entryTtl(Duration.ofMinutes(5)));
+
         RedisCacheManager cacheManager = RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)
+                .withInitialCacheConfigurations(cacheConfigurations)
                 .transactionAware()
                 .build();
+
 
         log.info("Redis CacheManager 配置完成，Key前缀={}", CACHE_PREFIX);
         return cacheManager;

@@ -1,22 +1,22 @@
 package com.insurance.aml.module.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.insurance.aml.module.system.mapper.SysDictItemMapper;
 import com.insurance.aml.module.system.mapper.SysDictMapper;
 import com.insurance.aml.module.system.model.entity.SysDict;
 import com.insurance.aml.module.system.model.entity.SysDictItem;
 import com.insurance.aml.module.system.service.DictService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
+
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+
 
 /**
  * 数据字典服务实现
@@ -26,20 +26,11 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class DictServiceImpl implements DictService {
 
-    private static final String DICT_CACHE_KEY_PREFIX = "aml:dict:";
-    private static final long CACHE_EXPIRE_HOURS = 24;
-
     @Autowired
     private SysDictMapper sysDictMapper;
 
     @Autowired
     private SysDictItemMapper sysDictItemMapper;
-
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     /**
      * 查询所有字典列表
@@ -57,38 +48,10 @@ public class DictServiceImpl implements DictService {
      * 优先从Redis缓存获取，缓存未命中时查询数据库并回填缓存
      */
     @Override
+    @Cacheable(value = "dict", key = "'dict::' + #dictCode")
     public List<SysDictItem> getDictItems(String dictCode) {
-        String cacheKey = DICT_CACHE_KEY_PREFIX + dictCode;
-
-        // 尝试从Redis缓存获取
-        try {
-            String cachedData = stringRedisTemplate.opsForValue().get(cacheKey);
-            if (cachedData != null) {
-                log.debug("从Redis缓存获取字典项，dictCode={}", dictCode);
-                return objectMapper.readValue(cachedData, new TypeReference<List<SysDictItem>>() {});
-            }
-        } catch (JsonProcessingException e) {
-            log.warn("反序列化字典缓存失败，dictCode={}，错误：{}", dictCode, e.getMessage());
-        } catch (Exception e) {
-            log.warn("Redis缓存读取失败，降级查询数据库，dictCode={}，错误：{}", dictCode, e.getMessage());
-        }
-
-        // 缓存未命中，查询数据库
-        log.debug("Redis缓存未命中，查询数据库，dictCode={}", dictCode);
+        log.debug("查询字典项，dictCode={}", dictCode);
         List<SysDictItem> items = queryDictItemsFromDb(dictCode);
-
-        // 回填缓存
-        if (!items.isEmpty()) {
-            try {
-                String json = objectMapper.writeValueAsString(items);
-                stringRedisTemplate.opsForValue().set(cacheKey, json, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
-            } catch (JsonProcessingException e) {
-                log.warn("序列化字典项缓存失败，dictCode={}，错误：{}", dictCode, e.getMessage());
-            } catch (Exception e) {
-                log.warn("Redis缓存写入失败，dictCode={}，错误：{}", dictCode, e.getMessage());
-            }
-        }
-
         return items;
     }
 
@@ -96,25 +59,9 @@ public class DictServiceImpl implements DictService {
      * 刷新所有字典缓存到Redis
      */
     @Override
+    @CacheEvict(value = "dict", allEntries = true)
     public void refreshDictCache() {
-        log.info("开始刷新字典缓存");
-
-        List<SysDict> dicts = listDicts();
-        int successCount = 0;
-
-        for (SysDict dict : dicts) {
-            try {
-                List<SysDictItem> items = queryDictItemsFromDb(dict.getDictCode());
-                String json = objectMapper.writeValueAsString(items);
-                String cacheKey = DICT_CACHE_KEY_PREFIX + dict.getDictCode();
-                stringRedisTemplate.opsForValue().set(cacheKey, json, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
-                successCount++;
-            } catch (Exception e) {
-                log.error("刷新字典缓存失败，dictCode={}，错误：{}", dict.getDictCode(), e.getMessage());
-            }
-        }
-
-        log.info("字典缓存刷新完成，成功：{}/{}", successCount, dicts.size());
+        log.info("字典缓存已全部清除，下次访问将自动从数据库加载");
     }
 
     /**

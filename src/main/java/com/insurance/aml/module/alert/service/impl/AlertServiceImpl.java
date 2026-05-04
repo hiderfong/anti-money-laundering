@@ -29,12 +29,14 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * 预警管理服务实现类
@@ -180,15 +182,26 @@ public class AlertServiceImpl implements AlertService {
         IPage<Alert> page = req.toPage();
         IPage<Alert> result = alertMapper.selectPage(page, wrapper);
 
-        // 转换为VO并加载规则明细
+        List<Alert> alerts = result.getRecords();
+
+        // 批量查询关联的规则明细（消除N+1）
+        Map<Long, List<AlertRuleDetail>> detailMap = Collections.emptyMap();
+        if (!alerts.isEmpty()) {
+            List<Long> alertIds = alerts.stream().map(Alert::getId).collect(Collectors.toList());
+            List<AlertRuleDetail> allDetails = alertRuleDetailMapper.selectList(
+                    new LambdaQueryWrapper<AlertRuleDetail>()
+                            .in(AlertRuleDetail::getAlertId, alertIds)
+            );
+            detailMap = allDetails.stream()
+                    .collect(Collectors.groupingBy(AlertRuleDetail::getAlertId));
+        }
+
+        // 转换为VO并组装规则明细
+        final Map<Long, List<AlertRuleDetail>> finalDetailMap = detailMap;
         IPage<AlertVO> voPage = result.convert(alert -> {
             AlertVO vo = new AlertVO();
             BeanUtils.copyProperties(alert, vo);
-            // 加载规则明细
-            LambdaQueryWrapper<AlertRuleDetail> detailWrapper = new LambdaQueryWrapper<>();
-            detailWrapper.eq(AlertRuleDetail::getAlertId, alert.getId());
-            List<AlertRuleDetail> details = alertRuleDetailMapper.selectList(detailWrapper);
-            vo.setRuleDetails(details);
+            vo.setRuleDetails(finalDetailMap.getOrDefault(alert.getId(), Collections.emptyList()));
             return vo;
         });
 

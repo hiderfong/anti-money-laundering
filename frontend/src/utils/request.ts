@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
 
 // 创建 axios 实例
 const request: AxiosInstance = axios.create({
@@ -53,14 +54,11 @@ request.interceptors.response.use(
         localStorage.removeItem('aml_token')
         localStorage.removeItem('aml_user')
         ElMessage.error('登录已过期，请重新登录')
-        window.location.href = '/login'
+        router.push('/login')
       }
     } else if (error.response?.status === 403) {
       ElMessage.error('权限不足')
-      // 跳转到403页面（非API请求时）
-      if (!error.config?.url?.startsWith('/api/')) {
-        window.location.href = '/403'
-      }
+      router.push('/403')
     } else {
       ElMessage.error(error.response?.data?.message || '网络错误')
     }
