@@ -21,10 +21,10 @@ import com.insurance.aml.module.kyc.model.entity.CustomerRiskRatingLog;
 import com.insurance.aml.module.kyc.model.entity.VerificationRecord;
 import com.insurance.aml.module.kyc.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -37,23 +37,14 @@ import java.util.stream.Collectors;
  * 客户服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Customer> implements CustomerService {
-
-    @Autowired
-    private CustomerBeneficialOwnerMapper beneficialOwnerMapper;
-
-    @Autowired
-    private VerificationRecordMapper verificationRecordMapper;
-
-    @Autowired
-    private CustomerRiskRatingLogMapper riskRatingLogMapper;
-
-    @Autowired
-    private IdGenerator idGenerator;
-
-    @Autowired
-    private EncryptUtils encryptUtils;
+    private final CustomerBeneficialOwnerMapper beneficialOwnerMapper;
+    private final VerificationRecordMapper verificationRecordMapper;
+    private final CustomerRiskRatingLogMapper riskRatingLogMapper;
+    private final IdGenerator idGenerator;
+    private final EncryptUtils encryptUtils;
 
     /**
      * 创建客户

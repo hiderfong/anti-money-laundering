@@ -18,8 +18,8 @@ import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
 import com.insurance.aml.module.reporting.service.LargeTxnReportService;
 import com.insurance.aml.module.reporting.service.XmlGeneratorService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,26 +32,15 @@ import java.util.stream.Collectors;
  * 大额交易报告服务实现
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class LargeTxnReportServiceImpl implements LargeTxnReportService {
-
-    @Autowired
-    private LargeTxnReportMapper largeTxnReportMapper;
-
-    @Autowired
-    private ReportSubmitLogMapper reportSubmitLogMapper;
-
-    @Autowired
-    private TransactionMapper transactionMapper;
-
-    @Autowired
-    private CustomerMapper customerMapper;
-
-    @Autowired
-    private IdGenerator idGenerator;
-
-    @Autowired
-    private XmlGeneratorService xmlGeneratorService;
+    private final LargeTxnReportMapper largeTxnReportMapper;
+    private final ReportSubmitLogMapper reportSubmitLogMapper;
+    private final TransactionMapper transactionMapper;
+    private final CustomerMapper customerMapper;
+    private final IdGenerator idGenerator;
+    private final XmlGeneratorService xmlGeneratorService;
 
     /**
      * 生成大额交易报告

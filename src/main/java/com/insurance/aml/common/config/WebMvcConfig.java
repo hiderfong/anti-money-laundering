@@ -2,7 +2,7 @@ package com.insurance.aml.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -24,19 +24,16 @@ import java.util.List;
  * @author AML Team
  */
 @Slf4j
+@RequiredArgsConstructor
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
-
     /** 当前激活的环境（dev/prod） */
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
-
     /** 生产环境允许的CORS来源域名列表 */
     @Value("${aml.cors.allowed-origins:#{null}}")
     private List<String> allowedOrigins;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 
     /**
      * 配置跨域资源共享（CORS）

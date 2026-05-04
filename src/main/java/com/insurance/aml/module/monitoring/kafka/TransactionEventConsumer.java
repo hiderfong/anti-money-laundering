@@ -10,7 +10,6 @@ import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.service.RuleEngineService;
 import com.insurance.aml.module.monitoring.service.GraphAnalysisService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -37,11 +36,9 @@ import java.util.concurrent.CompletableFuture;
 @Component
 @RequiredArgsConstructor
 public class TransactionEventConsumer {
-
     private final RuleEngineService ruleEngineService;
     private final AlertService alertService;
-    @Autowired(required = false)
-    private GraphAnalysisService graphAnalysisService;
+    private final GraphAnalysisService graphAnalysisService;
 
     /**
      * 消费交易事件，触发异步规则引擎评估管道

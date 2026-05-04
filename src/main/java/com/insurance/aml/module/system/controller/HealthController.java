@@ -4,7 +4,7 @@ import com.insurance.aml.common.result.Result;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,20 +24,15 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/system")
+@RequiredArgsConstructor
 @Tag(name = "系统管理", description = "系统管理相关接口")
 public class HealthController {
-
+    private final DataSource dataSource;
+    private final StringRedisTemplate stringRedisTemplate;
     @Value("${spring.application.name:aml-system}")
     private String appName;
-
     @Value("${app.version:1.0.0}")
     private String appVersion;
-
-    @Autowired
-    private DataSource dataSource;
-
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 系统健康检查

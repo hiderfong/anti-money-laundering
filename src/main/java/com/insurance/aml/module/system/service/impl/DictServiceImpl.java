@@ -8,10 +8,9 @@ import com.insurance.aml.module.system.model.entity.SysDict;
 import com.insurance.aml.module.system.model.entity.SysDictItem;
 import com.insurance.aml.module.system.service.DictService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -23,14 +22,11 @@ import java.util.List;
  * 使用Redis缓存字典数据，提升查询性能
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class DictServiceImpl implements DictService {
-
-    @Autowired
-    private SysDictMapper sysDictMapper;
-
-    @Autowired
-    private SysDictItemMapper sysDictItemMapper;
+    private final SysDictMapper sysDictMapper;
+    private final SysDictItemMapper sysDictItemMapper;
 
     /**
      * 查询所有字典列表

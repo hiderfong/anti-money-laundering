@@ -19,8 +19,8 @@ import com.insurance.aml.module.alert.service.AlertService;
 import com.insurance.aml.module.case_.model.dto.CaseCreateRequest;
 import com.insurance.aml.module.case_.service.CaseService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -42,26 +42,16 @@ import java.util.stream.Collectors;
  * 预警管理服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class AlertServiceImpl implements AlertService {
 
-    @Autowired
-    private AlertMapper alertMapper;
-
-    @Autowired
-    private AlertRuleDetailMapper alertRuleDetailMapper;
-
-    @Autowired
-    private AlertAssignmentLogMapper assignmentLogMapper;
-
-    @Autowired
-    private IdGenerator idGenerator;
-
-    @Autowired
-    private CaseService caseService;
-
-    @Autowired
-    private Executor amlTaskExecutor;
+    private final AlertMapper alertMapper;
+    private final AlertRuleDetailMapper alertRuleDetailMapper;
+    private final AlertAssignmentLogMapper assignmentLogMapper;
+    private final IdGenerator idGenerator;
+    private final CaseService caseService;
+    private final Executor amlTaskExecutor;
 
     /**
      * 创建预警

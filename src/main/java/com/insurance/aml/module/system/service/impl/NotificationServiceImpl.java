@@ -10,8 +10,8 @@ import com.insurance.aml.module.system.model.dto.NotificationVO;
 import com.insurance.aml.module.system.model.entity.SysNotification;
 import com.insurance.aml.module.system.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +23,10 @@ import java.util.stream.Collectors;
  * 通知管理服务实现
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class NotificationServiceImpl implements NotificationService {
-
-    @Autowired
-    private SysNotificationMapper sysNotificationMapper;
+    private final SysNotificationMapper sysNotificationMapper;
 
     /**
      * 发送通知：构建通知实体并写入数据库

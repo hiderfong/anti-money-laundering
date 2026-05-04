@@ -11,8 +11,8 @@ import com.insurance.aml.module.system.model.entity.SysAuditLog;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.module.system.service.AuditLogQueryService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -28,11 +28,10 @@ import java.util.stream.Collectors;
  * 审计日志查询服务实现
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class AuditLogQueryServiceImpl implements AuditLogQueryService {
-
-    @Autowired
-    private SysAuditLogMapper sysAuditLogMapper;
+    private final SysAuditLogMapper sysAuditLogMapper;
 
     /**
      * 分页查询审计日志：支持按用户ID、用户名、操作类型、模块、时间范围筛选

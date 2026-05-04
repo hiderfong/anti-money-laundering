@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -20,11 +20,10 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/system/notifications")
+@RequiredArgsConstructor
 @Tag(name = "通知管理", description = "通知管理相关接口")
 public class NotificationController {
-
-    @Autowired
-    private NotificationService notificationService;
+    private final NotificationService notificationService;
 
     /**
      * 获取当前用户的通知列表（分页）

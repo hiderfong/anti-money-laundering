@@ -13,8 +13,8 @@ import com.insurance.aml.module.system.model.entity.SysRole;
 import com.insurance.aml.module.system.model.entity.SysUser;
 import com.insurance.aml.module.system.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,18 +28,12 @@ import java.util.stream.Collectors;
  * 用户管理服务实现
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserServiceImpl implements UserService {
-
-    @Autowired
-    private SysUserMapper sysUserMapper;
-
-    @Autowired
-    private SysUserRoleMapper sysUserRoleMapper;
-
-    @Autowired
-    private SysRoleMapper sysRoleMapper;
-
+    private final SysUserMapper sysUserMapper;
+    private final SysUserRoleMapper sysUserRoleMapper;
+    private final SysRoleMapper sysRoleMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**

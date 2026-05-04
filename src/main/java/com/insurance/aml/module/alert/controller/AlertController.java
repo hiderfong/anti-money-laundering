@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,11 +22,10 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/alerts")
+@RequiredArgsConstructor
 @Tag(name = "预警管理", description = "预警查询、分配、处理相关接口")
 public class AlertController {
-
-    @Autowired
-    private AlertService alertService;
+    private final AlertService alertService;
 
     /**
      * 分页查询预警列表

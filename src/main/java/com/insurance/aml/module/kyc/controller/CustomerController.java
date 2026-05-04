@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -21,11 +21,10 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/kyc/customers")
+@RequiredArgsConstructor
 @Tag(name = "客户管理", description = "客户信息管理相关接口")
 public class CustomerController {
-
-    @Autowired
-    private CustomerService customerService;
+    private final CustomerService customerService;
 
     /**
      * 创建客户

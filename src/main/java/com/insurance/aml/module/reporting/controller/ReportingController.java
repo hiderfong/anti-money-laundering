@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -20,11 +20,10 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/reporting")
+@RequiredArgsConstructor
 @Tag(name = "监管报送", description = "监管报送相关接口")
 public class ReportingController {
-
-    @Autowired
-    private LargeTxnReportService largeTxnReportService;
+    private final LargeTxnReportService largeTxnReportService;
 
     /**
      * 生成大额交易报告
