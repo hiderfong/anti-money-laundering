@@ -4,15 +4,17 @@ import com.insurance.aml.module.auth.model.JwtUserDetails;
 import com.insurance.aml.module.auth.model.LoginRequest;
 import com.insurance.aml.module.auth.model.LoginResponse;
 import com.insurance.aml.module.auth.service.JwtService;
+import com.insurance.aml.module.system.mapper.SysPermissionMapper;
+import com.insurance.aml.module.system.mapper.SysRoleMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,6 +30,8 @@ public class AuthServiceImpl {
     private final JwtService jwtService;
     private final UserDetailsServiceImpl userDetailsService;
     private final StringRedisTemplate redisTemplate;
+    private final SysRoleMapper sysRoleMapper;
+    private final SysPermissionMapper sysPermissionMapper;
 
     /**
      * Redis中刷新令牌的前缀
@@ -66,6 +70,10 @@ public class AuthServiceImpl {
 
         log.info("用户登录成功: userId={}, username={}", userDetails.getUserId(), userDetails.getUsername());
 
+        // 查询用户角色和权限
+        List<String> roles = sysRoleMapper.findRoleCodesByUserId(userDetails.getUserId());
+        List<String> permissions = sysPermissionMapper.findPermissionCodesByUserId(userDetails.getUserId());
+
         // 构建登录响应
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -75,6 +83,8 @@ public class AuthServiceImpl {
                 .userId(userDetails.getUserId())
                 .username(userDetails.getUsername())
                 .realName(userDetails.getRealName())
+                .roles(roles)
+                .permissions(permissions)
                 .build();
     }
 
@@ -117,6 +127,10 @@ public class AuthServiceImpl {
 
         log.info("访问令牌刷新成功: userId={}", userId);
 
+        // 查询用户角色和权限
+        List<String> roles = sysRoleMapper.findRoleCodesByUserId(userId);
+        List<String> permissions = sysPermissionMapper.findPermissionCodesByUserId(userId);
+
         return LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
@@ -125,6 +139,8 @@ public class AuthServiceImpl {
                 .userId(userDetails.getUserId())
                 .username(userDetails.getUsername())
                 .realName(userDetails.getRealName())
+                .roles(roles)
+                .permissions(permissions)
                 .build();
     }
 

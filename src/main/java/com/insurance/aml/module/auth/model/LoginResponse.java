@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 登录响应结果
  */
@@ -32,4 +34,10 @@ public class LoginResponse {
 
     @Schema(description = "真实姓名")
     private String realName;
+
+    @Schema(description = "用户角色列表")
+    private List<String> roles;
+
+    @Schema(description = "用户权限编码列表")
+    private List<String> permissions;
 }

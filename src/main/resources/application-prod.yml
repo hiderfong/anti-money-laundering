@@ -77,6 +77,10 @@ aml:
     match-threshold: 85
   kafka:
     topic: aml-transactions
+  cors:
+    allowed-origins:
+      - https://aml.insurance.com
+      - https://admin.aml.insurance.com
 
 # ---- Logging ----
 logging:

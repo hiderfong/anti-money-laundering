@@ -11,54 +11,12 @@
         :collapse="effectiveCollapse"
         router
       >
-        <el-menu-item index="/dashboard">
-          <el-icon><Odometer /></el-icon>
-          <template #title>仪表盘</template>
-        </el-menu-item>
-        <el-menu-item index="/kyc">
-          <el-icon><User /></el-icon>
-          <template #title>客户管理</template>
-        </el-menu-item>
-        <el-menu-item index="/screening">
-          <el-icon><Search /></el-icon>
-          <template #title>名单筛查</template>
-        </el-menu-item>
-        <el-menu-item index="/monitoring">
-          <el-icon><Monitor /></el-icon>
-          <template #title>交易监测</template>
-        </el-menu-item>
-        <el-menu-item index="/alerts">
-          <el-icon><Bell /></el-icon>
-          <template #title>预警管理</template>
-        </el-menu-item>
-        <el-menu-item index="/cases">
-          <el-icon><FolderOpened /></el-icon>
-          <template #title>案件管理</template>
-        </el-menu-item>
-        <el-menu-item index="/str-reports">
-          <el-icon><Warning /></el-icon>
-          <template #title>STR报告</template>
-        </el-menu-item>
-        <el-menu-item index="/reporting">
-          <el-icon><Document /></el-icon>
-          <template #title>监管报送</template>
-        </el-menu-item>
-        <el-menu-item index="/products">
-          <el-icon><Goods /></el-icon>
-          <template #title>产品管理</template>
-        </el-menu-item>
-        <el-menu-item index="/assessment">
-          <el-icon><DataAnalysis /></el-icon>
-          <template #title>自评估</template>
-        </el-menu-item>
-        <el-menu-item index="/notifications">
-          <el-icon><Notification /></el-icon>
-          <template #title>通知中心</template>
-        </el-menu-item>
-        <el-menu-item index="/system">
-          <el-icon><Setting /></el-icon>
-          <template #title>系统管理</template>
-        </el-menu-item>
+        <template v-for="item in filteredMenus" :key="item.path">
+          <el-menu-item :index="item.path">
+            <el-icon><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.title }}</template>
+          </el-menu-item>
+        </template>
       </el-menu>
     </el-aside>
 
@@ -103,6 +61,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
+interface MenuItem {
+  path: string
+  title: string
+  icon: string
+  roles?: string[]
+  permissions?: string[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
@@ -112,6 +78,41 @@ const isMobile = ref(false)
 const currentRoute = computed(() => route.path)
 const currentTitle = computed(() => (route.meta?.title as string) || '首页')
 const effectiveCollapse = computed(() => isMobile.value || isCollapse.value)
+
+// 菜单配置：定义角色/权限要求
+const menuItems: MenuItem[] = [
+  { path: '/dashboard', title: '仪表盘', icon: 'Odometer' },
+  { path: '/kyc', title: '客户管理', icon: 'User', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['customer:view'] },
+  { path: '/screening', title: '名单筛查', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['screening:view'] },
+  { path: '/monitoring', title: '交易监测', icon: 'Monitor', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['monitoring:view'] },
+  { path: '/alerts', title: '预警管理', icon: 'Bell', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['alert:view'] },
+  { path: '/cases', title: '案件管理', icon: 'FolderOpened', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['case:view'] },
+  { path: '/str-reports', title: 'STR报告', icon: 'Warning', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:str'] },
+  { path: '/reporting', title: '监管报送', icon: 'Document', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:view'] },
+  { path: '/products', title: '产品管理', icon: 'Goods', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_VIEWER'], permissions: ['product:view'] },
+  { path: '/assessment', title: '自评估', icon: 'DataAnalysis', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['assessment:view'] },
+  { path: '/notifications', title: '通知中心', icon: 'Notification' },
+  { path: '/system', title: '系统管理', icon: 'Setting', roles: ['ROLE_ADMIN'], permissions: ['system:view'] }
+]
+
+// 根据用户角色和权限动态过滤菜单
+const filteredMenus = computed(() => {
+  return menuItems.filter(item => {
+    // 无角色/权限限制的菜单直接显示
+    if (!item.roles && !item.permissions) return true
+
+    // 管理员显示所有菜单
+    if (userStore.isAdmin) return true
+
+    // 角色检查：任一角色匹配即通过
+    const roleOk = !item.roles || item.roles.some(role => userStore.hasRole(role))
+    // 权限检查：任一权限匹配即通过
+    const permOk = !item.permissions || item.permissions.some(perm => userStore.hasPermission(perm))
+
+    // 两者都满足才显示（roles 和 permissions 是 AND 关系）
+    return roleOk && permOk
+  })
+})
 
 function syncViewport() {
   isMobile.value = window.innerWidth < 768

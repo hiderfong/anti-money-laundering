@@ -2,13 +2,11 @@ package com.insurance.aml.module.monitoring.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.insurance.aml.common.config.AsyncConfig;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.util.IdGenerator;
+import com.insurance.aml.module.monitoring.event.TransactionCommittedEvent;
 import com.insurance.aml.module.monitoring.mapper.TransactionDailySummaryMapper;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
-import com.insurance.aml.module.monitoring.kafka.TransactionEventProducer;
-import com.insurance.aml.module.monitoring.model.dto.TransactionEvent;
 import com.insurance.aml.module.monitoring.model.dto.TransactionIngestRequest;
 import com.insurance.aml.module.monitoring.model.dto.TransactionQueryRequest;
 import com.insurance.aml.module.monitoring.model.dto.TransactionVO;
@@ -18,6 +16,7 @@ import com.insurance.aml.module.monitoring.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,7 +48,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionDailySummaryMapper dailySummaryMapper;
     private final IdGenerator idGenerator;
     private final StringRedisTemplate redisTemplate;
-    private final TransactionEventProducer transactionEventProducer;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     /** 注入异步任务执行器，用于CompletableFuture异步管道 */
     private final Executor amlTaskExecutor;
@@ -82,8 +81,8 @@ public class TransactionServiceImpl implements TransactionService {
         // 3. 更新日汇总：Redis实时计数 + DB汇总更新
         updateDailySummary(transaction);
 
-        // 4. 发送交易事件到Kafka，由Consumer异步触发规则引擎评估
-        sendKafkaEvent(transaction);
+        // 4. 发布事务提交事件，仅在事务成功提交后才发送Kafka消息
+        applicationEventPublisher.publishEvent(new TransactionCommittedEvent(this, transaction));
 
         return transaction;
     }
@@ -131,23 +130,12 @@ public class TransactionServiceImpl implements TransactionService {
                 amlTaskExecutor
         );
 
-        CompletableFuture<Void> kafkaFuture = CompletableFuture.runAsync(
-                () -> {
-                    long start = System.currentTimeMillis();
-                    try {
-                        sendKafkaEvent(transaction);
-                        log.debug("[异步管道] Kafka事件发送完成: transactionNo={}, 耗时={}ms",
-                                transaction.getTransactionNo(), System.currentTimeMillis() - start);
-                    } catch (Exception e) {
-                        log.error("[异步管道] Kafka事件发送失败: transactionNo={}, error={}",
-                                transaction.getTransactionNo(), e.getMessage(), e);
-                    }
-                },
-                amlTaskExecutor
-        );
+        // 发布事务提交事件（事务提交后由 TransactionEventListener 异步发送Kafka）
+        applicationEventPublisher.publishEvent(new TransactionCommittedEvent(this, transaction));
+
 
         // ===== 阶段3: 等待并行任务全部完成 =====
-        return CompletableFuture.allOf(dailySummaryFuture, kafkaFuture)
+        return dailySummaryFuture
                 .thenApply(v -> {
                     log.info("[异步管道] 交易录入全流程完成: transactionNo={}, 总耗时={}ms",
                             transaction.getTransactionNo(),
@@ -157,7 +145,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .exceptionally(ex -> {
                     log.error("[异步管道] 交易录入部分任务异常: transactionNo={}, error={}",
                             transaction.getTransactionNo(), ex.getMessage(), ex);
-                    // 入库已成功，仍返回交易记录（Kafka/汇总失败不影响主流程）
+                    // 入库已成功，仍返回交易记录（日汇总失败不影响主流程）
                     return transaction;
                 });
     }
@@ -245,18 +233,7 @@ public class TransactionServiceImpl implements TransactionService {
         return transaction;
     }
 
-    /**
-     * 发送Kafka事件（封装异常处理，Kafka发送失败不影响主流程）
-     */
-    private void sendKafkaEvent(Transaction transaction) {
-        try {
-            TransactionEvent event = TransactionEvent.fromEntity(transaction);
-            transactionEventProducer.sendTransactionEvent(event);
-            log.info("交易事件已发送到Kafka: transactionNo={}", transaction.getTransactionNo());
-        } catch (Exception e) {
-            log.error("交易事件发送Kafka失败，交易ID={}: {}", transaction.getId(), e.getMessage(), e);
-        }
-    }
+
 
     /**
      * 更新交易日汇总

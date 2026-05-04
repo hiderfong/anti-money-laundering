@@ -2,6 +2,7 @@ package com.insurance.aml.module.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.insurance.aml.module.auth.model.JwtUserDetails;
+import com.insurance.aml.module.system.mapper.SysRoleMapper;
 import com.insurance.aml.module.system.mapper.SysUserMapper;
 import com.insurance.aml.module.system.model.entity.SysUser;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +13,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -25,6 +25,7 @@ import java.util.List;
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final SysUserMapper sysUserMapper;
+    private final SysRoleMapper sysRoleMapper;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -45,13 +46,24 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new UsernameNotFoundException("用户已被禁用: " + username);
         }
 
+        // 从数据库查询用户角色
+        List<String> roleCodes = sysRoleMapper.findRoleCodesByUserId(user.getId());
+        List<SimpleGrantedAuthority> authorities = roleCodes.stream()
+                .map(role -> new SimpleGrantedAuthority(role))
+                .toList();
+
+        // 如果没有分配角色，默认给一个空角色
+        if (authorities.isEmpty()) {
+            authorities = List.of(new SimpleGrantedAuthority("ROLE_VIEWER"));
+        }
+
         // 构建UserDetails，包含密码
         return JwtUserDetails.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
                 .password(user.getPasswordHash())
                 .realName(user.getRealName())
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                .authorities(authorities)
                 .build();
     }
 }

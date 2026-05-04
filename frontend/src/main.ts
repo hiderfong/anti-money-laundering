@@ -9,6 +9,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
 import App from './App.vue'
 import router from './router'
+import { permDirective } from './directives/perm'
 
 const app = createApp(App)
 
@@ -16,6 +17,9 @@ const app = createApp(App)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
+
+// 注册权限指令: v-perm="'code'" 或 v-perm:role="'ROLE_ADMIN'"
+app.directive('perm', permDirective)
 
 app.use(createPinia())
 app.use(router)

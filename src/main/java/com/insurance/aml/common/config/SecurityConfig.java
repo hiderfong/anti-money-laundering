@@ -5,8 +5,10 @@ import com.insurance.aml.module.auth.filter.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -33,6 +35,7 @@ import java.util.Map;
  * Spring Security 安全配置
  * 配置JWT认证、CORS、权限控制等
  */
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -41,6 +44,12 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
+
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
+    @Value("${aml.cors.allowed-origins:#{null}}")
+    private List<String> allowedOrigins;
 
     /**
      * 不需要认证的路径
@@ -102,12 +111,26 @@ public class SecurityConfig {
 
     /**
      * CORS跨域配置
+     * dev/test环境: 允许所有来源(方便开发)
+     * prod环境: 仅允许配置文件中指定的域名
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许的前端源（开发环境）
-        configuration.setAllowedOriginPatterns(List.of("*"));
+
+        if ("prod".equals(activeProfile)) {
+            if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+                log.warn("生产环境未配置 CORS 允许的域名列表(aml.cors.allowed-origins)，默认拒绝所有跨域请求");
+                configuration.setAllowedOrigins(List.of());
+            } else {
+                log.info("生产环境 CORS 允许的域名: {}", allowedOrigins);
+                configuration.setAllowedOrigins(allowedOrigins);
+            }
+        } else {
+            log.info("开发/测试环境 CORS: 允许所有来源");
+            configuration.setAllowedOriginPatterns(List.of("*"));
+        }
+
         // 允许的HTTP方法
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         // 允许的请求头

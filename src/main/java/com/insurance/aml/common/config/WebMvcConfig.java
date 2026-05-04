@@ -31,6 +31,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
 
+    /** 生产环境允许的CORS来源域名列表 */
+    @Value("${aml.cors.allowed-origins:#{null}}")
+    private List<String> allowedOrigins;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -48,23 +52,25 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
         if ("prod".equals(activeProfile)) {
             // 生产环境：严格限制CORS来源
-            log.info("生产环境 CORS：仅允许指定域名访问");
-            registry.addMapping("/api/**")
-                    .allowedOrigins(
-                            "https://aml.insurance.com",
-                            "https://admin.aml.insurance.com"
-                    )
-                    .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH")
-                    .allowedHeaders("*")
-                    .allowCredentials(true)
-                    .maxAge(3600);
+            if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+                log.warn("生产环境未配置 CORS 允许的域名列表(aml.cors.allowed-origins)，WebMvc CORS 未注册");
+            } else {
+                log.info("生产环境 CORS 允许的域名: {}", allowedOrigins);
+                registry.addMapping("/api/**")
+                        .allowedOrigins(allowedOrigins.toArray(new String[0]))
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH")
+                        .allowedHeaders("*")
+                        .allowCredentials(true)
+                        .maxAge(3600);
+            }
         } else {
             // 开发环境：允许所有来源
             log.info("开发环境 CORS：允许所有来源访问");
             registry.addMapping("/api/**")
-                    .allowedOrigins("*")
+                    .allowedOriginPatterns("*")
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                     .allowedHeaders("*")
+                    .allowCredentials(true)
                     .maxAge(3600);
         }
     }

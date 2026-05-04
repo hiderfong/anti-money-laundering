@@ -57,6 +57,10 @@ request.interceptors.response.use(
       }
     } else if (error.response?.status === 403) {
       ElMessage.error('权限不足')
+      // 跳转到403页面（非API请求时）
+      if (!error.config?.url?.startsWith('/api/')) {
+        window.location.href = '/403'
+      }
     } else {
       ElMessage.error(error.response?.data?.message || '网络错误')
     }

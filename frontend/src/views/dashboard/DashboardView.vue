@@ -56,11 +56,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import request from '@/utils/request'
 
 const loading = ref(false)
+const charts: echarts.ECharts[] = []
+const resizeHandlers: (() => void)[] = []
 const trendChart = ref()
 const pieChart = ref()
 const recentAlerts = ref<any[]>([])
@@ -117,26 +119,37 @@ onMounted(async () => {
 
 function initTrendChart(data: any[]) {
   const chart = echarts.init(trendChart.value)
+  charts.push(chart)
   chart.setOption({
     tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', data: data.map((d: any) => d.date) },
     yAxis: { type: 'value' },
     series: [{ name: '预警数', type: 'line', data: data.map((d: any) => d.count), smooth: true, areaStyle: { opacity: 0.3 } }]
   })
-  window.addEventListener('resize', () => chart.resize())
+  const handler = () => chart.resize()
+  resizeHandlers.push(handler)
+  window.addEventListener('resize', handler)
 }
 
 function initPieChart(data: any[]) {
   const chart = echarts.init(pieChart.value)
+  charts.push(chart)
   chart.setOption({
     tooltip: { trigger: 'item' },
     series: [{
-      type: 'pie', radius: '60%',
-      data: data.map((d: any) => ({ name: d.alertType, value: d.count })),
+      type: 'pie', radius: '60%', data,
       emphasis: { itemStyle: { shadowBlur: 10 } }
     }]
   })
-  window.addEventListener('resize', () => chart.resize())
+  const handler = () => chart.resize()
+  resizeHandlers.push(handler)
+  window.addEventListener('resize', handler)
+}
+
+onUnmounted(() => {
+  charts.forEach(c => c.dispose())
+  resizeHandlers.forEach(h => window.removeEventListener('resize', h))
+})
 }
 </script>
 
