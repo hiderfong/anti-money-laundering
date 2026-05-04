@@ -7,6 +7,7 @@ import com.insurance.aml.module.alert.model.entity.Alert;
 import com.insurance.aml.module.alert.model.entity.AlertRuleDetail;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 预警管理服务接口
@@ -20,6 +21,16 @@ public interface AlertService {
      * @return 创建的预警
      */
     Alert createAlert(Alert alert, List<AlertRuleDetail> ruleDetails);
+
+    /**
+     * 异步创建预警
+     * 预警入库、规则明细保存、自动分配均异步执行，不阻塞调用方。
+     *
+     * @param alert 预警信息
+     * @param ruleDetails 命中规则明细
+     * @return CompletableFuture，包含创建的预警
+     */
+    CompletableFuture<Alert> createAlertAsync(Alert alert, List<AlertRuleDetail> ruleDetails);
 
     /**
      * 分页查询预警

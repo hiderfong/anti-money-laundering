@@ -8,6 +8,7 @@ import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.model.entity.TransactionDailySummary;
 
 import java.time.LocalDate;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 交易服务接口
@@ -21,6 +22,15 @@ public interface TransactionService {
      * @return 保存后的交易记录
      */
     Transaction ingestTransaction(TransactionIngestRequest req);
+
+    /**
+     * 异步录入交易
+     * 入库后，日汇总更新与Kafka事件发送并行执行，降低整体处理延迟。
+     *
+     * @param req 交易录入请求
+     * @return 异步Future，包含保存后的交易记录
+     */
+    CompletableFuture<Transaction> ingestTransactionAsync(TransactionIngestRequest req);
 
     /**
      * 分页查询交易

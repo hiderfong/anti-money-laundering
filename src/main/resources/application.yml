@@ -10,6 +10,10 @@ server:
 spring:
   profiles:
     active: dev
+  # JDK 21 Virtual Threads - 提升高并发交易处理能力
+  threads:
+    virtual:
+      enabled: true
 
   # Jackson JSON serialization
   jackson:

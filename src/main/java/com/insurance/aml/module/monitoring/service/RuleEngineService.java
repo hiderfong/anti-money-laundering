@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,14 +24,19 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * 规则引擎服务
- * 双引擎架构：同时支持数据库规则和Drools规则引擎
+ * 三引擎架构：数据库规则 + Drools规则 + Redis Lua规则 三路并行评估
  * - 数据库规则: 通过RuleDefinition表管理，适合简单阈值类规则
  * - Drools规则: 通过.drl文件定义，适合复杂业务逻辑规则
- * 两套规则并行执行，结果合并返回
+ * - Redis Lua规则: 基于Lua脚本的高性能实时规则，适合高频计数/窗口类规则
+ *
+ * 异步处理：三种规则引擎通过CompletableFuture并行执行，allOf等待全部完成后合并结果
  */
 @Slf4j
 @Service
@@ -41,6 +48,8 @@ public class RuleEngineService {
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
     private final KieContainer kieContainer;
+    private final StringRedisTemplate redisTemplate;
+    private final Executor amlTaskExecutor;
 
     /**
      * 高频交易检测默认时间窗口（秒）
@@ -52,31 +61,139 @@ public class RuleEngineService {
      */
     private static final int DEFAULT_VELOCITY_THRESHOLD = 10;
 
+    /** Redis Lua脚本Key前缀 - 滑动窗口计数 */
+    private static final String LUA_VELOCITY_KEY_PREFIX = "aml:rule:velocity:";
+    /** Redis Lua脚本Key前缀 - 单日累计金额 */
+    private static final String LUA_DAILY_AMOUNT_KEY_PREFIX = "aml:rule:daily:amount:";
+    /** Redis Lua脚本Key前缀 - 单日交易笔数 */
+    private static final String LUA_DAILY_COUNT_KEY_PREFIX = "aml:rule:daily:count:";
+
     /**
-     * 对交易执行所有启用的规则（数据库规则 + Drools规则）
-     *
-     * @param transaction 待评估的交易
-     * @return 匹配到的规则执行日志列表
+     * 同步评估（保留兼容性）
+     * 三种引擎串行执行
      */
     public List<RuleExecutionLog> evaluate(Transaction transaction) {
-        log.info("规则引擎开始评估: transactionId={}, transactionNo={}", transaction.getId(), transaction.getTransactionNo());
+        log.info("规则引擎开始评估(同步): transactionId={}, transactionNo={}", transaction.getId(), transaction.getTransactionNo());
 
         long startTime = System.currentTimeMillis();
         List<RuleExecutionLog> matchedLogs = new ArrayList<>();
 
-        // ====== 第一阶段: 数据库规则评估 ======
+        // 第一阶段: 数据库规则评估
         List<RuleExecutionLog> dbResults = evaluateDatabaseRules(transaction);
         matchedLogs.addAll(dbResults);
 
-        // ====== 第二阶段: Drools规则评估 ======
+        // 第二阶段: Drools规则评估
         List<RuleExecutionLog> droolsResults = evaluateDroolsRules(transaction);
         matchedLogs.addAll(droolsResults);
 
+        // 第三阶段: Redis Lua规则评估
+        List<RuleExecutionLog> redisResults = evaluateRedisLuaRules(transaction);
+        matchedLogs.addAll(redisResults);
+
         long duration = System.currentTimeMillis() - startTime;
-        log.info("规则引擎评估完成: transactionId={}, 数据库规则命中={}, Drools规则命中={}, 总耗时={}ms",
-                transaction.getId(), dbResults.size(), droolsResults.size(), duration);
+        log.info("规则引擎评估完成(同步): transactionId={}, DB规则命中={}, Drools命中={}, Redis命中={}, 总耗时={}ms",
+                transaction.getId(), dbResults.size(), droolsResults.size(), redisResults.size(), duration);
 
         return matchedLogs;
+    }
+
+    /**
+     * 异步并行评估 - 三路规则引擎并行执行
+     *
+     * 流程：
+     *   1) 三个CompletableFuture分别执行：数据库规则、Drools规则、Redis Lua规则
+     *   2) CompletableFuture.allOf 等待全部完成
+     *   3) 合并三路结果返回
+     *
+     * @param transaction 待评估的交易
+     * @return CompletableFuture，包含所有命中的规则执行日志
+     */
+    public CompletableFuture<List<RuleExecutionLog>> evaluateAsync(Transaction transaction) {
+        log.info("[异步规则引擎] 开始并行评估: transactionId={}, transactionNo={}",
+                transaction.getId(), transaction.getTransactionNo());
+
+        long startTime = System.currentTimeMillis();
+
+        // ===== 路径1: 数据库规则评估（异步） =====
+        CompletableFuture<List<RuleExecutionLog>> dbFuture = CompletableFuture.supplyAsync(
+                () -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        List<RuleExecutionLog> results = evaluateDatabaseRules(transaction);
+                        log.debug("[异步规则引擎] 数据库规则完成: 命中={}, 耗时={}ms",
+                                results.size(), System.currentTimeMillis() - start);
+                        return results;
+                    } catch (Exception e) {
+                        log.error("[异步规则引擎] 数据库规则评估异常: transactionNo={}, error={}",
+                                transaction.getTransactionNo(), e.getMessage(), e);
+                        return new ArrayList<RuleExecutionLog>();
+                    }
+                },
+                amlTaskExecutor
+        );
+
+        // ===== 路径2: Drools规则评估（异步） =====
+        CompletableFuture<List<RuleExecutionLog>> droolsFuture = CompletableFuture.supplyAsync(
+                () -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        List<RuleExecutionLog> results = evaluateDroolsRules(transaction);
+                        log.debug("[异步规则引擎] Drools规则完成: 命中={}, 耗时={}ms",
+                                results.size(), System.currentTimeMillis() - start);
+                        return results;
+                    } catch (Exception e) {
+                        log.error("[异步规则引擎] Drools规则评估异常: transactionNo={}, error={}",
+                                transaction.getTransactionNo(), e.getMessage(), e);
+                        return new ArrayList<RuleExecutionLog>();
+                    }
+                },
+                amlTaskExecutor
+        );
+
+        // ===== 路径3: Redis Lua规则评估（异步） =====
+        CompletableFuture<List<RuleExecutionLog>> redisFuture = CompletableFuture.supplyAsync(
+                () -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        List<RuleExecutionLog> results = evaluateRedisLuaRules(transaction);
+                        log.debug("[异步规则引擎] Redis Lua规则完成: 命中={}, 耗时={}ms",
+                                results.size(), System.currentTimeMillis() - start);
+                        return results;
+                    } catch (Exception e) {
+                        log.error("[异步规则引擎] Redis Lua规则评估异常: transactionNo={}, error={}",
+                                transaction.getTransactionNo(), e.getMessage(), e);
+                        return new ArrayList<RuleExecutionLog>();
+                    }
+                },
+                amlTaskExecutor
+        );
+
+        // ===== 等待全部完成，合并结果 =====
+        return CompletableFuture.allOf(dbFuture, droolsFuture, redisFuture)
+                .thenApply(v -> {
+                    List<RuleExecutionLog> allMatched = new ArrayList<>();
+                    allMatched.addAll(dbFuture.join());
+                    allMatched.addAll(droolsFuture.join());
+                    allMatched.addAll(redisFuture.join());
+
+                    long duration = System.currentTimeMillis() - startTime;
+                    log.info("[异步规则引擎] 并行评估完成: transactionId={}, DB命中={}, Drools命中={}, Redis命中={}, 总耗时={}ms",
+                            transaction.getId(),
+                            dbFuture.join().size(), droolsFuture.join().size(), redisFuture.join().size(),
+                            duration);
+
+                    return allMatched;
+                })
+                .exceptionally(ex -> {
+                    log.error("[异步规则引擎] 并行评估部分异常: transactionNo={}, error={}",
+                            transaction.getTransactionNo(), ex.getMessage(), ex);
+                    // 尝试收集已完成的结果
+                    List<RuleExecutionLog> partial = new ArrayList<>();
+                    try { partial.addAll(dbFuture.join()); } catch (Exception ignored) {}
+                    try { partial.addAll(droolsFuture.join()); } catch (Exception ignored) {}
+                    try { partial.addAll(redisFuture.join()); } catch (Exception ignored) {}
+                    return partial;
+                });
     }
 
     /**
@@ -423,6 +540,263 @@ public class RuleEngineService {
         }
 
         return matchedLogs;
+    }
+
+    // ====================================================================
+    // Redis Lua规则评估（新增第三引擎）
+    // ====================================================================
+
+    /**
+     * 执行Redis Lua规则评估
+     *
+     * 基于Redis Lua脚本的高性能实时规则，利用Redis原子性操作实现：
+     * - 滑动窗口频率检测（ZSET + Lua）
+     * - 单日累计金额/笔数阈值检测（INCRBYFLOAT + Lua）
+     * - 复合条件组合规则
+     *
+     * 优势：Redis单线程保证原子性，Lua脚本减少网络往返，适合高频交易场景
+     */
+    private List<RuleExecutionLog> evaluateRedisLuaRules(Transaction transaction) {
+        List<RuleExecutionLog> matchedLogs = new ArrayList<>();
+
+        try {
+            // 规则1: 滑动窗口频率检测（Lua脚本原子操作）
+            RuleExecutionLog velocityResult = evaluateRedisVelocityRule(transaction);
+            if (velocityResult != null && velocityResult.getMatchResult()) {
+                matchedLogs.add(velocityResult);
+                ruleExecutionLogMapper.insert(velocityResult);
+            }
+
+            // 规则2: 单日累计金额阈值检测
+            RuleExecutionLog dailyAmountResult = evaluateRedisDailyAmountRule(transaction);
+            if (dailyAmountResult != null && dailyAmountResult.getMatchResult()) {
+                matchedLogs.add(dailyAmountResult);
+                ruleExecutionLogMapper.insert(dailyAmountResult);
+            }
+
+            // 规则3: 单日交易笔数阈值检测
+            RuleExecutionLog dailyCountResult = evaluateRedisDailyCountRule(transaction);
+            if (dailyCountResult != null && dailyCountResult.getMatchResult()) {
+                matchedLogs.add(dailyCountResult);
+                ruleExecutionLogMapper.insert(dailyCountResult);
+            }
+
+            log.debug("Redis Lua规则评估完成: transactionNo={}, 命中={}条",
+                    transaction.getTransactionNo(), matchedLogs.size());
+
+        } catch (Exception e) {
+            log.error("Redis Lua规则评估异常: transactionNo={}, error={}",
+                    transaction.getTransactionNo(), e.getMessage(), e);
+        }
+
+        return matchedLogs;
+    }
+
+    /**
+     * Redis滑动窗口频率检测（Lua脚本实现）
+     *
+     * Lua脚本逻辑：
+     *   1. 向ZSET添加当前交易（score=时间戳）
+     *   2. 移除窗口外的旧记录
+     *   3. 返回窗口内的交易笔数
+     *   4. 原子性操作，避免并发问题
+     */
+    private RuleExecutionLog evaluateRedisVelocityRule(Transaction transaction) {
+        long ruleStart = System.currentTimeMillis();
+        String customerId = String.valueOf(transaction.getCustomerId());
+        int windowSeconds = DEFAULT_VELOCITY_WINDOW_SECONDS;
+        int maxCount = DEFAULT_VELOCITY_THRESHOLD;
+
+        // 滑动窗口计数Lua脚本
+        String luaScript =
+                "local key = KEYS[1] " +
+                "local now = tonumber(ARGV[1]) " +
+                "local window = tonumber(ARGV[2]) " +
+                "local member = ARGV[3] " +
+                "redis.call('ZADD', key, now, member) " +
+                "redis.call('ZREMRANGEBYSCORE', key, 0, now - window) " +
+                "local count = redis.call('ZCARD', key) " +
+                "redis.call('EXPIRE', key, window) " +
+                "return count";
+
+        String redisKey = LUA_VELOCITY_KEY_PREFIX + customerId;
+        long nowMs = System.currentTimeMillis();
+        String member = transaction.getTransactionNo() + ":" + nowMs;
+
+        try {
+            DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
+            Long count = redisTemplate.execute(script,
+                    Collections.singletonList(redisKey),
+                    String.valueOf(nowMs),
+                    String.valueOf(windowSeconds * 1000L),
+                    member);
+
+            int recentCount = count != null ? count.intValue() : 0;
+
+            RuleExecutionLog execLog = new RuleExecutionLog();
+            execLog.setRuleCode("REDIS_VELOCITY");
+            execLog.setTransactionId(transaction.getId());
+            execLog.setCustomerId(transaction.getCustomerId());
+            execLog.setExecutionTime(LocalDateTime.now());
+            execLog.setDurationMs(System.currentTimeMillis() - ruleStart);
+
+            if (recentCount >= maxCount) {
+                execLog.setMatchResult(true);
+                execLog.setMatchScore(BigDecimal.valueOf(85));
+                execLog.setExecutionDetail(String.format(
+                        "[Redis Lua] 高频交易命中: 客户在%d秒窗口内交易%d笔 >= %d笔阈值, 客户ID=%s",
+                        windowSeconds, recentCount, maxCount, customerId));
+                log.info("Redis Lua频率规则命中: customerId={}, count={}/{}", customerId, recentCount, maxCount);
+            } else {
+                execLog.setMatchResult(false);
+                execLog.setMatchScore(BigDecimal.ZERO);
+                execLog.setExecutionDetail(String.format(
+                        "[Redis Lua] 频率未达阈值: %d秒窗口内%d笔 < %d笔",
+                        windowSeconds, recentCount, maxCount));
+            }
+
+            return execLog;
+        } catch (Exception e) {
+            log.error("Redis Lua滑动窗口频率检测异常: customerId={}, error={}", customerId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Redis单日累计金额阈值检测
+     *
+     * 使用Redis INCRBYFLOAT + Lua脚本实现原子性的金额累加与阈值判断
+     * 阈值: 现金50万 / 转账200万 / 跨境20万
+     */
+    private RuleExecutionLog evaluateRedisDailyAmountRule(Transaction transaction) {
+        long ruleStart = System.currentTimeMillis();
+        String customerId = String.valueOf(transaction.getCustomerId());
+        String today = LocalDate.now().toString();
+
+        // Lua脚本：累加金额并返回新总额
+        String luaScript =
+                "local key = KEYS[1] " +
+                "local amount = tonumber(ARGV[1]) " +
+                "local ttl = tonumber(ARGV[2]) " +
+                "local current = redis.call('INCRBYFLOAT', key, amount) " +
+                "if redis.call('TTL', key) == -1 then " +
+                "  redis.call('EXPIRE', key, ttl) " +
+                "end " +
+                "return current";
+
+        String redisKey = LUA_DAILY_AMOUNT_KEY_PREFIX + customerId + ":" + today;
+
+        // 确定阈值
+        BigDecimal threshold;
+        if (Boolean.TRUE.equals(transaction.getIsCrossBorder())) {
+            threshold = new BigDecimal("200000");
+        } else if ("CASH".equals(transaction.getPaymentMethod())) {
+            threshold = new BigDecimal("500000");
+        } else {
+            threshold = new BigDecimal("2000000");
+        }
+
+        try {
+            DefaultRedisScript<String> script = new DefaultRedisScript<>(luaScript, String.class);
+            String result = redisTemplate.execute(script,
+                    Collections.singletonList(redisKey),
+                    transaction.getAmount().toPlainString(),
+                    String.valueOf(86400));  // 24小时过期
+
+            BigDecimal dailyTotal = result != null ? new BigDecimal(result) : transaction.getAmount();
+
+            RuleExecutionLog execLog = new RuleExecutionLog();
+            execLog.setRuleCode("REDIS_DAILY_AMOUNT");
+            execLog.setTransactionId(transaction.getId());
+            execLog.setCustomerId(transaction.getCustomerId());
+            execLog.setExecutionTime(LocalDateTime.now());
+            execLog.setDurationMs(System.currentTimeMillis() - ruleStart);
+
+            if (dailyTotal.compareTo(threshold) >= 0) {
+                execLog.setMatchResult(true);
+                BigDecimal score = dailyTotal
+                        .divide(threshold, 2, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100))
+                        .min(BigDecimal.valueOf(100));
+                execLog.setMatchScore(score);
+                execLog.setExecutionDetail(String.format(
+                        "[Redis Lua] 单日累计金额命中: 日累计=%s >= 阈值=%s, 客户ID=%s",
+                        dailyTotal.toPlainString(), threshold.toPlainString(), customerId));
+                log.info("Redis Lua日累计金额规则命中: customerId={}, dailyTotal={}/{}", customerId, dailyTotal, threshold);
+            } else {
+                execLog.setMatchResult(false);
+                execLog.setMatchScore(BigDecimal.ZERO);
+                execLog.setExecutionDetail(String.format(
+                        "[Redis Lua] 日累计金额未达阈值: %s < %s",
+                        dailyTotal.toPlainString(), threshold.toPlainString()));
+            }
+
+            return execLog;
+        } catch (Exception e) {
+            log.error("Redis Lua日累计金额检测异常: customerId={}, error={}", customerId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Redis单日交易笔数阈值检测
+     *
+     * 使用Redis INCR + Lua脚本实现原子性的笔数累加与阈值判断
+     * 阈值: 单日交易笔数超过50笔触发预警
+     */
+    private RuleExecutionLog evaluateRedisDailyCountRule(Transaction transaction) {
+        long ruleStart = System.currentTimeMillis();
+        String customerId = String.valueOf(transaction.getCustomerId());
+        String today = LocalDate.now().toString();
+        int dailyCountThreshold = 50;
+
+        // Lua脚本：累加笔数并返回新总数
+        String luaScript =
+                "local key = KEYS[1] " +
+                "local ttl = tonumber(ARGV[1]) " +
+                "local count = redis.call('INCR', key) " +
+                "if count == 1 then " +
+                "  redis.call('EXPIRE', key, ttl) " +
+                "end " +
+                "return count";
+
+        String redisKey = LUA_DAILY_COUNT_KEY_PREFIX + customerId + ":" + today;
+
+        try {
+            DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
+            Long result = redisTemplate.execute(script,
+                    Collections.singletonList(redisKey),
+                    String.valueOf(86400));  // 24小时过期
+
+            int dailyCount = result != null ? result.intValue() : 1;
+
+            RuleExecutionLog execLog = new RuleExecutionLog();
+            execLog.setRuleCode("REDIS_DAILY_COUNT");
+            execLog.setTransactionId(transaction.getId());
+            execLog.setCustomerId(transaction.getCustomerId());
+            execLog.setExecutionTime(LocalDateTime.now());
+            execLog.setDurationMs(System.currentTimeMillis() - ruleStart);
+
+            if (dailyCount >= dailyCountThreshold) {
+                execLog.setMatchResult(true);
+                execLog.setMatchScore(BigDecimal.valueOf(70));
+                execLog.setExecutionDetail(String.format(
+                        "[Redis Lua] 单日交易笔数命中: 日交易%d笔 >= %d笔阈值, 客户ID=%s",
+                        dailyCount, dailyCountThreshold, customerId));
+                log.info("Redis Lua日交易笔数规则命中: customerId={}, dailyCount={}/{}", customerId, dailyCount, dailyCountThreshold);
+            } else {
+                execLog.setMatchResult(false);
+                execLog.setMatchScore(BigDecimal.ZERO);
+                execLog.setExecutionDetail(String.format(
+                        "[Redis Lua] 日交易笔数未达阈值: %d笔 < %d笔",
+                        dailyCount, dailyCountThreshold));
+            }
+
+            return execLog;
+        } catch (Exception e) {
+            log.error("Redis Lua日交易笔数检测异常: customerId={}, error={}", customerId, e.getMessage(), e);
+            return null;
+        }
     }
 
     // ====================================================================

@@ -2,6 +2,7 @@ package com.insurance.aml.module.monitoring.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.insurance.aml.common.config.AsyncConfig;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.module.monitoring.mapper.TransactionDailySummaryMapper;
@@ -24,13 +25,20 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 交易服务实现类
  * 负责交易的录入、查询和日汇总管理
+ *
+ * 异步处理管道说明：
+ * 1. ingestTransactionAsync: 入库后，日汇总更新与Kafka事件发送并行执行
+ * 2. 通过注入的线程池执行器(amlTaskExecutor)执行异步任务，避免Spring AOP自调用失效
  */
 @Slf4j
 @Service
@@ -43,6 +51,9 @@ public class TransactionServiceImpl implements TransactionService {
     private final StringRedisTemplate redisTemplate;
     private final TransactionEventProducer transactionEventProducer;
 
+    /** 注入异步任务执行器，用于CompletableFuture异步管道 */
+    private final Executor amlTaskExecutor;
+
     /** Redis日汇总Key前缀 */
     private static final String SUMMARY_KEY_PREFIX = "aml:txn:summary:";
     /** Redis Key日期格式 */
@@ -53,26 +64,16 @@ public class TransactionServiceImpl implements TransactionService {
      */
     private static final String PREFIX_TRANSACTION = "TXN";
 
+    /**
+     * 同步录入交易（保留兼容性）
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Transaction ingestTransaction(TransactionIngestRequest req) {
         log.info("录入交易: transactionNo={}, customerId={}, amount={}", req.getTransactionNo(), req.getCustomerId(), req.getAmount());
 
         // 1. 构建交易记录，生成业务流水号
-        Transaction transaction = new Transaction();
-        BeanUtils.copyProperties(req, transaction);
-        if (!StringUtils.hasText(transaction.getTransactionNo())) {
-            transaction.setTransactionNo(idGenerator.generate(PREFIX_TRANSACTION));
-        }
-        if (!StringUtils.hasText(transaction.getCurrency())) {
-            transaction.setCurrency("CNY");
-        }
-        if (transaction.getIsCrossBorder() == null) {
-            transaction.setIsCrossBorder(false);
-        }
-        if (!StringUtils.hasText(transaction.getStatus())) {
-            transaction.setStatus("SUCCESS");
-        }
+        Transaction transaction = buildTransaction(req);
 
         // 2. 保存交易记录
         transactionMapper.insert(transaction);
@@ -82,16 +83,83 @@ public class TransactionServiceImpl implements TransactionService {
         updateDailySummary(transaction);
 
         // 4. 发送交易事件到Kafka，由Consumer异步触发规则引擎评估
-        try {
-            TransactionEvent event = TransactionEvent.fromEntity(transaction);
-            transactionEventProducer.sendTransactionEvent(event);
-            log.info("交易事件已发送到Kafka: transactionNo={}", transaction.getTransactionNo());
-        } catch (Exception e) {
-            log.error("交易事件发送Kafka失败，交易ID={}: {}", transaction.getId(), e.getMessage(), e);
-            // Kafka发送失败不影响交易录入流程
-        }
+        sendKafkaEvent(transaction);
 
         return transaction;
+    }
+
+    /**
+     * 异步录入交易 - 处理管道
+     *
+     * 流程：
+     *   1) 同步入库（必须先完成，获取生成的ID）
+     *   2) 并行执行：
+     *      - 更新日汇总（Redis + DB）
+     *      - 发送Kafka事件
+     *   3) 等待并行任务完成后返回结果
+     *
+     * @param req 交易录入请求
+     * @return CompletableFuture，包含保存后的交易记录
+     */
+    @Override
+    public CompletableFuture<Transaction> ingestTransactionAsync(TransactionIngestRequest req) {
+        log.info("[异步管道] 录入交易开始: transactionNo={}, customerId={}, amount={}",
+                req.getTransactionNo(), req.getCustomerId(), req.getAmount());
+
+        long pipelineStart = System.currentTimeMillis();
+
+        // ===== 阶段1: 同步入库（必须先完成以获取ID） =====
+        Transaction transaction = buildTransaction(req);
+        transactionMapper.insert(transaction);
+        log.info("[异步管道] 交易入库完成: id={}, transactionNo={}, 耗时={}ms",
+                transaction.getId(), transaction.getTransactionNo(),
+                System.currentTimeMillis() - pipelineStart);
+
+        // ===== 阶段2: 并行执行日汇总更新 + Kafka发送 =====
+        CompletableFuture<Void> dailySummaryFuture = CompletableFuture.runAsync(
+                () -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        updateDailySummary(transaction);
+                        log.debug("[异步管道] 日汇总更新完成: transactionNo={}, 耗时={}ms",
+                                transaction.getTransactionNo(), System.currentTimeMillis() - start);
+                    } catch (Exception e) {
+                        log.error("[异步管道] 日汇总更新失败: transactionNo={}, error={}",
+                                transaction.getTransactionNo(), e.getMessage(), e);
+                    }
+                },
+                amlTaskExecutor
+        );
+
+        CompletableFuture<Void> kafkaFuture = CompletableFuture.runAsync(
+                () -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        sendKafkaEvent(transaction);
+                        log.debug("[异步管道] Kafka事件发送完成: transactionNo={}, 耗时={}ms",
+                                transaction.getTransactionNo(), System.currentTimeMillis() - start);
+                    } catch (Exception e) {
+                        log.error("[异步管道] Kafka事件发送失败: transactionNo={}, error={}",
+                                transaction.getTransactionNo(), e.getMessage(), e);
+                    }
+                },
+                amlTaskExecutor
+        );
+
+        // ===== 阶段3: 等待并行任务全部完成 =====
+        return CompletableFuture.allOf(dailySummaryFuture, kafkaFuture)
+                .thenApply(v -> {
+                    log.info("[异步管道] 交易录入全流程完成: transactionNo={}, 总耗时={}ms",
+                            transaction.getTransactionNo(),
+                            System.currentTimeMillis() - pipelineStart);
+                    return transaction;
+                })
+                .exceptionally(ex -> {
+                    log.error("[异步管道] 交易录入部分任务异常: transactionNo={}, error={}",
+                            transaction.getTransactionNo(), ex.getMessage(), ex);
+                    // 入库已成功，仍返回交易记录（Kafka/汇总失败不影响主流程）
+                    return transaction;
+                });
     }
 
     @Override
@@ -154,6 +222,42 @@ public class TransactionServiceImpl implements TransactionService {
         return dailySummaryMapper.selectOne(wrapper);
     }
 
+    // ==================== 私有辅助方法 ====================
+
+    /**
+     * 构建交易实体（设置默认值）
+     */
+    private Transaction buildTransaction(TransactionIngestRequest req) {
+        Transaction transaction = new Transaction();
+        BeanUtils.copyProperties(req, transaction);
+        if (!StringUtils.hasText(transaction.getTransactionNo())) {
+            transaction.setTransactionNo(idGenerator.generate(PREFIX_TRANSACTION));
+        }
+        if (!StringUtils.hasText(transaction.getCurrency())) {
+            transaction.setCurrency("CNY");
+        }
+        if (transaction.getIsCrossBorder() == null) {
+            transaction.setIsCrossBorder(false);
+        }
+        if (!StringUtils.hasText(transaction.getStatus())) {
+            transaction.setStatus("SUCCESS");
+        }
+        return transaction;
+    }
+
+    /**
+     * 发送Kafka事件（封装异常处理，Kafka发送失败不影响主流程）
+     */
+    private void sendKafkaEvent(Transaction transaction) {
+        try {
+            TransactionEvent event = TransactionEvent.fromEntity(transaction);
+            transactionEventProducer.sendTransactionEvent(event);
+            log.info("交易事件已发送到Kafka: transactionNo={}", transaction.getTransactionNo());
+        } catch (Exception e) {
+            log.error("交易事件发送Kafka失败，交易ID={}: {}", transaction.getId(), e.getMessage(), e);
+        }
+    }
+
     /**
      * 更新交易日汇总
      * 1. 使用Redis INCRBYFLOAT进行实时金额累加
@@ -186,7 +290,7 @@ public class TransactionServiceImpl implements TransactionService {
             // 更新已有记录
             summary.setTotalAmount(summary.getTotalAmount().add(transaction.getAmount()));
             summary.setTransactionCount(summary.getTransactionCount() + 1);
-            summary.setUpdatedTime(java.time.LocalDateTime.now());
+            summary.setUpdatedTime(LocalDateTime.now());
             dailySummaryMapper.updateById(summary);
         } else {
             // 新增汇总记录
@@ -199,8 +303,8 @@ public class TransactionServiceImpl implements TransactionService {
             summary.setTotalAmount(transaction.getAmount());
             summary.setTransactionCount(1);
             summary.setLargeTxnFlag(false);
-            summary.setCreatedTime(java.time.LocalDateTime.now());
-            summary.setUpdatedTime(java.time.LocalDateTime.now());
+            summary.setCreatedTime(LocalDateTime.now());
+            summary.setUpdatedTime(LocalDateTime.now());
             dailySummaryMapper.insert(summary);
         }
         log.debug("DB日汇总更新完成: customerId={}, date={}, type={}", customerId, today, type);

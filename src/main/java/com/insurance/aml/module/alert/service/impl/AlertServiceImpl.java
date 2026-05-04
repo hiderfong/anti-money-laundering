@@ -32,6 +32,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -55,6 +57,9 @@ public class AlertServiceImpl implements AlertService {
 
     @Autowired
     private CaseService caseService;
+
+    @Autowired
+    private Executor amlTaskExecutor;
 
     /**
      * 创建预警
@@ -95,6 +100,38 @@ public class AlertServiceImpl implements AlertService {
         tryAutoAssignSingleAlert(alert);
 
         return alert;
+    }
+
+    /**
+     * 异步创建预警 - 不阻塞调用方
+     *
+     * 通过CompletableFuture异步执行预警入库、规则明细保存、自动分配。
+     * 使用注入的amlTaskExecutor避免Spring AOP自调用失效问题。
+     *
+     * @param alert 预警信息
+     * @param ruleDetails 命中规则明细
+     * @return CompletableFuture，包含创建的预警
+     */
+    @Override
+    public CompletableFuture<Alert> createAlertAsync(Alert alert, List<AlertRuleDetail> ruleDetails) {
+        log.info("[异步预警] 开始创建预警: customerId={}, alertType={}, riskLevel={}",
+                alert.getCustomerId(), alert.getAlertType(), alert.getRiskLevel());
+
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        Alert created = createAlert(alert, ruleDetails);
+                        log.info("[异步预警] 预警创建完成: alertId={}, alertNo={}",
+                                created.getId(), created.getAlertNo());
+                        return created;
+                    } catch (Exception e) {
+                        log.error("[异步预警] 预警创建失败: customerId={}, alertType={}, error={}",
+                                alert.getCustomerId(), alert.getAlertType(), e.getMessage(), e);
+                        throw new RuntimeException("异步创建预警失败", e);
+                    }
+                },
+                amlTaskExecutor
+        );
     }
 
     /**
