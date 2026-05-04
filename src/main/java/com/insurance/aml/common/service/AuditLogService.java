@@ -5,6 +5,7 @@ import com.insurance.aml.module.system.model.document.AuditLogDocument;
 import com.insurance.aml.module.system.repository.AuditLogElasticsearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,7 @@ import java.time.LocalDateTime;
 public class AuditLogService {
 
     private final JdbcTemplate jdbcTemplate;
-    private final AuditLogElasticsearchRepository auditLogElasticsearchRepository;
+    private final ObjectProvider<AuditLogElasticsearchRepository> auditLogElasticsearchRepositoryProvider;
 
     private static final String INSERT_SQL = """
         INSERT INTO t_audit_log 
@@ -55,11 +56,18 @@ public class AuditLogService {
 
         // 2. 异步写入 Elasticsearch（全文检索）
         try {
+            AuditLogElasticsearchRepository repository = auditLogElasticsearchRepositoryProvider.getIfAvailable();
+            if (repository == null) {
+                log.debug("审计日志ES仓库未启用，跳过ES写入: module={}, operation={}, traceId={}",
+                        module, operationType, traceId);
+                return;
+            }
+
             AuditLogDocument doc = buildDocument(mysqlId, traceId, userId, username,
                     operationType, module, targetType, targetId,
                     detail, ipAddress, userAgent, requestUri, requestMethod,
                     responseCode, durationMs, errorMessage);
-            auditLogElasticsearchRepository.save(doc);
+            repository.save(doc);
         } catch (Exception e) {
             // ES写入失败不影响业务，仅记录警告
             log.warn("审计日志ES写入失败，不影响主业务: module={}, operation={}, traceId={}",

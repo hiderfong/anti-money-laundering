@@ -26,4 +26,15 @@ public interface SysPermissionMapper extends BaseMapper<SysPermission> {
         WHERE ur.user_id = #{userId} AND p.status = 'ENABLED'
     """)
     List<String> findPermissionCodesByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询全部启用权限编码。
+     * 管理员角色拥有所有权限，登录响应需要返回完整权限集供前端做按钮级控制。
+     */
+    @Select("""
+        SELECT DISTINCT p.permission_code
+        FROM t_permission p
+        WHERE p.status = 'ENABLED'
+    """)
+    List<String> findAllEnabledPermissionCodes();
 }

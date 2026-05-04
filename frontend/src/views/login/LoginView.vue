@@ -70,27 +70,26 @@ async function handleLogin() {
   background: var(--bg-deepest);
   position: relative;
   overflow: hidden;
+  padding: 24px;
 }
 
-/* Subtle gradient glow behind the card */
 .login-container::before {
   content: '';
   position: absolute;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(94, 106, 210, 0.12) 0%, transparent 70%);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  background:
+    linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
   pointer-events: none;
 }
 
 .login-card {
-  width: 380px;
+  width: min(380px, 100%);
   padding: 40px 36px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   position: relative;
   z-index: 1;
   box-shadow: var(--shadow-dialog);
@@ -111,7 +110,7 @@ async function handleLogin() {
   width: 48px;
   height: 48px;
   background: var(--accent-primary);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -125,7 +124,7 @@ async function handleLogin() {
   font-size: 22px;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.5px;
+  letter-spacing: 0;
 }
 
 .login-header p {
@@ -140,5 +139,11 @@ async function handleLogin() {
   top: 20px;
   right: 20px;
   z-index: 10;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 32px 24px;
+  }
 }
 </style>

@@ -147,8 +147,8 @@ onBeforeUnmount(() => {
 }
 
 .aside {
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--sidebar-bg);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   transition: width 0.2s ease;
   overflow: hidden;
 }
@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0 16px;
 }
 
@@ -180,9 +180,18 @@ onBeforeUnmount(() => {
 .logo-text {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.3px;
+  color: #fff;
+  letter-spacing: 0;
   white-space: nowrap;
+}
+
+.aside :deep(.el-menu) {
+  padding-top: 8px;
+}
+
+.aside :deep(.el-menu-item) {
+  height: 42px;
+  line-height: 42px;
 }
 
 .header {
@@ -199,9 +208,17 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
+  flex: 1;
 }
 
 .collapse-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   cursor: pointer;
   color: var(--text-tertiary);
   transition: color 0.15s ease;
@@ -219,7 +236,8 @@ onBeforeUnmount(() => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .user-info {
@@ -250,11 +268,10 @@ onBeforeUnmount(() => {
 
   .header-left {
     gap: 10px;
-    min-width: 0;
   }
 
   .header-left :deep(.el-breadcrumb) {
-    max-width: 120px;
+    max-width: 96px;
     overflow: hidden;
     white-space: nowrap;
   }

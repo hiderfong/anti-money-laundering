@@ -12,8 +12,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -71,8 +74,8 @@ public class AuthServiceImpl {
         log.info("用户登录成功: userId={}, username={}", userDetails.getUserId(), userDetails.getUsername());
 
         // 查询用户角色和权限
-        List<String> roles = sysRoleMapper.findRoleCodesByUserId(userDetails.getUserId());
-        List<String> permissions = sysPermissionMapper.findPermissionCodesByUserId(userDetails.getUserId());
+        List<String> roles = resolveRoles(userDetails);
+        List<String> permissions = resolvePermissions(userDetails.getUserId(), roles);
 
         // 构建登录响应
         return LoginResponse.builder()
@@ -128,8 +131,8 @@ public class AuthServiceImpl {
         log.info("访问令牌刷新成功: userId={}", userId);
 
         // 查询用户角色和权限
-        List<String> roles = sysRoleMapper.findRoleCodesByUserId(userId);
-        List<String> permissions = sysPermissionMapper.findPermissionCodesByUserId(userId);
+        List<String> roles = resolveRoles(userDetails);
+        List<String> permissions = resolvePermissions(userId, roles);
 
         return LoginResponse.builder()
                 .accessToken(newAccessToken)
@@ -170,5 +173,38 @@ public class AuthServiceImpl {
         } catch (Exception e) {
             log.error("登出处理异常: {}", e.getMessage(), e);
         }
+    }
+
+    private List<String> resolveRoles(JwtUserDetails userDetails) {
+        List<String> roles = safeList(sysRoleMapper.findRoleCodesByUserId(userDetails.getUserId()));
+        if (!roles.isEmpty()) {
+            return distinct(roles);
+        }
+
+        if (userDetails.getAuthorities() == null) {
+            return Collections.emptyList();
+        }
+
+        return distinct(userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList());
+    }
+
+    private List<String> resolvePermissions(Long userId, List<String> roles) {
+        if (roles.contains("ROLE_ADMIN")) {
+            return distinct(safeList(sysPermissionMapper.findAllEnabledPermissionCodes()));
+        }
+
+        return distinct(safeList(sysPermissionMapper.findPermissionCodesByUserId(userId)));
+    }
+
+    private List<String> safeList(List<String> values) {
+        return values == null ? Collections.emptyList() : values;
+    }
+
+    private List<String> distinct(List<String> values) {
+        return new LinkedHashSet<>(values).stream()
+                .filter(value -> value != null && !value.isBlank())
+                .toList();
     }
 }

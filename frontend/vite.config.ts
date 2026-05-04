@@ -26,5 +26,32 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          minSize: 20 * 1024,
+          groups: [
+            {
+              name: 'vue-vendor',
+              test: /node_modules[\\/](vue|vue-router|pinia)[\\/]/,
+              priority: 30
+            },
+            {
+              name: 'element-plus',
+              test: /node_modules[\\/](element-plus|@element-plus)[\\/]/,
+              priority: 20,
+              maxSize: 260 * 1024
+            },
+            {
+              name: 'http-vendor',
+              test: /node_modules[\\/]axios[\\/]/,
+              priority: 10
+            }
+          ]
+        }
+      }
+    }
   }
 })

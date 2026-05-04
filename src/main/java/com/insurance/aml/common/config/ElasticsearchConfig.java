@@ -2,6 +2,7 @@ package com.insurance.aml.common.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
@@ -22,6 +23,7 @@ import org.springframework.data.elasticsearch.repository.config.EnableElasticsea
  */
 @Slf4j
 @Configuration
+@Profile("!test & !no-es")
 @EnableElasticsearchRepositories(basePackages = "com.insurance.aml.module.system.repository")
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 

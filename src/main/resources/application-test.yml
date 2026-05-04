@@ -14,18 +14,24 @@ spring:
   flyway:
     enabled: false
   # 禁用不需要的自动配置
+  data:
+    elasticsearch:
+      repositories:
+        enabled: false
+    redis:
+      host: localhost
+      port: 6379
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
-      - org.springframework.data.elasticsearch.repository.config.ElasticsearchRepositoryAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRepositoriesAutoConfiguration
       - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ReactiveElasticsearchClientAutoConfiguration
       - org.redisson.spring.starter.RedissonAutoConfigurationV2
-  data:
-    redis:
-      host: localhost
-      port: 6379
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
@@ -41,7 +47,7 @@ mybatis-plus:
 
 # JWT配置
 jwt:
-  secret: test-jwt-secret-key-for-integration-testing-only-2025-aml-system
+  secret: QW1sU3lzdGVtMjAyNFRlc3RKd3RTZWNyZXRLZXlGb3JJbnRlZ3JhdGlvblRlc3Rpbmc=
   access-token-expire: 7200000      # 2小时 (毫秒)
   refresh-token-expire: 604800
 

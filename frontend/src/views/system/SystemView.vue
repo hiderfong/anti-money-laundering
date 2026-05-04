@@ -28,16 +28,18 @@
             </template>
           </el-table-column>
           <el-table-column prop="createdTime" label="创建时间" width="170" />
-          <el-table-column label="操作" width="300" fixed="right">
+          <el-table-column label="操作" width="240">
             <template #default="{ row }">
-              <el-button link type="primary" size="small" @click="openUserDialog('edit', row)">编辑</el-button>
-              <el-button link type="warning" size="small" @click="handleResetPassword(row)">重置密码</el-button>
-              <el-button link type="success" size="small" @click="openRoleDialog(row)">分配角色</el-button>
-              <el-popconfirm title="确定删除该用户？" @confirm="handleDeleteUser(row.id)">
-                <template #reference>
-                  <el-button link type="danger" size="small">删除</el-button>
-                </template>
-              </el-popconfirm>
+              <div class="table-actions">
+                <el-button link type="primary" size="small" @click="openUserDialog('edit', row)">编辑</el-button>
+                <el-button link type="warning" size="small" @click="handleResetPassword(row)">重置密码</el-button>
+                <el-button link type="success" size="small" @click="openRoleDialog(row)">分配角色</el-button>
+                <el-popconfirm title="确定删除该用户？" @confirm="handleDeleteUser(row.id)">
+                  <template #reference>
+                    <el-button link type="danger" size="small">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -156,9 +158,11 @@
           <el-table-column prop="ip" label="IP地址" width="130" />
           <el-table-column prop="requestUrl" label="请求地址" min-width="180" show-overflow-tooltip />
           <el-table-column prop="createdTime" label="时间" width="170" />
-          <el-table-column label="操作" width="80" fixed="right">
+          <el-table-column label="操作" width="80">
             <template #default="{ row }">
-              <el-button link type="primary" size="small" @click="openAuditDetail(row.id)">详情</el-button>
+              <div class="table-actions">
+                <el-button link type="primary" size="small" @click="openAuditDetail(row.id)">详情</el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -470,10 +474,20 @@ onMounted(() => {
 .tab-toolbar {
   margin-bottom: 16px;
 }
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.table-actions :deep(.el-button) {
+  margin-left: 0;
+}
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+  overflow-x: auto;
 }
 .role-tag {
   margin-right: 4px;
@@ -481,5 +495,23 @@ onMounted(() => {
 }
 .dict-items-wrap {
   padding: 12px 24px;
+}
+
+@media (max-width: 767px) {
+  .system-view {
+    padding: 0;
+  }
+
+  .tab-toolbar {
+    margin-bottom: 12px;
+  }
+
+  .pagination-wrap {
+    justify-content: flex-start;
+  }
+
+  :deep(.el-dialog) {
+    max-width: calc(100vw - 32px);
+  }
 }
 </style>

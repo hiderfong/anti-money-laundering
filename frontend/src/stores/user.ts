@@ -3,9 +3,36 @@ import { ref, computed } from 'vue'
 import request from '@/utils/request'
 
 interface UserInfo {
-  userId: number
+  userId: number | string
   username: string
   realName: string
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  }
+
+  if (typeof value === 'string' && value.length > 0) {
+    return value.split(',').map(item => item.trim()).filter(Boolean)
+  }
+
+  return []
+}
+
+function decodeJwtRoles(accessToken: string): string[] {
+  try {
+    const payload = accessToken.split('.')[1]
+    if (!payload) return []
+
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    const data = JSON.parse(atob(padded))
+
+    return normalizeStringList(data.roles)
+  } catch (e) {
+    return []
+  }
 }
 
 export const useUserStore = defineStore('user', () => {
@@ -51,8 +78,9 @@ export const useUserStore = defineStore('user', () => {
       username: data.username,
       realName: data.realName
     }
-    roles.value = data.roles || []
-    permissions.value = data.permissions || []
+    const responseRoles = normalizeStringList(data.roles)
+    roles.value = responseRoles.length ? responseRoles : decodeJwtRoles(data.accessToken)
+    permissions.value = normalizeStringList(data.permissions)
     localStorage.setItem('aml_token', data.accessToken)
     localStorage.setItem('aml_user', JSON.stringify(userInfo.value))
     localStorage.setItem('aml_roles', JSON.stringify(roles.value))
@@ -89,6 +117,10 @@ export const useUserStore = defineStore('user', () => {
     const saved = localStorage.getItem('aml_user')
     if (saved) {
       try { userInfo.value = JSON.parse(saved) } catch (e) { /* ignore */ }
+    }
+    if (!roles.value.length && token.value) {
+      roles.value = decodeJwtRoles(token.value)
+      localStorage.setItem('aml_roles', JSON.stringify(roles.value))
     }
   }
 

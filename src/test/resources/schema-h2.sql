@@ -40,6 +40,27 @@ CREATE TABLE IF NOT EXISTS t_user_role (
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_permission (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  permission_code VARCHAR(128) NOT NULL,
+  permission_name VARCHAR(128) NOT NULL,
+  parent_id BIGINT DEFAULT 0,
+  type VARCHAR(16) NOT NULL,
+  path VARCHAR(255),
+  sort_order INT DEFAULT 0,
+  icon VARCHAR(64),
+  status VARCHAR(16) DEFAULT 'ENABLED',
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_role_permission (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  role_id BIGINT NOT NULL,
+  permission_id BIGINT NOT NULL,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS t_customer (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   customer_no VARCHAR(32) NOT NULL,
@@ -223,7 +244,9 @@ CREATE TABLE IF NOT EXISTS t_audit_log (
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 插入测试数据
-INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '系统管理员', 'ENABLED');
+-- 插入测试数据，admin 密码为 admin123
+INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
 INSERT INTO t_user_role (user_id, role_id) VALUES (1, 1);
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (1, 'system:view', '系统管理查看', 'API', '/system', 1, 'ENABLED');
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 1);

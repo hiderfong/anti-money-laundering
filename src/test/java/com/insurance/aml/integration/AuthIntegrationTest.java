@@ -1,5 +1,6 @@
 package com.insurance.aml.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Order;
@@ -40,13 +41,16 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
         int status = result.getResponse().getStatus();
         String body = result.getResponse().getContentAsString();
 
-        // 登录接口应该返回响应（200或401）
-        assertTrue(status == 200 || status == 401,
-                "登录接口应返回200或401，实际: " + status + ", body: " + body);
+        assertEquals(200, status, "admin/admin123 应登录成功，实际 body: " + body);
+        assertTrue(body.contains("accessToken"), "成功登录应返回accessToken");
 
-        if (status == 200) {
-            assertTrue(body.contains("accessToken"), "成功登录应返回accessToken");
-        }
+        JsonNode data = objectMapper.readTree(body).path("data");
+        assertTrue(data.has("roles"), "成功登录应返回roles字段");
+        assertTrue(data.path("roles").isArray(), "roles应为数组");
+        assertTrue(data.path("roles").toString().contains("ROLE_ADMIN"), "admin应包含ROLE_ADMIN角色");
+        assertTrue(data.has("permissions"), "成功登录应返回permissions字段");
+        assertTrue(data.path("permissions").isArray(), "permissions应为数组");
+        assertFalse(data.path("permissions").isEmpty(), "admin权限列表不应为空");
     }
 
     @Test
@@ -71,15 +75,11 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
         String response = loginResult.getResponse().getContentAsString();
         int loginStatus = loginResult.getResponse().getStatus();
 
-        if (loginStatus != 200) {
-            // 如果登录失败（可能因为密码不匹配），跳过此测试
-            System.out.println("登录返回状态: " + loginStatus + ", 跳过token测试");
-            return;
-        }
+        assertEquals(200, loginStatus, "admin/admin123 应登录成功，实际 body: " + response);
 
         // 提取token
         assertTrue(response.contains("accessToken"), "应包含accessToken");
-        String token = response.split("\"accessToken\":\"")[1].split("\"")[0];
+        String token = objectMapper.readTree(response).path("data").path("accessToken").asText();
         assertNotNull(token, "token不应为空");
 
         // 使用token访问受保护资源

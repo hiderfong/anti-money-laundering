@@ -6,7 +6,6 @@ import com.insurance.aml.module.system.model.dto.AuditLogQueryRequest;
 import com.insurance.aml.module.system.model.dto.AuditLogSearchRequest;
 import com.insurance.aml.module.system.model.dto.AuditLogVO;
 import com.insurance.aml.module.system.model.document.AuditLogDocument;
-import com.insurance.aml.module.system.repository.AuditLogElasticsearchRepository;
 import com.insurance.aml.module.system.service.AuditLogQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -52,10 +51,7 @@ public class AuditLogController {
     @Autowired
     private AuditLogQueryService auditLogQueryService;
 
-    @Autowired
-    private AuditLogElasticsearchRepository auditLogElasticsearchRepository;
-
-    @Autowired
+    @Autowired(required = false)
     private ElasticsearchOperations elasticsearchOperations;
 
     /**
@@ -107,6 +103,10 @@ public class AuditLogController {
     public Result<PageResult<AuditLogDocument>> fullTextSearch(@RequestBody AuditLogSearchRequest req) {
         log.info("ES全文检索审计日志: keyword={}, module={}, operationType={}",
                 req.getKeyword(), req.getModule(), req.getOperationType());
+
+        if (elasticsearchOperations == null) {
+            return Result.fail(503, "Elasticsearch search is not enabled");
+        }
 
         // 构建 bool query
         var boolQuery = co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders.bool();
