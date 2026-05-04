@@ -70,3 +70,14 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+# ============================================================
+# AML ML Model Configuration (Isolation Forest)
+# ============================================================
+aml:
+  ml:
+    model-path: ./data/models
+    training-days: 90
+    anomaly-threshold: 0.7
+    num-trees: 100
+    subsample-size: 256

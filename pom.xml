@@ -42,6 +42,7 @@
         <tinypinyin.version>2.0.3.RELEASE</tinypinyin.version>
         <bcpkix.version>1.77</bcpkix.version>
         <minio.version>8.5.7</minio.version>
+        <lombok.version>1.18.34</lombok.version>
 
         <!-- Encoding -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -103,6 +104,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+        </dependency>
+        <!-- Neo4j Graph Database (Transaction Network Analysis) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-neo4j</artifactId>
         </dependency>
 
         <!-- ====== Database & Migration ====== -->
@@ -229,6 +235,13 @@
             <version>8.44.0.Final</version>
         </dependency>
 
+        <!-- ====== Smile ML (Isolation Forest Anomaly Detection) ====== -->
+        <dependency>
+            <groupId>com.github.haifengl</groupId>
+            <artifactId>smile-core</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
         <!-- ====== Lombok ====== -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -311,6 +324,11 @@
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
                         </path>
                         <path>
                             <groupId>org.mapstruct</groupId>

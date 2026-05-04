@@ -8,6 +8,11 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
+  neo4j:
+    uri: bolt://localhost:7687
+    authentication:
+      username: neo4j
+      password: aml_neo4j_123
     password: aml_dev_123
     hikari:
       minimum-idle: 5
@@ -50,6 +55,12 @@ aml.minio:
   secret-key: minioadmin
   bucket-name: aml-files
 
+# ---- Neo4j Graph Database ----
+spring.neo4j:
+  uri: bolt://localhost:7687
+  authentication:
+    username: neo4j
+    password: aml_neo4j_123
 # ---- JWT Authentication ----
 jwt:
   secret: AmlSystem2024JwtSecretKeyForDevEnvironmentOnly

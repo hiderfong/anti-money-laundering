@@ -8,7 +8,9 @@ import com.insurance.aml.module.monitoring.model.dto.TransactionEvent;
 import com.insurance.aml.module.monitoring.model.entity.RuleExecutionLog;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.service.RuleEngineService;
+import com.insurance.aml.module.monitoring.service.GraphAnalysisService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -38,6 +40,8 @@ public class TransactionEventConsumer {
 
     private final RuleEngineService ruleEngineService;
     private final AlertService alertService;
+    @Autowired(required = false)
+    private GraphAnalysisService graphAnalysisService;
 
     /**
      * 消费交易事件，触发异步规则引擎评估管道
@@ -76,6 +80,15 @@ public class TransactionEventConsumer {
 
             // 将TransactionEvent转换回Transaction实体
             Transaction transaction = toTransaction(event);
+
+            // ===== 同步交易数据到Neo4j图数据库 =====
+            try {
+                graphAnalysisService.syncTransactionToGraph(transaction);
+                log.debug("[异步管道] 交易数据已同步到Neo4j图数据库: transactionNo={}", event.getTransactionNo());
+            } catch (Exception graphEx) {
+                log.error("[异步管道] Neo4j图数据同步失败(不影响主流程): transactionNo={}, error={}",
+                        event.getTransactionNo(), graphEx.getMessage(), graphEx);
+            }
 
             // ===== 异步管道: 三种规则引擎并行评估 =====
             ruleEngineService.evaluateAsync(transaction)

@@ -31,12 +31,13 @@ import java.util.concurrent.Executor;
 
 /**
  * 规则引擎服务
- * 三引擎架构：数据库规则 + Drools规则 + Redis Lua规则 三路并行评估
+ * 四引擎架构：数据库规则 + Drools规则 + Redis Lua规则 + ML异常检测 四路并行评估
  * - 数据库规则: 通过RuleDefinition表管理，适合简单阈值类规则
  * - Drools规则: 通过.drl文件定义，适合复杂业务逻辑规则
  * - Redis Lua规则: 基于Lua脚本的高性能实时规则，适合高频计数/窗口类规则
+ * - ML异常检测: 基于Isolation Forest的机器学习异常检测，发现隐匿模式
  *
- * 异步处理：三种规则引擎通过CompletableFuture并行执行，allOf等待全部完成后合并结果
+ * 异步处理：四种规则引擎通过CompletableFuture并行执行，allOf等待全部完成后合并结果
  */
 @Slf4j
 @Service
@@ -50,6 +51,7 @@ public class RuleEngineService {
     private final KieContainer kieContainer;
     private final StringRedisTemplate redisTemplate;
     private final Executor amlTaskExecutor;
+    private final TransactionAnomalyDetector anomalyDetector;
 
     /**
      * 高频交易检测默认时间窗口（秒）
@@ -70,7 +72,7 @@ public class RuleEngineService {
 
     /**
      * 同步评估（保留兼容性）
-     * 三种引擎串行执行
+     * 四种引擎串行执行
      */
     public List<RuleExecutionLog> evaluate(Transaction transaction) {
         log.info("规则引擎开始评估(同步): transactionId={}, transactionNo={}", transaction.getId(), transaction.getTransactionNo());
@@ -90,20 +92,24 @@ public class RuleEngineService {
         List<RuleExecutionLog> redisResults = evaluateRedisLuaRules(transaction);
         matchedLogs.addAll(redisResults);
 
+        // 第四阶段: ML异常检测评估
+        List<RuleExecutionLog> mlResults = evaluateMLAnomaly(transaction);
+        matchedLogs.addAll(mlResults);
+
         long duration = System.currentTimeMillis() - startTime;
-        log.info("规则引擎评估完成(同步): transactionId={}, DB规则命中={}, Drools命中={}, Redis命中={}, 总耗时={}ms",
-                transaction.getId(), dbResults.size(), droolsResults.size(), redisResults.size(), duration);
+        log.info("规则引擎评估完成(同步): transactionId={}, DB规则命中={}, Drools命中={}, Redis命中={}, ML命中={}, 总耗时={}ms",
+                transaction.getId(), dbResults.size(), droolsResults.size(), redisResults.size(), mlResults.size(), duration);
 
         return matchedLogs;
     }
 
     /**
-     * 异步并行评估 - 三路规则引擎并行执行
+     * 异步并行评估 - 四路规则引擎并行执行
      *
      * 流程：
-     *   1) 三个CompletableFuture分别执行：数据库规则、Drools规则、Redis Lua规则
+     *   1) 四个CompletableFuture分别执行：数据库规则、Drools规则、Redis Lua规则、ML异常检测
      *   2) CompletableFuture.allOf 等待全部完成
-     *   3) 合并三路结果返回
+     *   3) 合并四路结果返回
      *
      * @param transaction 待评估的交易
      * @return CompletableFuture，包含所有命中的规则执行日志
@@ -168,18 +174,38 @@ public class RuleEngineService {
                 amlTaskExecutor
         );
 
+        // ===== 路径4: ML异常检测评估（异步） =====
+        CompletableFuture<List<RuleExecutionLog>> mlFuture = CompletableFuture.supplyAsync(
+                () -> {
+                    long start = System.currentTimeMillis();
+                    try {
+                        List<RuleExecutionLog> results = evaluateMLAnomaly(transaction);
+                        log.debug("[异步规则引擎] ML异常检测完成: 命中={}, 耗时={}ms",
+                                results.size(), System.currentTimeMillis() - start);
+                        return results;
+                    } catch (Exception e) {
+                        log.error("[异步规则引擎] ML异常检测评估异常: transactionNo={}, error={}",
+                                transaction.getTransactionNo(), e.getMessage(), e);
+                        return new ArrayList<RuleExecutionLog>();
+                    }
+                },
+                amlTaskExecutor
+        );
+
         // ===== 等待全部完成，合并结果 =====
-        return CompletableFuture.allOf(dbFuture, droolsFuture, redisFuture)
+        return CompletableFuture.allOf(dbFuture, droolsFuture, redisFuture, mlFuture)
                 .thenApply(v -> {
                     List<RuleExecutionLog> allMatched = new ArrayList<>();
                     allMatched.addAll(dbFuture.join());
                     allMatched.addAll(droolsFuture.join());
                     allMatched.addAll(redisFuture.join());
+                    allMatched.addAll(mlFuture.join());
 
                     long duration = System.currentTimeMillis() - startTime;
-                    log.info("[异步规则引擎] 并行评估完成: transactionId={}, DB命中={}, Drools命中={}, Redis命中={}, 总耗时={}ms",
+                    log.info("[异步规则引擎] 并行评估完成: transactionId={}, DB命中={}, Drools命中={}, Redis命中={}, ML命中={}, 总耗时={}ms",
                             transaction.getId(),
-                            dbFuture.join().size(), droolsFuture.join().size(), redisFuture.join().size(),
+                            dbFuture.join().size(), droolsFuture.join().size(),
+                            redisFuture.join().size(), mlFuture.join().size(),
                             duration);
 
                     return allMatched;
@@ -192,6 +218,7 @@ public class RuleEngineService {
                     try { partial.addAll(dbFuture.join()); } catch (Exception ignored) {}
                     try { partial.addAll(droolsFuture.join()); } catch (Exception ignored) {}
                     try { partial.addAll(redisFuture.join()); } catch (Exception ignored) {}
+                    try { partial.addAll(mlFuture.join()); } catch (Exception ignored) {}
                     return partial;
                 });
     }
@@ -797,6 +824,94 @@ public class RuleEngineService {
             log.error("Redis Lua日交易笔数检测异常: customerId={}, error={}", customerId, e.getMessage(), e);
             return null;
         }
+    }
+
+    // ====================================================================
+    // ML异常检测评估（第四引擎）
+    // ====================================================================
+
+    /**
+     * 执行ML异常检测评估
+     *
+     * 基于Isolation Forest模型对交易进行异常评分：
+     * - 调用TransactionAnomalyDetector获取异常分数 [0.0, 1.0]
+     * - 异常分数 >= 阈值(默认0.7)时生成RuleExecutionLog
+     * - 根据分数确定风险等级：
+     *   >= 0.85 : 高危(score=95)
+     *   >= 0.70 : 中危(score=75)
+     *   < 0.70  : 正常(不命中)
+     *
+     * @param transaction 待评估的交易
+     * @return 命中时返回包含1条记录的列表，未命中返回空列表
+     */
+    private List<RuleExecutionLog> evaluateMLAnomaly(Transaction transaction) {
+        List<RuleExecutionLog> matchedLogs = new ArrayList<>();
+        long ruleStart = System.currentTimeMillis();
+
+        try {
+            double anomalyScore = anomalyDetector.predict(transaction);
+
+            RuleExecutionLog execLog = new RuleExecutionLog();
+            execLog.setRuleCode("ML_ISOLATION_FOREST");
+            execLog.setTransactionId(transaction.getId());
+            execLog.setCustomerId(transaction.getCustomerId());
+            execLog.setExecutionTime(LocalDateTime.now());
+
+            // 异常分数阈值判断
+            if (anomalyScore >= 0.85) {
+                // 高危异常
+                execLog.setMatchResult(true);
+                execLog.setMatchScore(BigDecimal.valueOf(95));
+                execLog.setExecutionDetail(String.format(
+                        "[ML] Isolation Forest高危异常: 异常分数=%.4f (>=0.85), 交易金额=%s, 跨境=%s, 交易时间=%s, 流水号=%s",
+                        anomalyScore,
+                        transaction.getAmount().toPlainString(),
+                        transaction.getIsCrossBorder(),
+                        transaction.getTransactionTime(),
+                        transaction.getTransactionNo()));
+                matchedLogs.add(execLog);
+                log.info("[ML] 高危异常检测命中: transactionNo={}, score={}", transaction.getTransactionNo(), anomalyScore);
+
+            } else if (anomalyScore >= 0.70) {
+                // 中危异常
+                execLog.setMatchResult(true);
+                execLog.setMatchScore(BigDecimal.valueOf(75));
+                execLog.setExecutionDetail(String.format(
+                        "[ML] Isolation Forest中危异常: 异常分数=%.4f (>=0.70), 交易金额=%s, 跨境=%s, 交易时间=%s, 流水号=%s",
+                        anomalyScore,
+                        transaction.getAmount().toPlainString(),
+                        transaction.getIsCrossBorder(),
+                        transaction.getTransactionTime(),
+                        transaction.getTransactionNo()));
+                matchedLogs.add(execLog);
+                log.info("[ML] 中危异常检测命中: transactionNo={}, score={}", transaction.getTransactionNo(), anomalyScore);
+
+            } else {
+                execLog.setMatchResult(false);
+                execLog.setMatchScore(BigDecimal.valueOf(anomalyScore * 100).setScale(2, java.math.RoundingMode.HALF_UP));
+                log.debug("[ML] 交易正常: transactionNo={}, score={}", transaction.getTransactionNo(), anomalyScore);
+            }
+
+            execLog.setDurationMs(System.currentTimeMillis() - ruleStart);
+
+            // 仅命中时保存执行日志
+            if (execLog.getMatchResult()) {
+                // 尝试查找ML规则定义以关联ruleId
+                LambdaQueryWrapper<RuleDefinition> wrapper = new LambdaQueryWrapper<>();
+                wrapper.eq(RuleDefinition::getRuleCode, "ML_ISOLATION_FOREST");
+                RuleDefinition mlRule = ruleDefinitionMapper.selectOne(wrapper);
+                if (mlRule != null) {
+                    execLog.setRuleId(mlRule.getId());
+                }
+                ruleExecutionLogMapper.insert(execLog);
+            }
+
+        } catch (Exception e) {
+            log.error("[ML] 异常检测评估失败: transactionNo={}, error={}",
+                    transaction.getTransactionNo(), e.getMessage(), e);
+        }
+
+        return matchedLogs;
     }
 
     // ====================================================================
