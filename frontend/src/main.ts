@@ -55,35 +55,10 @@ import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './assets/theme.css'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import {
-  ArrowDown,
-  Bell,
-  Check,
-  CircleCheckFilled,
-  DataAnalysis,
-  Document,
-  Download,
-  Expand,
-  Fold,
-  FolderOpened,
-  Goods,
-  Loading,
-  Monitor,
-  Notification,
-  Odometer,
-  Plus,
-  Refresh,
-  Search,
-  Setting,
-  User,
-  UserFilled,
-  Warning,
-  WarningFilled
-} from '@element-plus/icons-vue'
-
 import App from './App.vue'
 import router from './router'
 import { permDirective } from './directives/perm'
+import { registerIcons } from './icons'
 
 const app = createApp(App)
 
@@ -138,40 +113,12 @@ const elementComponents = [
   ElTooltip
 ]
 
-const icons = {
-  ArrowDown,
-  Bell,
-  Check,
-  CircleCheckFilled,
-  DataAnalysis,
-  Document,
-  Download,
-  Expand,
-  Fold,
-  FolderOpened,
-  Goods,
-  Loading,
-  Monitor,
-  Notification,
-  Odometer,
-  Plus,
-  Refresh,
-  Search,
-  Setting,
-  User,
-  UserFilled,
-  Warning,
-  WarningFilled
-}
-
 for (const component of elementComponents) {
   app.use(component)
 }
 
 // 只注册项目实际使用的图标，避免把整套图标库打进主包。
-for (const [key, component] of Object.entries(icons)) {
-  app.component(key, component)
-}
+registerIcons(app)
 
 provideGlobalConfig({ locale: zhCn }, app, true)
 

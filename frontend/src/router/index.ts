@@ -34,6 +34,12 @@ const router = createRouter({
         { path: 'notifications', name: 'Notifications', component: () => import('@/views/system/NotificationView.vue'), meta: { title: '通知中心' } },
         { path: 'system', name: 'System', component: () => import('@/views/system/SystemView.vue'), meta: { title: '系统管理', roles: ['ROLE_ADMIN'], permissions: ['system:view'] } }
       ]
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('@/views/error/404.vue'),
+      meta: { title: '页面未找到' }
     }
   ]
 })
