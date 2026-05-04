@@ -6,12 +6,13 @@ import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.module.monitoring.mapper.TransactionDailySummaryMapper;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
+import com.insurance.aml.module.monitoring.kafka.TransactionEventProducer;
+import com.insurance.aml.module.monitoring.model.dto.TransactionEvent;
 import com.insurance.aml.module.monitoring.model.dto.TransactionIngestRequest;
 import com.insurance.aml.module.monitoring.model.dto.TransactionQueryRequest;
 import com.insurance.aml.module.monitoring.model.dto.TransactionVO;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.model.entity.TransactionDailySummary;
-import com.insurance.aml.module.monitoring.service.RuleEngineService;
 import com.insurance.aml.module.monitoring.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionDailySummaryMapper dailySummaryMapper;
     private final IdGenerator idGenerator;
     private final StringRedisTemplate redisTemplate;
-    private final RuleEngineService ruleEngineService;
+    private final TransactionEventProducer transactionEventProducer;
 
     /** Redis日汇总Key前缀 */
     private static final String SUMMARY_KEY_PREFIX = "aml:txn:summary:";
@@ -80,12 +81,14 @@ public class TransactionServiceImpl implements TransactionService {
         // 3. 更新日汇总：Redis实时计数 + DB汇总更新
         updateDailySummary(transaction);
 
-        // 4. 调用规则引擎进行交易监测
+        // 4. 发送交易事件到Kafka，由Consumer异步触发规则引擎评估
         try {
-            ruleEngineService.evaluate(transaction);
+            TransactionEvent event = TransactionEvent.fromEntity(transaction);
+            transactionEventProducer.sendTransactionEvent(event);
+            log.info("交易事件已发送到Kafka: transactionNo={}", transaction.getTransactionNo());
         } catch (Exception e) {
-            log.error("规则引擎执行异常，交易ID={}: {}", transaction.getId(), e.getMessage(), e);
-            // 规则引擎异常不影响交易录入流程
+            log.error("交易事件发送Kafka失败，交易ID={}: {}", transaction.getId(), e.getMessage(), e);
+            // Kafka发送失败不影响交易录入流程
         }
 
         return transaction;

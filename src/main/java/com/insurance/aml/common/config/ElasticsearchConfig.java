@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
+import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 /**
  * Elasticsearch 配置类
@@ -12,6 +13,7 @@ import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfigurat
  * 1. 配置Elasticsearch客户端连接参数
  * 2. 基于Spring Data Elasticsearch自动配置，自定义客户端行为
  * 3. 用于存储和检索反洗钱交易记录、告警历史等大数据量文档
+ * 4. 启用Elasticsearch Repository扫描
  *
  * 说明：Spring Boot 3.4 使用 ElasticsearchConfiguration 基类来配置客户端，
  *       底层使用新的 Elasticsearch Java Client（替代已废弃的RestHighLevelClient）
@@ -20,6 +22,7 @@ import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfigurat
  */
 @Slf4j
 @Configuration
+@EnableElasticsearchRepositories(basePackages = "com.insurance.aml.module.system.repository")
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 
     /**
