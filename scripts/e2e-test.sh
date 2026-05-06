@@ -28,6 +28,14 @@ check() {
     fi
 }
 
+auth_get() {
+    curl -s "$1" -H "Authorization: Bearer $TOKEN"
+}
+
+auth_post() {
+    curl -s -X POST "$1" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "$2"
+}
+
 echo "=========================================="
 echo "  AML System 端到端 API 测试"
 echo "=========================================="
@@ -36,10 +44,10 @@ echo "=========================================="
 echo ""
 echo "[1] 系统健康检查"
 
-RESP=$(curl -s "$BASE_URL/system/health")
+RESP=$(auth_get "$BASE_URL/system/health")
 check "健康检查" '"code":200' "$RESP"
 
-RESP=$(curl -s "$BASE_URL/system/info")
+RESP=$(auth_get "$BASE_URL/system/info")
 check "系统信息" '"code":200' "$RESP"
 
 # ==================== 认证模块 ====================
@@ -50,7 +58,7 @@ RESP=$(curl -s -X POST "$BASE_URL/auth/login" \
     -H "Content-Type: application/json" \
     -d '{"username":"admin","password":"admin123"}')
 check "登录成功" '"code":200' "$RESP"
-TOKEN=$(echo "$RESP" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+TOKEN=$(echo "$RESP" | jq -r '.data.accessToken // empty' 2>/dev/null)
 
 if [ -z "$TOKEN" ]; then
     echo "  WARNING: 无法获取Token，后续测试将跳过认证"
@@ -67,32 +75,23 @@ check "错误密码返回失败" '"code":401' "$RESP"
 echo ""
 echo "[3] KYC 客户管理"
 
-# 创建客户
-RESP=$(curl -s -X POST "$BASE_URL/kyc/customers" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{
-        "customerType":"INDIVIDUAL",
-        "name":"张三",
-        "gender":"MALE",
-        "nationality":"中国",
-        "idType":"IDCARD",
-        "idNumber":"110101199001011234",
-        "phone":"13800138000",
-        "email":"zhangsan@example.com"
-    }')
-check "创建客户" '"code":200' "$RESP"
-CUSTOMER_ID=$(echo "$RESP" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+RESP=$(auth_post "$BASE_URL/kyc/customers" '{
+    "customerType":"INDIVIDUAL",
+    "name":"E2E测试客户",
+    "nationality":"CN",
+    "idType":"ID_CARD",
+    "idNumber":"110101199001011234",
+    "phone":"13800138000",
+    "email":"e2e@test.com"
+}')
+check "创建客户 [已知问题:加密模块]" '"code":200' "$RESP"
+CUSTOMER_ID=$(echo "$RESP" | jq -r '.data.id // empty' 2>/dev/null)
 
-# 查询客户列表
-RESP=$(curl -s "$BASE_URL/kyc/customers/page?page=1&size=10" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/kyc/customers/page?page=1&size=10")
 check "查询客户列表" '"code":200' "$RESP"
 
-# 查询客户详情
 if [ -n "$CUSTOMER_ID" ]; then
-    RESP=$(curl -s "$BASE_URL/kyc/customers/$CUSTOMER_ID" \
-        -H "Authorization: Bearer $TOKEN")
+    RESP=$(auth_get "$BASE_URL/kyc/customers/$CUSTOMER_ID")
     check "查询客户详情" '"code":200' "$RESP"
 fi
 
@@ -101,81 +100,67 @@ echo ""
 echo "[4] 交易监测"
 
 TXN_NO="TXN$(date +%s)"
-RESP=$(curl -s -X POST "$BASE_URL/monitoring/transactions/ingest" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $TOKEN" \
-    -d "{
-        \"transactionNo\":\"$TXN_NO\",
-        \"customerId\":1,
-        \"transactionType\":\"PREMIUM\",
-        \"amount\":60000,
-        \"currency\":\"CNY\",
-        \"paymentMethod\":\"CASH\",
-        \"transactionTime\":\"2026-05-01 10:00:00\"
-    }")
-check "录入交易" '"code":200' "$RESP"
+RESP=$(auth_post "$BASE_URL/monitoring/transactions/ingest" "{
+    \"transactionNo\":\"$TXN_NO\",
+    \"customerId\":${CUSTOMER_ID:-1},
+    \"transactionType\":\"PREMIUM\",
+    \"amount\":60000,
+    \"currency\":\"CNY\",
+    \"paymentMethod\":\"CASH\",
+    \"transactionTime\":\"2026-05-01 10:00:00\"
+}")
+check "录入交易 [已知问题:异步管道+日期格式]" '"code":200' "$RESP"
 
-# 查询交易列表
-RESP=$(curl -s "$BASE_URL/monitoring/transactions/page?page=1&size=10" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/monitoring/transactions/page?page=1&size=10")
 check "查询交易列表" '"code":200' "$RESP"
 
 # ==================== 名单筛查模块 ====================
 echo ""
 echo "[5] 名单筛查"
 
-RESP=$(curl -s -X POST "$BASE_URL/screening/screen" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{"customerId":1,"screeningType":"CUSTOMER_ONBOARD"}')
-check "触发筛查" '"code":200' "$RESP"
+RESP=$(auth_post "$BASE_URL/screening/screen" \
+    "{\"customerId\":${CUSTOMER_ID:-1},\"screeningType\":\"SANCTIONS\"}")
+check "触发筛查 [已知问题:依赖客户数据]" '"code":200' "$RESP"
 
 # ==================== 预警模块 ====================
 echo ""
 echo "[6] 预警管理"
 
-RESP=$(curl -s "$BASE_URL/alerts/page?page=1&size=10" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/alerts/page?page=1&size=10")
 check "查询预警列表" '"code":200' "$RESP"
 
-RESP=$(curl -s "$BASE_URL/alerts/statistics" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/alerts/statistics")
 check "预警统计" '"code":200' "$RESP"
 
 # ==================== 案件模块 ====================
 echo ""
 echo "[7] 案件管理"
 
-RESP=$(curl -s "$BASE_URL/cases/page?page=1&size=10" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/cases/page?page=1&size=10")
 check "查询案件列表" '"code":200' "$RESP"
 
 # ==================== 报送模块 ====================
 echo ""
 echo "[8] 监管报送"
 
-RESP=$(curl -s "$BASE_URL/reporting/large-txn/page?page=1&size=10" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/reporting/large-txn/page?page=1&size=10")
 check "查询大额交易报告" '"code":200' "$RESP"
 
 # ==================== 产品模块 ====================
 echo ""
 echo "[9] 产品管理"
 
-RESP=$(curl -s "$BASE_URL/products/page?page=1&size=10" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/products/page?page=1&size=10")
 check "查询产品列表" '"code":200' "$RESP"
 
 # ==================== 系统管理 ====================
 echo ""
 echo "[10] 系统管理"
 
-RESP=$(curl -s "$BASE_URL/system/dicts" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/system/dicts")
 check "查询数据字典" '"code":200' "$RESP"
 
-RESP=$(curl -s "$BASE_URL/system/notifications/unread-count" \
-    -H "Authorization: Bearer $TOKEN")
+RESP=$(auth_get "$BASE_URL/system/notifications/unread-count")
 check "未读通知数" '"code":200' "$RESP"
 
 # ==================== Swagger ====================
@@ -188,7 +173,7 @@ check "Swagger文档可访问" "200" "$RESP"
 # ==================== 结果汇总 ====================
 echo ""
 echo "=========================================="
-echo "  测试结果: ${GREEN}${PASS} 通过${NC} / ${RED}${FAIL} 失败${NC}"
+echo -e "  测试结果: ${GREEN}${PASS} 通过${NC} / ${RED}${FAIL} 失败${NC}"
 echo "=========================================="
 
 if [ $FAIL -gt 0 ]; then
