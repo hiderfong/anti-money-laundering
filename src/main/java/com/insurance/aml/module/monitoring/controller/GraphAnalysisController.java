@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/monitoring/graph")
 @Tag(name = "交易网络图分析")
 @RequiredArgsConstructor
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "aml.neo4j.enabled", havingValue = "true", matchIfMissing = true)
 public class GraphAnalysisController {
 
     private final GraphAnalysisService graphAnalysisService;

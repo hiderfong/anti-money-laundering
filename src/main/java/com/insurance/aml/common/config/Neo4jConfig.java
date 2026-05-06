@@ -4,6 +4,7 @@ import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.neo4j.core.Neo4jClient;
@@ -12,8 +13,11 @@ import org.springframework.data.neo4j.repository.config.EnableNeo4jRepositories;
 /**
  * Neo4j 图数据库配置
  * 用于交易网络关联分析
+ * 通过 aml.neo4j.enabled=true 启用（默认启用）
+ * 设为 false 或不配置则跳过 Neo4j 初始化
  */
 @Configuration
+@ConditionalOnProperty(name = "aml.neo4j.enabled", havingValue = "true", matchIfMissing = true)
 @EnableNeo4jRepositories(basePackages = "com.insurance.aml.module.monitoring.repository.graph")
 public class Neo4jConfig {
 

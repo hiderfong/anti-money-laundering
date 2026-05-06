@@ -44,32 +44,21 @@ public class TransactionController {
     private final TransactionService transactionService;
 
     /**
-     * 录入交易（异步管道版本）
+     * 录入交易
      *
-     * 使用CompletableFuture异步管道：
-     * 1. 同步入库获取交易ID
-     * 2. 日汇总更新 + Kafka事件发送 并行执行
-     * 3. 通过Future返回结果，降低接口响应延迟
+     * 同步入库，事务提交后异步发送Kafka事件
      */
     @PostMapping("/ingest")
-    @Operation(summary = "录入交易（异步管道）")
-    public CompletableFuture<Result<TransactionVO>> ingestTransaction(@Valid @RequestBody TransactionIngestRequest request) {
+    @Operation(summary = "录入交易")
+    public Result<TransactionVO> ingestTransaction(@Valid @RequestBody TransactionIngestRequest request) {
         log.info("接收到交易录入请求: transactionNo={}, customerId={}, amount={}",
                 request.getTransactionNo(), request.getCustomerId(), request.getAmount());
 
-        return transactionService.ingestTransactionAsync(request)
-                .thenApply(transaction -> {
-                    TransactionVO vo = new TransactionVO();
-                    BeanUtils.copyProperties(transaction, vo);
-                    log.info("交易录入响应返回: transactionNo={}", vo.getTransactionNo());
-                    return Result.success(vo);
-                })
-                .exceptionally(ex -> {
-                    log.error("交易录入失败: transactionNo={}, error={}",
-                            request.getTransactionNo(), ex.getMessage(), ex);
-                    // 入库异常应返回错误（但如果是Kafka/汇总异常，主流程仍成功）
-                    return Result.fail("交易录入失败: " + ex.getMessage());
-                });
+        Transaction transaction = transactionService.ingestTransaction(request);
+        TransactionVO vo = new TransactionVO();
+        BeanUtils.copyProperties(transaction, vo);
+        log.info("交易录入响应返回: transactionNo={}", vo.getTransactionNo());
+        return Result.success(vo);
     }
 
     /**

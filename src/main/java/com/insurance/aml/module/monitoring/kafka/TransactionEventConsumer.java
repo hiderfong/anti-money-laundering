@@ -38,7 +38,8 @@ import java.util.concurrent.CompletableFuture;
 public class TransactionEventConsumer {
     private final RuleEngineService ruleEngineService;
     private final AlertService alertService;
-    private final GraphAnalysisService graphAnalysisService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GraphAnalysisService graphAnalysisService;
 
     /**
      * 消费交易事件，触发异步规则引擎评估管道

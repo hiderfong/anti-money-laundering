@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -49,7 +50,8 @@ import java.util.stream.Collectors;
 @Tag(name = "审计日志", description = "审计日志查询相关接口")
 public class AuditLogController {
     private final AuditLogQueryService auditLogQueryService;
-    private final ElasticsearchOperations elasticsearchOperations;
+    @Autowired(required = false)
+    private ElasticsearchOperations elasticsearchOperations;
 
     /**
      * 分页查询审计日志（MySQL）
