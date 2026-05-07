@@ -57,6 +57,7 @@ public class SecurityConfig {
     private static final String[] PERMIT_ALL_PATHS = {
             "/auth/login",
             "/auth/register",
+            "/auth/refresh",
             "/system/health",
             "/system/info",
             "/actuator/**",

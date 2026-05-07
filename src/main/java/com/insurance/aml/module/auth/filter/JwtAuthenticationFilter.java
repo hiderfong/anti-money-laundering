@@ -44,6 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String[] SKIP_PATHS = {
             "/auth/login",
             "/auth/register",
+            "/auth/refresh",
             "/doc.html",
             "/webjars/**",
             "/swagger-resources/**",

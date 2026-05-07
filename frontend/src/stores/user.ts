@@ -82,6 +82,7 @@ export const useUserStore = defineStore('user', () => {
     roles.value = responseRoles.length ? responseRoles : decodeJwtRoles(data.accessToken)
     permissions.value = normalizeStringList(data.permissions)
     localStorage.setItem('aml_token', data.accessToken)
+    localStorage.setItem('aml_refresh_token', data.refreshToken)
     localStorage.setItem('aml_user', JSON.stringify(userInfo.value))
     localStorage.setItem('aml_roles', JSON.stringify(roles.value))
     localStorage.setItem('aml_permissions', JSON.stringify(permissions.value))
@@ -100,6 +101,7 @@ export const useUserStore = defineStore('user', () => {
     roles.value = []
     permissions.value = []
     localStorage.removeItem('aml_token')
+    localStorage.removeItem('aml_refresh_token')
     localStorage.removeItem('aml_user')
     localStorage.removeItem('aml_roles')
     localStorage.removeItem('aml_permissions')
