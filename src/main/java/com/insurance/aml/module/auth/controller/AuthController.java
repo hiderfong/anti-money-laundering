@@ -1,5 +1,6 @@
 package com.insurance.aml.module.auth.controller;
 
+import com.insurance.aml.common.annotation.RateLimit;
 import com.insurance.aml.common.result.Result;
 import com.insurance.aml.module.auth.model.JwtUserDetails;
 import com.insurance.aml.module.auth.model.LoginRequest;
@@ -34,6 +35,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     @Operation(summary = "用户登录")
+    @RateLimit(key = "login", maxRequests = 5, windowSeconds = 60, dimension = RateLimit.Dimension.IP, message = "登录尝试过于频繁")
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.login(request);
         return Result.success(response);

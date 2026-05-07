@@ -71,6 +71,18 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理限流异常 - 返回 429
+     */
+    @ExceptionHandler(RateLimitException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public Result<Void> handleRateLimitException(RateLimitException e, HttpServletRequest request,
+                                                  jakarta.servlet.http.HttpServletResponse response) {
+        log.warn("限流触发: uri={}, message={}", request.getRequestURI(), e.getMessage());
+        response.setHeader("Retry-After", String.valueOf(e.getRetryAfterSeconds()));
+        return Result.fail(429, e.getMessage());
+    }
+
+    /**
      * 处理参数校验异常 - @RequestBody参数校验
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)

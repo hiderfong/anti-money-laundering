@@ -16,6 +16,7 @@ public enum ResultCode {
     UNAUTHORIZED(401, "unauthorized"),
     FORBIDDEN(403, "forbidden"),
     NOT_FOUND(404, "not found"),
+    TOO_MANY_REQUESTS(429, "too many requests"),
     INTERNAL_ERROR(500, "internal server error"),
 
     // ==================== 用户模块 100xxx ====================
