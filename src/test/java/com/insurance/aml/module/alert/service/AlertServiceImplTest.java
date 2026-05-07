@@ -337,6 +337,193 @@ class AlertServiceImplTest {
         assertEquals(29L, statistics.getTotalCount());
     }
 
+    // ==================== 自动分配测试 ====================
+
+    @Test
+    @DisplayName("自动分配预警 - 无待分配预警时正常返回不更新")
+    void testAutoAssignAlert() {
+        // mock：查询NEW状态预警返回空列表
+        when(alertMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
+
+        // 执行自动分配
+        alertService.autoAssignAlerts();
+
+        // 验证：不应调用updateById（没有预警需要分配）
+        verify(alertMapper, never()).updateById(any(Alert.class));
+        // 验证：不应插入分配日志
+        verify(assignmentLogMapper, never()).insert(any());
+    }
+
+    // ==================== 升级预警测试 ====================
+
+    @Test
+    @DisplayName("升级预警 - 处理结果为ESCALATED时状态变更为ESCALATED且不创建案件")
+    void testEscalateAlert() {
+        // 准备预警数据（状态为ASSIGNED）
+        Alert alert = buildTestAlert();
+        alert.setId(5L);
+        alert.setStatus("ASSIGNED");
+
+        // 准备处理请求 - ESCALATED
+        AlertProcessRequest req = new AlertProcessRequest();
+        req.setAlertId(5L);
+        req.setProcessResult("ESCALATED");
+        req.setProcessRemark("升级至高级审核");
+
+        // mock：查询预警
+        when(alertMapper.selectById(5L)).thenReturn(alert);
+        // mock：更新成功
+        when(alertMapper.updateById(any(Alert.class))).thenReturn(1);
+
+        // 执行处理
+        alertService.processAlert(req);
+
+        // 验证：状态变更为 ESCALATED
+        verify(alertMapper, times(1)).updateById(argThat(a -> {
+            Alert updated = (Alert) a;
+            return "ESCALATED".equals(updated.getStatus())
+                    && "ESCALATED".equals(updated.getProcessResult());
+        }));
+        // 验证：ESCALATED不应创建案件
+        verify(caseService, never()).createCase(any(CaseCreateRequest.class));
+    }
+
+    // ==================== 忽略预警测试 ====================
+
+    @Test
+    @DisplayName("忽略预警 - 批量忽略多条预警，状态变更为EXCLUDED")
+    void testDismissAlert() {
+        // 准备两条ASSIGNED预警
+        Alert alert1 = buildTestAlert();
+        alert1.setId(10L);
+        alert1.setStatus("ASSIGNED");
+
+        Alert alert2 = buildTestAlert();
+        alert2.setId(11L);
+        alert2.setStatus("ASSIGNED");
+
+        // mock：依次返回两条预警
+        when(alertMapper.selectById(10L)).thenReturn(alert1);
+        when(alertMapper.selectById(11L)).thenReturn(alert2);
+        when(alertMapper.updateById(any(Alert.class))).thenReturn(1);
+
+        // 执行批量忽略
+        alertService.batchProcess(Arrays.asList(10L, 11L), "EXCLUDED");
+
+        // 验证：两条预警都被更新为EXCLUDED
+        verify(alertMapper, times(2)).updateById(argThat(a -> {
+            Alert updated = (Alert) a;
+            return "EXCLUDED".equals(updated.getStatus())
+                    && "EXCLUDED".equals(updated.getProcessResult());
+        }));
+        // 验证：排除不应创建案件
+        verify(caseService, never()).createCase(any(CaseCreateRequest.class));
+    }
+
+    // ==================== 预警统计测试 ====================
+
+    @Test
+    @DisplayName("预警统计 - 各状态均为零时返回空统计")
+    void testGetAlertStatistics_emptyStats() {
+        // mock：所有统计查询返回0
+        when(alertMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        when(alertMapper.selectCount(isNull())).thenReturn(0L);
+
+        // 执行统计查询
+        AlertController.AlertStatisticsVO statistics = alertService.getAlertStatistics();
+
+        // 验证结果
+        assertNotNull(statistics);
+        assertEquals(0L, statistics.getTotalCount());
+        // 验证各状态计数为0
+        Map<String, Long> statusCount = statistics.getCountByStatus();
+        assertNotNull(statusCount);
+        assertEquals(0L, statusCount.get("NEW"));
+        assertEquals(0L, statusCount.get("ASSIGNED"));
+        assertEquals(0L, statusCount.get("CONFIRMED"));
+        // 验证各风险等级计数为0
+        Map<String, Long> riskLevelCount = statistics.getCountByRiskLevel();
+        assertNotNull(riskLevelCount);
+        assertEquals(0L, riskLevelCount.get("HIGH"));
+        assertEquals(0L, riskLevelCount.get("CRITICAL"));
+    }
+
+    // ==================== 批量处理测试 ====================
+
+    @Test
+    @DisplayName("批量处理预警 - 确认可疑多条预警并为每条创建案件")
+    void testBatchProcessAlerts() {
+        // 准备两条ASSIGNED预警
+        Alert alert1 = buildTestAlert();
+        alert1.setId(20L);
+        alert1.setStatus("ASSIGNED");
+        alert1.setRiskLevel("HIGH");
+
+        Alert alert2 = buildTestAlert();
+        alert2.setId(21L);
+        alert2.setStatus("ASSIGNED");
+        alert2.setRiskLevel("CRITICAL");
+
+        // mock：查询预警
+        when(alertMapper.selectById(20L)).thenReturn(alert1);
+        when(alertMapper.selectById(21L)).thenReturn(alert2);
+        when(alertMapper.updateById(any(Alert.class))).thenReturn(1);
+
+        // 执行批量确认可疑
+        alertService.batchProcess(Arrays.asList(20L, 21L), "CONFIRMED_SUSPICIOUS");
+
+        // 验证：两条预警都被更新为CONFIRMED
+        verify(alertMapper, times(2)).updateById(argThat(a -> {
+            Alert updated = (Alert) a;
+            return "CONFIRMED".equals(updated.getStatus())
+                    && "CONFIRMED_SUSPICIOUS".equals(updated.getProcessResult());
+        }));
+        // 验证：为每条预警创建了案件
+        verify(caseService, times(2)).createCase(any(CaseCreateRequest.class));
+    }
+
+    // ==================== 超期检查测试 ====================
+
+    @Test
+    @DisplayName("超期检查 - 无超期预警时不更新也不记录日志")
+    void testCheckOverdueAlerts() {
+        // mock：查询超期预警返回空列表
+        when(alertMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
+
+        // 执行超期检查
+        alertService.escalateOverdueAlerts();
+
+        // 验证：不应更新任何预警
+        verify(alertMapper, never()).updateById(any(Alert.class));
+        // 验证：不应插入分配日志
+        verify(assignmentLogMapper, never()).insert(any());
+    }
+
+    // ==================== 异常场景测试 ====================
+
+    @Test
+    @DisplayName("分配预警 - 预警不存在时抛出ALERT_NOT_FOUND异常")
+    void testAssignAlertToInvalidUser() {
+        // mock：查询预警返回null（预警不存在）
+        when(alertMapper.selectById(999L)).thenReturn(null);
+
+        // 准备分配请求
+        AlertAssignRequest req = new AlertAssignRequest();
+        req.setAlertId(999L);
+        req.setAssignTo(100L);
+        req.setAssignReason("手动分配");
+
+        // 验证抛出 BusinessException 且错误码为 ALERT_NOT_FOUND
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> alertService.assignAlert(req));
+        assertEquals(ResultCode.ALERT_NOT_FOUND.getCode(), exception.getCode());
+
+        // 验证 updateById 未被调用
+        verify(alertMapper, never()).updateById(any(Alert.class));
+        // 验证 分配日志未被记录
+        verify(assignmentLogMapper, never()).insert(any());
+    }
+
     // ==================== 辅助方法 ====================
 
     /**

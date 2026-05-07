@@ -328,4 +328,165 @@ class AuthServiceImplTest {
         verify(sysPermissionMapper).findPermissionCodesByUserId(2L);
         verify(sysPermissionMapper, never()).findAllEnabledPermissionCodes();
     }
+
+    // ==================== 新增测试用例 ====================
+
+    /**
+     * 测试锁定账号登录抛出DisabledException
+     */
+    @Test
+    @DisplayName("锁定账号登录 -> 抛出DisabledException")
+    void testLoginWithLockedAccount() {
+        // 准备：认证管理器抛出DisabledException（模拟锁定账号）
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new org.springframework.security.authentication.DisabledException("账户已被锁定"));
+
+        // 执行 & 验证
+        assertThrows(org.springframework.security.authentication.DisabledException.class,
+                () -> authService.login(loginRequest),
+                "锁定账号应抛出DisabledException");
+
+        // 验证：未生成任何token
+        verify(jwtService, never()).generateAccessToken(any());
+        verify(jwtService, never()).generateRefreshToken(any());
+        // 验证：未存储token到Redis
+        verify(valueOperations, never()).set(anyString(), anyString(), anyLong(), any(TimeUnit.class));
+    }
+
+    /**
+     * 测试错误密码登录（不同密码场景）
+     */
+    @Test
+    @DisplayName("错误密码登录 -> 验证不生成token且不存储Redis")
+    void testLoginWithWrongPassword() {
+        // 准备
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new BadCredentialsException("密码错误"));
+
+        LoginRequest wrongPassRequest = new LoginRequest();
+        wrongPassRequest.setUsername("admin");
+        wrongPassRequest.setPassword("wrong_password_123");
+
+        // 执行 & 验证
+        BadCredentialsException ex = assertThrows(BadCredentialsException.class,
+                () -> authService.login(wrongPassRequest));
+        assertEquals("密码错误", ex.getMessage());
+
+        // 验证：未生成token
+        verify(jwtService, never()).generateAccessToken(any());
+        verify(jwtService, never()).generateRefreshToken(any());
+        // 验证：未存储任何Redis数据
+        verify(redisTemplate, never()).opsForValue();
+    }
+
+    /**
+     * 测试过期token刷新（validateToken返回false模拟过期）
+     */
+    @Test
+    @DisplayName("过期token刷新 -> 抛出RuntimeException提示令牌无效或已过期")
+    void testRefreshTokenWithExpiredToken() {
+        // 准备：validateToken对过期token返回false
+        String expiredToken = "eyJhbGciOiJIUzI1NiJ9.expired.token";
+        when(jwtService.validateToken(expiredToken)).thenReturn(false);
+
+        // 执行 & 验证
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> authService.refreshToken(expiredToken));
+        assertTrue(ex.getMessage().contains("刷新令牌无效"), "过期token应提示令牌无效或已过期");
+
+        // 验证：未从Redis获取数据
+        verify(valueOperations, never()).get(anyString());
+        // 验证：未生成新token
+        verify(jwtService, never()).generateAccessToken(any());
+        verify(jwtService, never()).generateRefreshToken(any());
+    }
+
+    /**
+     * 测试无效token格式刷新
+     */
+    @Test
+    @DisplayName("无效token格式刷新 -> 抛出RuntimeException")
+    void testRefreshTokenWithInvalidToken() {
+        // 准备：格式错误的token
+        String malformedToken = "not-a-valid-jwt-token-format";
+        when(jwtService.validateToken(malformedToken)).thenReturn(false);
+
+        // 执行 & 验证
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> authService.refreshToken(malformedToken));
+        assertTrue(ex.getMessage().contains("刷新令牌无效"), "无效格式token应提示令牌无效");
+
+        // 验证：未查询Redis
+        verify(valueOperations, never()).get(anyString());
+        // 验证：未重新加载用户
+        verify(userDetailsService, never()).loadUserByUsername(anyString());
+    }
+
+    /**
+     * 测试用户登出完整流程
+     */
+    @Test
+    @DisplayName("用户登出 -> 将token加入黑名单并删除刷新令牌")
+    void testLogout() {
+        // 准备
+        when(jwtService.getAccessTokenExpireSeconds()).thenReturn(7200L);
+
+        // 执行
+        authService.logout(testUserDetails);
+
+        // 验证：将当前用户token加入黑名单
+        verify(valueOperations).set(
+                eq("jwt:blacklist:1"), eq("logout"), eq(7200L), eq(TimeUnit.SECONDS));
+
+        // 验证：清除刷新令牌
+        verify(redisTemplate).delete("jwt:refresh:1");
+
+        // 验证：Redis操作只执行了两次（一次set黑名单，一次delete刷新令牌）
+        verify(valueOperations, times(1)).set(anyString(), anyString(), anyLong(), any(TimeUnit.class));
+        verify(redisTemplate, times(1)).delete(anyString());
+    }
+
+    /**
+     * 测试获取当前用户信息（验证登录响应包含完整用户信息）
+     */
+    @Test
+    @DisplayName("获取当前用户信息 -> 登录响应包含userId、username、realName等完整信息")
+    void testGetCurrentUserInfo() {
+        // 准备
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(jwtService.generateAccessToken(testUserDetails)).thenReturn("access_token_info");
+        when(jwtService.generateRefreshToken(testUserDetails)).thenReturn("refresh_token_info");
+        when(jwtService.getAccessTokenExpireSeconds()).thenReturn(3600L);
+        when(sysRoleMapper.findRoleCodesByUserId(1L)).thenReturn(List.of("ROLE_ADMIN", "ROLE_AUDITOR"));
+        when(sysPermissionMapper.findAllEnabledPermissionCodes())
+                .thenReturn(List.of("user:read", "user:write", "alert:manage", "case:read"));
+
+        // 执行
+        LoginResponse response = authService.login(loginRequest);
+
+        // 验证：用户基本信息完整
+        assertNotNull(response, "响应不应为空");
+        assertEquals(1L, response.getUserId(), "userId应正确");
+        assertEquals("admin", response.getUsername(), "username应正确");
+        assertEquals("管理员", response.getRealName(), "realName应正确");
+
+        // 验证：角色信息正确
+        assertNotNull(response.getRoles(), "角色列表不应为空");
+        assertTrue(response.getRoles().contains("ROLE_ADMIN"), "应包含ROLE_ADMIN");
+        assertTrue(response.getRoles().contains("ROLE_AUDITOR"), "应包含ROLE_AUDITOR");
+        assertEquals(2, response.getRoles().size(), "应有2个角色");
+
+        // 验证：权限信息正确
+        assertNotNull(response.getPermissions(), "权限列表不应为空");
+        assertEquals(4, response.getPermissions().size(), "应有4个权限");
+        assertTrue(response.getPermissions().contains("user:read"), "应包含user:read");
+        assertTrue(response.getPermissions().contains("alert:manage"), "应包含alert:manage");
+
+        // 验证：token信息完整
+        assertNotNull(response.getAccessToken(), "accessToken不应为空");
+        assertNotNull(response.getRefreshToken(), "refreshToken不应为空");
+        assertEquals("Bearer", response.getTokenType(), "tokenType应为Bearer");
+        assertEquals(3600L, response.getExpiresIn(), "过期时间应正确");
+    }
 }

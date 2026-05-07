@@ -395,4 +395,159 @@ class RuleEngineServiceTest {
                 .anyMatch(r -> "ML_ISOLATION_FOREST".equals(r.getRuleCode()));
         assertFalse(mlHit, "ML正常交易不应命中");
     }
+
+    // ==================== 新增测试用例 ====================
+
+    /**
+     * 测试无规则场景 - 四引擎均无命中
+     */
+    @Test
+    @DisplayName("无规则评估 -> 数据库规则为空且ML正常，返回空结果")
+    void testEvaluateWithNoRules() {
+        // 准备：数据库无规则，ML返回正常分数
+        when(ruleDefinitionMapper.selectList(any())).thenReturn(Collections.emptyList());
+        when(anomalyDetector.predict(any(Transaction.class))).thenReturn(0.2);
+
+        // 准备交易
+        Transaction txn = createTestTransaction(11L, new BigDecimal("1000"));
+
+        // 执行
+        List<RuleExecutionLog> results = ruleEngineService.evaluate(txn);
+
+        // 验证：结果应为空列表（无任何引擎命中）
+        assertNotNull(results, "结果不应为空");
+        assertTrue(results.isEmpty(), "无规则且ML正常时应返回空结果");
+    }
+
+    /**
+     * 测试禁用规则 - 禁用的规则不应被评估
+     * loadActiveRules查询条件为status=ENABLED，DISABLED规则不会被selectList返回
+     */
+    @Test
+    @DisplayName("禁用规则 -> DISABLED状态规则不被评估，不产生命中结果")
+    void testEvaluateWithDisabledRule() {
+        // 准备：模拟查询返回空列表（DISABLED规则已被SQL过滤）
+        when(ruleDefinitionMapper.selectList(any())).thenReturn(Collections.emptyList());
+
+        // 准备交易
+        Transaction txn = createTestTransaction(12L, new BigDecimal("100000"));
+
+        // 执行
+        List<RuleExecutionLog> results = ruleEngineService.evaluate(txn);
+
+        // 验证：不应有数据库规则命中
+        boolean dbRuleHit = results.stream()
+                .anyMatch(r -> r.getRuleCode() != null && r.getRuleCode().startsWith("RULE_"));
+        assertFalse(dbRuleHit, "禁用规则不应产生命中结果");
+    }
+
+    /**
+     * 测试大额转账交易 - 超过转账阈值200万
+     */
+    @Test
+    @DisplayName("大额交易评估 -> 转账金额3000000超过转账阈值2000000，应命中")
+    void testEvaluateHighAmountTransaction() {
+        // 准备大额交易规则
+        RuleDefinition largeTxnRule = createLargeTxnRule("LARGE_TXN_HIGH", 20L);
+        when(ruleDefinitionMapper.selectList(any())).thenReturn(Collections.singletonList(largeTxnRule));
+        when(ruleExecutionLogMapper.insert(any())).thenReturn(1);
+
+        // 准备转账交易：300万 > 200万转账阈值
+        Transaction txn = createTestTransaction(13L, new BigDecimal("3000000"));
+        txn.setPaymentMethod("TRANSFER");
+
+        // 执行
+        List<RuleExecutionLog> results = ruleEngineService.evaluate(txn);
+
+        // 验证：应命中大额交易规则
+        RuleExecutionLog largeHit = results.stream()
+                .filter(r -> "LARGE_TXN_HIGH".equals(r.getRuleCode()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(largeHit, "大额转账应命中规则");
+        assertTrue(largeHit.getMatchResult(), "大额转账结果应为命中");
+        // 验证匹配得分：3000000/2000000 * 100 = 150，min(150, 100) = 100
+        assertEquals(BigDecimal.valueOf(100), largeHit.getMatchScore(), "匹配得分应为100");
+    }
+
+    /**
+     * 测试频率规则 - 短时间内交易笔数超过阈值
+     */
+    @Test
+    @DisplayName("频繁交易评估 -> 120秒内交易15笔超过阈值10笔，应命中VELOCITY规则")
+    void testEvaluateFrequentTransactions() {
+        // 准备频率规则
+        RuleDefinition velocityRule = new RuleDefinition();
+        velocityRule.setId(30L);
+        velocityRule.setRuleCode("VELOCITY_001");
+        velocityRule.setRuleName("高频交易规则");
+        velocityRule.setRuleCategory("VELOCITY");
+        velocityRule.setStatus("ENABLED");
+        velocityRule.setPriority(1);
+        velocityRule.setEffectiveDate(LocalDate.now().minusDays(1));
+        velocityRule.setConfigJson("{\"max_count\": 10, \"time_window_seconds\": 120}");
+
+        when(ruleDefinitionMapper.selectList(any())).thenReturn(Collections.singletonList(velocityRule));
+        when(ruleExecutionLogMapper.insert(any())).thenReturn(1);
+
+        // mock：最近120秒内有15笔交易
+        when(transactionMapper.selectCount(any())).thenReturn(15L);
+
+        // 准备交易
+        Transaction txn = createTestTransaction(14L, new BigDecimal("5000"));
+
+        // 执行
+        List<RuleExecutionLog> results = ruleEngineService.evaluate(txn);
+
+        // 验证：应命中频率规则
+        RuleExecutionLog velocityHit = results.stream()
+                .filter(r -> "VELOCITY_001".equals(r.getRuleCode()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(velocityHit, "应命中VELOCITY频率规则");
+        assertTrue(velocityHit.getMatchResult(), "频繁交易应被命中");
+        assertEquals(BigDecimal.valueOf(85), velocityHit.getMatchScore(), "频率规则得分应为85");
+    }
+
+    /**
+     * 测试规则优先级顺序 - 多条规则按优先级排列，全部被评估
+     */
+    @Test
+    @DisplayName("规则优先级 -> 3条不同优先级规则全部被评估，结果包含所有命中规则")
+    void testRulePriorityOrder() {
+        // 准备3条规则，优先级分别为3、1、2（与数据库查询返回顺序一致）
+        RuleDefinition highPriority = createThresholdRule("RULE_PRI_1", 40L, 5000);
+        highPriority.setPriority(1);
+        highPriority.setRuleName("高优先级规则");
+
+        RuleDefinition midPriority = createThresholdRule("RULE_PRI_2", 41L, 10000);
+        midPriority.setPriority(2);
+        midPriority.setRuleName("中优先级规则");
+
+        RuleDefinition lowPriority = createThresholdRule("RULE_PRI_3", 42L, 20000);
+        lowPriority.setPriority(3);
+        lowPriority.setRuleName("低优先级规则");
+
+        // mock：数据库返回按优先级排序的规则列表
+        when(ruleDefinitionMapper.selectList(any())).thenReturn(Arrays.asList(highPriority, midPriority, lowPriority));
+        when(ruleExecutionLogMapper.insert(any())).thenReturn(1);
+
+        // 准备交易：金额25000，超过所有规则阈值
+        Transaction txn = createTestTransaction(15L, new BigDecimal("25000"));
+
+        // 执行
+        List<RuleExecutionLog> results = ruleEngineService.evaluate(txn);
+
+        // 验证：3条规则全部命中
+        assertNotNull(results, "结果不应为空");
+        long pri1Count = results.stream().filter(r -> "RULE_PRI_1".equals(r.getRuleCode())).count();
+        long pri2Count = results.stream().filter(r -> "RULE_PRI_2".equals(r.getRuleCode())).count();
+        long pri3Count = results.stream().filter(r -> "RULE_PRI_3".equals(r.getRuleCode())).count();
+        assertEquals(1, pri1Count, "优先级1规则应被评估并命中");
+        assertEquals(1, pri2Count, "优先级2规则应被评估并命中");
+        assertEquals(1, pri3Count, "优先级3规则应被评估并命中");
+
+        // 验证：每条规则都保存了执行日志
+        verify(ruleExecutionLogMapper, times(3)).insert(any());
+    }
 }
