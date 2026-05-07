@@ -45,6 +45,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/auth/login",
             "/auth/register",
             "/auth/refresh",
+            "/system/health",
+            "/system/info",
             "/doc.html",
             "/webjars/**",
             "/swagger-resources/**",
@@ -60,7 +62,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String path = request.getRequestURI();
+        // 使用servletPath（不含context-path）进行路径匹配
+        String path = request.getServletPath();
 
         // 跳过不需要认证的路径
         if (shouldSkip(path)) {
