@@ -1,5 +1,6 @@
 package com.insurance.aml.module.monitoring.model.vo;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -11,58 +12,59 @@ import java.util.List;
  * 展示单条规则的历史命中、确认、误报等核心指标及阈值调整建议
  */
 @Data
+@Schema(description = "规则反馈统计视图对象")
 public class RuleFeedbackVO {
 
-    /** 规则ID */
+    @Schema(description = "规则ID")
     private Long ruleId;
 
-    /** 规则编码 */
+    @Schema(description = "规则编码")
     private String ruleCode;
 
-    /** 规则名称 */
+    @Schema(description = "规则名称")
     private String ruleName;
 
-    /** 规则分类 */
+    @Schema(description = "规则分类")
     private String ruleCategory;
 
-    /** 规则当前状态 */
+    @Schema(description = "规则当前状态")
     private String status;
 
-    /** 当前配置JSON（含阈值） */
+    @Schema(description = "当前配置JSON，含阈值")
     private String configJson;
 
     // ========== 统计指标 ==========
 
-    /** 总命中次数（规则执行日志中matchResult=true的记录数） */
+    @Schema(description = "总命中次数")
     private Long totalHits;
 
-    /** 关联预警数（由该规则产生的预警总数） */
+    @Schema(description = "关联预警数")
     private Long alertCount;
 
-    /** 已确认可疑数（processResult=CONFIRMED_SUSPICIOUS） */
+    @Schema(description = "已确认可疑数")
     private Long confirmedCount;
 
-    /** 已排除数（processResult=EXCLUDED 或 status=EXCLUDED） */
+    @Schema(description = "已排除数")
     private Long excludedCount;
 
-    /** 已升级数（processResult=ESCALATED） */
+    @Schema(description = "已升级数")
     private Long escalatedCount;
 
-    /** 待处理数（status=NEW/ASSIGNED/PROCESSING） */
+    @Schema(description = "待处理数")
     private Long pendingCount;
 
     // ========== 比率指标 ==========
 
-    /** 确认率 = confirmedCount / alertCount */
+    @Schema(description = "确认率")
     private BigDecimal confirmationRate;
 
-    /** 误报率 = excludedCount / alertCount */
+    @Schema(description = "误报率")
     private BigDecimal falsePositiveRate;
 
-    /** 升级率 = escalatedCount / alertCount */
+    @Schema(description = "升级率")
     private BigDecimal escalationRate;
 
-    /** 处理率 = (confirmedCount + excludedCount + escalatedCount) / alertCount */
+    @Schema(description = "处理率")
     private BigDecimal processingRate;
 
     // ========== 建议 ==========
@@ -74,36 +76,37 @@ public class RuleFeedbackVO {
      * OPTIMAL  - 当前阈值较合理
      * INSUFFICIENT_DATA - 数据不足，暂不建议
      */
+    @Schema(description = "阈值调整建议方向，可选值：TIGHTEN-收紧、RELAX-放松、OPTIMAL-合理、INSUFFICIENT_DATA-数据不足")
     private String adjustmentDirection;
 
-    /** 建议说明（人可读） */
+    @Schema(description = "建议说明")
     private String adjustmentReason;
 
-    /** 具体数值建议（如 "建议将threshold从50000提高至80000"） */
+    @Schema(description = "具体数值建议")
     private String adjustmentDetail;
 
-    /** 统计时间范围 */
+    @Schema(description = "统计时间范围")
     private String statsPeriod;
 
-    /** 统计计算时间 */
+    @Schema(description = "统计计算时间")
     private LocalDateTime calculatedAt;
 
-    /** 所有规则统计的汇总信息 */
+    @Schema(description = "所有规则统计的汇总信息")
     @Data
     public static class FeedbackSummary {
-        /** 规则总数 */
+        @Schema(description = "规则总数")
         private Integer totalRules;
-        /** 平均确认率 */
+        @Schema(description = "平均确认率")
         private BigDecimal avgConfirmationRate;
-        /** 平均误报率 */
+        @Schema(description = "平均误报率")
         private BigDecimal avgFalsePositiveRate;
-        /** 建议收紧的规则数 */
+        @Schema(description = "建议收紧的规则数")
         private Integer tightenCount;
-        /** 建议放松的规则数 */
+        @Schema(description = "建议放松的规则数")
         private Integer relaxCount;
-        /** 数据不足的规则数 */
+        @Schema(description = "数据不足的规则数")
         private Integer insufficientDataCount;
-        /** 所有规则的详细统计 */
+        @Schema(description = "所有规则的详细统计")
         private List<RuleFeedbackVO> ruleDetails;
     }
 }

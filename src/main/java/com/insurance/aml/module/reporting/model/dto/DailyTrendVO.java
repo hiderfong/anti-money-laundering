@@ -1,5 +1,6 @@
 package com.insurance.aml.module.reporting.model.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -8,14 +9,15 @@ import java.math.BigDecimal;
  * 每日趋势数据VO
  */
 @Data
+@Schema(description = "每日趋势视图对象")
 public class DailyTrendVO {
 
-    /** 日期，格式 yyyy-MM-dd */
+    @Schema(description = "日期，格式yyyy-MM-dd")
     private String date;
 
-    /** 数量 */
+    @Schema(description = "数量")
     private long count;
 
-    /** 金额 */
+    @Schema(description = "金额")
     private BigDecimal amount;
 }

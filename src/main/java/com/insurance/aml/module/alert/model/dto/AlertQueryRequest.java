@@ -1,6 +1,7 @@
 package com.insurance.aml.module.alert.model.dto;
 
 import com.insurance.aml.common.result.PageQuery;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -11,26 +12,27 @@ import java.time.LocalDateTime;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
+@Schema(description = "预警查询请求参数")
 public class AlertQueryRequest extends PageQuery {
 
-    /** 预警类型 */
+    @Schema(description = "预警类型")
     private String alertType;
 
-    /** 风险等级 */
+    @Schema(description = "风险等级")
     private String riskLevel;
 
-    /** 预警状态 */
+    @Schema(description = "预警状态")
     private String status;
 
-    /** 分配处理人ID */
+    @Schema(description = "分配处理人ID")
     private Long assignedTo;
 
-    /** 客户ID */
+    @Schema(description = "客户ID")
     private Long customerId;
 
-    /** 开始时间 */
+    @Schema(description = "开始时间")
     private LocalDateTime startTime;
 
-    /** 结束时间 */
+    @Schema(description = "结束时间")
     private LocalDateTime endTime;
 }

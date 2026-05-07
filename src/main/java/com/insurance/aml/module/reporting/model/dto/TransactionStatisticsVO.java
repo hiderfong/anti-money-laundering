@@ -1,5 +1,6 @@
 package com.insurance.aml.module.reporting.model.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -9,20 +10,21 @@ import java.util.Map;
  * 交易统计VO
  */
 @Data
+@Schema(description = "交易统计视图对象")
 public class TransactionStatisticsVO {
 
-    /** 交易总金额 */
+    @Schema(description = "交易总金额")
     private BigDecimal totalAmount;
 
-    /** 交易总数 */
+    @Schema(description = "交易总数")
     private long totalCount;
 
-    /** 大额交易数 */
+    @Schema(description = "大额交易数")
     private long largeTxnCount;
 
-    /** 可疑交易数 */
+    @Schema(description = "可疑交易数")
     private long suspiciousTxnCount;
 
-    /** 按交易类型分组的金额（transactionType → totalAmount） */
+    @Schema(description = "按交易类型分组的金额")
     private Map<String, BigDecimal> byType;
 }
