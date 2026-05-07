@@ -244,6 +244,54 @@ CREATE TABLE IF NOT EXISTS t_audit_log (
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_screening_request (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  request_no VARCHAR(64),
+  customer_id BIGINT,
+  screening_type VARCHAR(32),
+  request_source VARCHAR(32),
+  request_data CLOB,
+  total_scanned INT,
+  total_hit INT,
+  status VARCHAR(16) DEFAULT 'PROCESSING',
+  error_message TEXT,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_time TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_whitelist (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT,
+  customer_name VARCHAR(128),
+  watchlist_entry_id BIGINT,
+  watchlist_name VARCHAR(256),
+  exclude_reason VARCHAR(512),
+  evidence TEXT,
+  effective_date DATE,
+  expiry_date DATE,
+  approved_by VARCHAR(64),
+  approved_time TIMESTAMP,
+  review_status VARCHAR(16) DEFAULT 'ACTIVE',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_transaction_daily_summary (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT NOT NULL,
+  summary_date DATE NOT NULL,
+  transaction_type VARCHAR(32),
+  payment_method VARCHAR(16),
+  is_cross_border BOOLEAN DEFAULT FALSE,
+  total_amount DECIMAL(18,2),
+  transaction_count INT DEFAULT 0,
+  large_txn_flag BOOLEAN DEFAULT FALSE,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 插入测试数据，admin 密码为 admin123
 INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
