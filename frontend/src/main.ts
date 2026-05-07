@@ -57,6 +57,7 @@ import './assets/theme.css'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import App from './App.vue'
 import router from './router'
+import i18n from './i18n'
 import { permDirective } from './directives/perm'
 import { registerIcons } from './icons'
 
@@ -127,5 +128,6 @@ app.directive('perm', permDirective)
 
 app.use(createPinia())
 app.use(router)
+app.use(i18n)
 
 app.mount('#app')

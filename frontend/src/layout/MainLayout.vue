@@ -33,6 +33,7 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <LanguageSwitcher />
           <ThemeToggle />
           <el-dropdown @command="handleCommand">
             <span class="user-info">
@@ -60,6 +61,7 @@ import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 interface MenuItem {
   path: string
