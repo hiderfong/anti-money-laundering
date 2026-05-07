@@ -20,7 +20,7 @@ public class HealthIntegrationTest extends BaseIntegrationTest {
     @Test
     @DisplayName("健康检查接口可访问 - 返回JSON响应")
     void healthCheckAccessible() throws Exception {
-        mockMvc.perform(get("/system/health"))
+        mockMvc.perform(get("/api/system/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").exists());
     }
@@ -28,7 +28,7 @@ public class HealthIntegrationTest extends BaseIntegrationTest {
     @Test
     @DisplayName("系统信息接口可访问 - 返回版本信息")
     void systemInfoAccessible() throws Exception {
-        mockMvc.perform(get("/system/info"))
+        mockMvc.perform(get("/api/system/info"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").exists())
                 .andExpect(jsonPath("$.data").exists())

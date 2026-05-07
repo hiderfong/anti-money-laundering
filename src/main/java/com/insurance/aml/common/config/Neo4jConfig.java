@@ -13,11 +13,11 @@ import org.springframework.data.neo4j.repository.config.EnableNeo4jRepositories;
 /**
  * Neo4j 图数据库配置
  * 用于交易网络关联分析
- * 通过 aml.neo4j.enabled=true 启用（默认启用）
- * 设为 false 或不配置则跳过 Neo4j 初始化
+ * 通过 aml.neo4j.enabled=true 启用
+ * 默认禁用，需要显式开启
  */
 @Configuration
-@ConditionalOnProperty(name = "aml.neo4j.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "aml.neo4j.enabled", havingValue = "true", matchIfMissing = false)
 @EnableNeo4jRepositories(basePackages = "com.insurance.aml.module.monitoring.repository.graph")
 public class Neo4jConfig {
 
