@@ -4,7 +4,7 @@
 
 set -e
 
-FRONTEND_URL="http://localhost:5173"
+FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
 PASSED=0
 FAILED=0
 
@@ -94,7 +94,7 @@ fi
 # 5. 检查 API 代理
 echo ""
 echo "--- API 代理 ---"
-API_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/api/health" 2>/dev/null || echo "000")
+API_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/api/system/health" 2>/dev/null || echo "000")
 if [ "$API_CODE" = "000" ]; then
   log_fail "API 代理不可达 (连接失败)"
 elif [ "$API_CODE" = "502" ] || [ "$API_CODE" = "503" ]; then

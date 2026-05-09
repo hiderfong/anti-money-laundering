@@ -14,12 +14,14 @@ import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientA
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration;
+import org.redisson.spring.starter.RedissonAutoConfigurationV2;
 
 /**
  * 测试专用 Application 类
  * 排除所有外部服务自动配置（Neo4j/ES/Kafka/Redis）
  */
 @SpringBootApplication(
+        scanBasePackages = "com.insurance.aml",
         exclude = {
                 Neo4jAutoConfiguration.class,
                 Neo4jDataAutoConfiguration.class,
@@ -30,6 +32,7 @@ import org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration;
                 ElasticsearchDataAutoConfiguration.class,
                 ElasticsearchRepositoriesAutoConfiguration.class,
                 KafkaAutoConfiguration.class,
+                RedissonAutoConfigurationV2.class,
                 RedisAutoConfiguration.class,
                 RedisRepositoriesAutoConfiguration.class
         }

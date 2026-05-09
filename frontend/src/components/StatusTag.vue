@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import { ElTag } from 'element-plus'
 
-type TagType = '' | 'success' | 'warning' | 'danger' | 'info'
+type TagType = 'primary' | 'success' | 'warning' | 'danger' | 'info'
 
 interface StatusItem {
   label: string
@@ -43,8 +43,8 @@ const STATUS_MAPS: Record<string, Record<string, StatusItem>> = {
     NEW:           { label: '新建',   type: 'danger' },
     PENDING:       { label: '待处理', type: 'warning' },
     ASSIGNED:      { label: '已分配', type: 'warning' },
-    INVESTIGATING: { label: '调查中', type: '' },
-    PROCESSING:    { label: '处理中', type: '' },
+    INVESTIGATING: { label: '调查中', type: 'primary' },
+    PROCESSING:    { label: '处理中', type: 'primary' },
     RESOLVED:      { label: '已解决', type: 'success' },
     CONFIRMED:     { label: '已确认', type: 'success' },
     EXCLUDED:      { label: '已排除', type: 'info' },
@@ -65,7 +65,7 @@ const STATUS_MAPS: Record<string, Record<string, StatusItem>> = {
   // 案件状态
   case: {
     OPEN:          { label: '已创建', type: 'info' },
-    INVESTIGATING: { label: '调查中', type: '' },
+    INVESTIGATING: { label: '调查中', type: 'primary' },
     SUBMITTED:     { label: '已上报', type: 'warning' },
     CLOSED:        { label: '已关闭', type: 'success' },
   },
@@ -88,12 +88,12 @@ const STATUS_MAPS: Record<string, Record<string, StatusItem>> = {
     PENDING:   { label: '待审核', type: 'warning' },
     APPROVED:  { label: '已批准', type: 'success' },
     REJECTED:  { label: '已驳回', type: 'danger' },
-    SUBMITTED: { label: '已提交', type: '' },
+    SUBMITTED: { label: '已提交', type: 'primary' },
   },
   // 评估状态
   assessment: {
     NOT_STARTED: { label: '未开始', type: 'info' },
-    IN_PROGRESS: { label: '进行中', type: '' },
+    IN_PROGRESS: { label: '进行中', type: 'primary' },
     COMPLETED:   { label: '已完成', type: 'success' },
     OVERDUE:     { label: '已逾期', type: 'danger' },
   },

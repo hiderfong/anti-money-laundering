@@ -33,23 +33,23 @@ export interface LoginParams {
 }
 
 export interface LoginResult {
-  token: string
+  accessToken: string
   refreshToken: string
+  tokenType: string
   expiresIn: number
-  user: UserInfo
+  userId: number | string
+  username: string
+  realName: string
+  roles: string[]
+  permissions: string[]
 }
 
 export interface UserInfo {
-  id: string
+  userId: number | string
   username: string
   realName: string
-  email: string
-  phone: string
-  avatar: string
   roles: string[]
   permissions: string[]
-  status: number
-  lastLoginTime: string
 }
 
 // ===================== 客户(KYC)模块 =====================
@@ -695,7 +695,8 @@ export interface CircularDetectionParams {
 }
 
 export interface FlowTraceParams {
-  transactionId: string
+  customerId?: string
+  transactionId?: string
   depth?: number
   direction?: 'upstream' | 'downstream' | 'both'
 }
@@ -707,6 +708,7 @@ export interface SharedAccountParams {
 }
 
 export interface HighDensityParams {
+  customerId?: string
   startDate: string
   endDate: string
   minTransactions?: number
@@ -732,14 +734,6 @@ export interface GraphResult {
   nodes: GraphNode[]
   edges: GraphEdge[]
   summary: Record<string, unknown>
-}
-
-export interface GraphSummary {
-  totalNodes: number
-  totalEdges: number
-  suspiciousPaths: number
-  circularPaths: number
-  highRiskNodes: number
 }
 
 // ===================== 反馈模块 =====================

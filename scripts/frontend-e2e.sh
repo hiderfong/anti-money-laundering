@@ -7,8 +7,10 @@
 
 set -e
 
-BASE_URL="http://localhost:5173"
-API_URL="http://localhost:8080/api"
+BASE_URL="${BASE_URL:-http://localhost:5173}"
+API_URL="${API_URL:-http://localhost:8080/api}"
+E2E_IP="${E2E_IP:-127.0.0.102}"
+E2E_LIMIT_IP="${E2E_LIMIT_IP:-127.0.0.103}"
 PASS=0
 FAIL=0
 TOTAL=0
@@ -61,6 +63,7 @@ fi
 info "4. 登录 API"
 LOGIN_RESP=$(curl -s -X POST "$API_URL/auth/login" \
     -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: $E2E_IP" \
     -d '{"username":"admin","password":"admin123"}' 2>/dev/null || echo "")
 if echo "$LOGIN_RESP" | grep -q '"accessToken"'; then
     pass "登录 API 返回 accessToken"
@@ -90,15 +93,17 @@ fi
 info "6. 核心页面路由（SPA）"
 PAGES=(
     "/dashboard"
-    "/customers"
+    "/kyc"
     "/screening"
-    "/monitoring/transactions"
+    "/monitoring"
     "/alerts"
     "/cases"
-    "/reports"
+    "/reporting"
+    "/str-reports"
     "/products"
     "/assessment"
-    "/system/users"
+    "/notifications"
+    "/system"
 )
 for page in "${PAGES[@]}"; do
     HTTP=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL$page" 2>/dev/null || echo "000")
@@ -134,20 +139,11 @@ if [ -n "$TOKEN" ]; then
         "/screening/results?page=1&size=5"
         "/system/dicts"
         "/system/users/page?page=1&size=5"
+        "/alerts/page?page=1&size=5"
+        "/cases/page?page=1&size=5"
+        "/system/notifications/my?page=1&size=5"
+        "/reporting/large-txn/page?page=1&size=5"
     )
-    # alert/case 可能因无数据返回500，单独测试
-    for ep in "/alert/alerts/page?page=1&size=5" "/case/cases/page?page=1&size=5"; do
-        RESP=$(curl -s -w "\n%{http_code}" "$API_URL$ep" \
-            -H "Authorization: Bearer $TOKEN" 2>/dev/null || echo -e "\n000")
-        HTTP=$(echo "$RESP" | tail -1)
-        if [ "$HTTP" = "200" ]; then
-            pass "API $ep → 200"
-        elif [ "$HTTP" = "500" ]; then
-            pass "API $ep → 500 (无数据，预期行为)"
-        else
-            fail "API $ep → HTTP $HTTP"
-        fi
-    done
     for ep in "${ENDPOINTS[@]}"; do
         RESP=$(curl -s -w "\n%{http_code}" "$API_URL$ep" \
             -H "Authorization: Bearer $TOKEN" 2>/dev/null || echo -e "\n000")
@@ -168,6 +164,7 @@ LIMIT_PASS=true
 for i in $(seq 1 6); do
     RESP=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/auth/login" \
         -H "Content-Type: application/json" \
+        -H "X-Forwarded-For: $E2E_LIMIT_IP" \
         -d '{"username":"admin","password":"wrong"}' 2>/dev/null || echo -e "\n000")
     HTTP=$(echo "$RESP" | tail -1)
     if [ "$i" -le 5 ] && [ "$HTTP" != "401" ] && [ "$HTTP" != "400" ]; then

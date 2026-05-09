@@ -88,7 +88,7 @@ public class ScreeningIntegrationTest extends BaseIntegrationTest {
         String body = result.getResponse().getContentAsString();
         JsonNode data = objectMapper.readTree(body).path("data");
         // 筛查应返回命中数量（可能是0或更多）
-        assertTrue(data.isNumber(), "筛查结果应为数字（命中数量）");
+        assertTrue(data.isNumber() || data.asText().matches("\\d+"), "筛查结果应为命中数量");
     }
 
     @Test

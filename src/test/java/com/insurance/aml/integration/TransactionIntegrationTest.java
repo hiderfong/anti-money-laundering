@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -101,7 +102,7 @@ public class TransactionIntegrationTest extends BaseIntegrationTest {
         assertTrue(data.path("id").asLong() > 0, "录入交易应返回有效的ID");
         assertNotNull(data.path("status").asText(), "交易应有状态字段");
         assertEquals("PREMIUM", data.path("transactionType").asText());
-        assertEquals("50000.00", data.path("amount").asText());
+        assertEquals(0, data.path("amount").decimalValue().compareTo(new BigDecimal("50000.00")));
     }
 
     @Test

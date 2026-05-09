@@ -329,6 +329,8 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
     private CustomerVO convertToVO(Customer customer) {
         CustomerVO vo = new CustomerVO();
         BeanUtils.copyProperties(customer, vo);
+        vo.setIdNumber(decryptIfPresent(customer.getIdNumber()));
+        vo.setPhone(decryptIfPresent(customer.getPhone()));
         return vo;
     }
 
@@ -339,6 +341,18 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
         CustomerBeneficialOwnerVO vo = new CustomerBeneficialOwnerVO();
         BeanUtils.copyProperties(owner, vo);
         return vo;
+    }
+
+    private String decryptIfPresent(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        try {
+            return encryptUtils.decrypt(value);
+        } catch (RuntimeException e) {
+            log.warn("敏感字段解密失败，保留原值: {}", e.getMessage());
+            return value;
+        }
     }
 
     /**

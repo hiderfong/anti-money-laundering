@@ -3,6 +3,7 @@ package com.insurance.aml.module.auth.service.impl;
 import com.insurance.aml.module.auth.model.JwtUserDetails;
 import com.insurance.aml.module.auth.model.LoginRequest;
 import com.insurance.aml.module.auth.model.LoginResponse;
+import com.insurance.aml.module.auth.model.UserProfileResponse;
 import com.insurance.aml.module.auth.service.JwtService;
 import com.insurance.aml.module.system.mapper.SysPermissionMapper;
 import com.insurance.aml.module.system.mapper.SysRoleMapper;
@@ -173,6 +174,25 @@ public class AuthServiceImpl {
         } catch (Exception e) {
             log.error("登出处理异常: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * 获取当前登录用户资料。
+     *
+     * @param userDetails 当前认证用户
+     * @return 当前用户资料
+     */
+    public UserProfileResponse getCurrentUser(JwtUserDetails userDetails) {
+        List<String> roles = resolveRoles(userDetails);
+        List<String> permissions = resolvePermissions(userDetails.getUserId(), roles);
+
+        return UserProfileResponse.builder()
+                .userId(userDetails.getUserId())
+                .username(userDetails.getUsername())
+                .realName(userDetails.getRealName())
+                .roles(roles)
+                .permissions(permissions)
+                .build();
     }
 
     private List<String> resolveRoles(JwtUserDetails userDetails) {

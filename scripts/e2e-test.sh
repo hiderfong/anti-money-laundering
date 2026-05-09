@@ -4,7 +4,8 @@
 # 在应用启动后运行，验证核心 API 功能
 # ============================================================
 
-BASE_URL="http://localhost:8080/api"
+BASE_URL="${BASE_URL:-http://localhost:8080/api}"
+E2E_IP="${E2E_IP:-127.0.0.101}"
 PASS=0
 FAIL=0
 TOKEN=""
@@ -56,6 +57,7 @@ echo "[2] 认证模块"
 
 RESP=$(curl -s -X POST "$BASE_URL/auth/login" \
     -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: $E2E_IP" \
     -d '{"username":"admin","password":"admin123"}')
 check "登录成功" '"code":200' "$RESP"
 TOKEN=$(echo "$RESP" | jq -r '.data.accessToken // empty' 2>/dev/null)
@@ -68,6 +70,7 @@ fi
 
 RESP=$(curl -s -X POST "$BASE_URL/auth/login" \
     -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: $E2E_IP" \
     -d '{"username":"admin","password":"wrong"}')
 check "错误密码返回失败" '"code":401' "$RESP"
 
@@ -84,7 +87,7 @@ RESP=$(auth_post "$BASE_URL/kyc/customers" '{
     "phone":"13800138000",
     "email":"e2e@test.com"
 }')
-check "创建客户 [已知问题:加密模块]" '"code":200' "$RESP"
+check "创建客户" '"code":200' "$RESP"
 CUSTOMER_ID=$(echo "$RESP" | jq -r '.data.id // empty' 2>/dev/null)
 
 RESP=$(auth_get "$BASE_URL/kyc/customers/page?page=1&size=10")
@@ -109,7 +112,7 @@ RESP=$(auth_post "$BASE_URL/monitoring/transactions/ingest" "{
     \"paymentMethod\":\"CASH\",
     \"transactionTime\":\"2026-05-01 10:00:00\"
 }")
-check "录入交易 [已知问题:异步管道+日期格式]" '"code":200' "$RESP"
+check "录入交易" '"code":200' "$RESP"
 
 RESP=$(auth_get "$BASE_URL/monitoring/transactions/page?page=1&size=10")
 check "查询交易列表" '"code":200' "$RESP"
@@ -120,7 +123,7 @@ echo "[5] 名单筛查"
 
 RESP=$(auth_post "$BASE_URL/screening/screen" \
     "{\"customerId\":${CUSTOMER_ID:-1},\"screeningType\":\"SANCTIONS\"}")
-check "触发筛查 [已知问题:依赖客户数据]" '"code":200' "$RESP"
+check "触发筛查" '"code":200' "$RESP"
 
 # ==================== 预警模块 ====================
 echo ""

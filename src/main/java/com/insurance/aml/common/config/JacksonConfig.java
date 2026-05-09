@@ -20,6 +20,7 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 
 /**
  * Jackson JSON 序列化配置类
@@ -39,6 +40,20 @@ public class JacksonConfig {
 
     /** 日期时间格式 */
     private static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
+
+    /** 日期时间反序列化格式：兼容空格和 ISO LocalDateTime 的 T 分隔符 */
+    private static final DateTimeFormatter DATE_TIME_DESERIALIZER_FORMATTER =
+            new DateTimeFormatterBuilder()
+                    .appendPattern("yyyy-MM-dd")
+                    .optionalStart()
+                    .appendLiteral(' ')
+                    .appendPattern("HH:mm:ss")
+                    .optionalEnd()
+                    .optionalStart()
+                    .appendLiteral('T')
+                    .appendPattern("HH:mm:ss")
+                    .optionalEnd()
+                    .toFormatter();
 
     /** 日期格式 */
     private static final String DATE_FORMAT = "yyyy-MM-dd";
@@ -84,7 +99,7 @@ public class JacksonConfig {
         javaTimeModule.addSerializer(LocalDateTime.class,
                 new LocalDateTimeSerializer(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)));
         javaTimeModule.addDeserializer(LocalDateTime.class,
-                new LocalDateTimeDeserializer(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)));
+                new LocalDateTimeDeserializer(DATE_TIME_DESERIALIZER_FORMATTER));
         javaTimeModule.addSerializer(LocalDate.class,
                 new LocalDateSerializer(DateTimeFormatter.ofPattern(DATE_FORMAT)));
         javaTimeModule.addDeserializer(LocalDate.class,

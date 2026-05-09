@@ -110,16 +110,16 @@ public class CustomerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(customerId))
-                .andExpect(jsonPath("$.data.name").value("李四"))
-                .andExpect(jsonPath("$.data.idNumber").value("110101199002022345"))
+                .andExpect(jsonPath("$.data.name").value("李*"))
+                .andExpect(jsonPath("$.data.idNumber").value("1101**********2345"))
                 .andExpect(jsonPath("$.data.customerType").value("INDIVIDUAL"))
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
         JsonNode data = objectMapper.readTree(body).path("data");
         assertEquals(customerId, data.path("id").asLong());
-        assertEquals("李四", data.path("name").asText());
-        assertEquals("13800138000", data.path("phone").asText());
+        assertEquals("李*", data.path("name").asText());
+        assertEquals("138****8000", data.path("phone").asText());
     }
 
     @Test
@@ -151,10 +151,10 @@ public class CustomerIntegrationTest extends BaseIntegrationTest {
 
         // 验证更新后的数据
         mockMvc.perform(get("/kyc/customers/" + customerId)
-                        .header("Authorization", "Bearer " + getAuthToken()))
+                .header("Authorization", "Bearer " + getAuthToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nameEn").value("Wang Wu"))
-                .andExpect(jsonPath("$.data.phone").value("13900139000"))
+                .andExpect(jsonPath("$.data.phone").value("139****9000"))
                 .andExpect(jsonPath("$.data.email").value("wangwu@example.com"));
     }
 

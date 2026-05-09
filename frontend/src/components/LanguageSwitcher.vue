@@ -15,9 +15,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
+
+type SupportedLocale = 'zh-CN' | 'en'
 
 const LanguageIcon = {
   name: 'Language',
@@ -41,14 +43,12 @@ const LanguageIcon = {
   },
 }
 
-import { h } from 'vue'
-
 const { locale } = useI18n()
 
-const currentLocale = computed(() => locale.value)
-
 function handleCommand(lang: string) {
-  setLocale(lang)
+  if (lang === 'zh-CN' || lang === 'en') {
+    setLocale(lang satisfies SupportedLocale)
+  }
 }
 </script>
 

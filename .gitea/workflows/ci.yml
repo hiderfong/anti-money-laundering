@@ -29,8 +29,8 @@ jobs:
       - name: Build with Maven
         run: mvn clean compile -B
 
-      - name: Run Unit Tests
-        run: mvn test -Dtest="com.insurance.aml.module.**,com.insurance.aml.common.**" -B
+      - name: Run Tests
+        run: mvn test -B
 
       - name: Upload Test Report
         if: always()

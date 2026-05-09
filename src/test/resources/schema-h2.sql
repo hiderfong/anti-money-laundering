@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS t_user (
   password_hash VARCHAR(255) NOT NULL,
   real_name VARCHAR(64) NOT NULL,
   email VARCHAR(128),
-  phone VARCHAR(20),
+  phone VARCHAR(128),
   department VARCHAR(128),
   position VARCHAR(64),
   status VARCHAR(16) DEFAULT 'ENABLED',
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS t_customer (
   id_expiry_date DATE,
   address VARCHAR(512),
   residence_address VARCHAR(512),
-  phone VARCHAR(20),
+  phone VARCHAR(128),
   email VARCHAR(128),
   occupation VARCHAR(64),
   employer VARCHAR(256),
@@ -99,6 +99,25 @@ CREATE TABLE IF NOT EXISTS t_customer (
   kyc_last_review_time TIMESTAMP,
   kyc_next_review_time TIMESTAMP,
   remark VARCHAR(1024),
+  status VARCHAR(16) DEFAULT 'ACTIVE',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_customer_beneficial_owner (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT NOT NULL,
+  owner_name VARCHAR(128) NOT NULL,
+  owner_id_type VARCHAR(32),
+  owner_id_number VARCHAR(128),
+  nationality VARCHAR(64),
+  birth_date DATE,
+  ownership_percentage DECIMAL(5,2),
+  control_type VARCHAR(16),
+  control_description VARCHAR(512),
+  relationship VARCHAR(64),
   status VARCHAR(16) DEFAULT 'ACTIVE',
   created_by VARCHAR(64),
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -199,8 +218,29 @@ CREATE TABLE IF NOT EXISTS t_watchlist (
   effective_date DATE,
   expiry_date DATE,
   status VARCHAR(16) DEFAULT 'ACTIVE',
+  created_by VARCHAR(64),
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_watchlist_alias (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  watchlist_id BIGINT NOT NULL,
+  alias_name VARCHAR(256) NOT NULL,
+  alias_type VARCHAR(16) NOT NULL,
+  language VARCHAR(16),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_watchlist_identity (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  watchlist_id BIGINT NOT NULL,
+  id_type VARCHAR(32) NOT NULL,
+  id_number VARCHAR(128) NOT NULL,
+  issuing_country VARCHAR(64),
+  expiry_date VARCHAR(32),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS t_screening_result (

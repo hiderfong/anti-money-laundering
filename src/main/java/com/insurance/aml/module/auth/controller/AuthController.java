@@ -5,6 +5,7 @@ import com.insurance.aml.common.result.Result;
 import com.insurance.aml.module.auth.model.JwtUserDetails;
 import com.insurance.aml.module.auth.model.LoginRequest;
 import com.insurance.aml.module.auth.model.LoginResponse;
+import com.insurance.aml.module.auth.model.UserProfileResponse;
 import com.insurance.aml.module.auth.service.impl.AuthServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -66,8 +67,8 @@ public class AuthController {
      */
     @GetMapping("/me")
     @Operation(summary = "获取当前用户信息")
-    public Result<JwtUserDetails> getCurrentUser(@AuthenticationPrincipal JwtUserDetails userDetails) {
-        return Result.success(userDetails);
+    public Result<UserProfileResponse> getCurrentUser(@AuthenticationPrincipal JwtUserDetails userDetails) {
+        return Result.success(authService.getCurrentUser(userDetails));
     }
 
     /**

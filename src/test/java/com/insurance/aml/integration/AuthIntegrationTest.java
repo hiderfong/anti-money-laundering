@@ -45,12 +45,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
         assertTrue(body.contains("accessToken"), "成功登录应返回accessToken");
 
         JsonNode data = objectMapper.readTree(body).path("data");
-        assertTrue(data.has("roles"), "成功登录应返回roles字段");
-        assertTrue(data.path("roles").isArray(), "roles应为数组");
-        assertTrue(data.path("roles").toString().contains("ROLE_ADMIN"), "admin应包含ROLE_ADMIN角色");
-        assertTrue(data.has("permissions"), "成功登录应返回permissions字段");
-        assertTrue(data.path("permissions").isArray(), "permissions应为数组");
-        assertFalse(data.path("permissions").isEmpty(), "admin权限列表不应为空");
+        assertRolesAndPermissions(data);
     }
 
     @Test
@@ -86,5 +81,67 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(get("/kyc/customers/page")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @Order(4)
+    @DisplayName("刷新Token - 返回角色和权限")
+    void refreshTokenReturnsRolesAndPermissions() throws Exception {
+        MvcResult loginResult = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode loginData = objectMapper.readTree(loginResult.getResponse().getContentAsString()).path("data");
+        String refreshToken = loginData.path("refreshToken").asText();
+        assertFalse(refreshToken.isBlank(), "登录响应应包含refreshToken");
+
+        MvcResult refreshResult = mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode data = objectMapper.readTree(refreshResult.getResponse().getContentAsString()).path("data");
+        assertTrue(data.hasNonNull("accessToken"), "刷新响应应返回accessToken");
+        assertTrue(data.hasNonNull("refreshToken"), "刷新响应应返回refreshToken");
+        assertRolesAndPermissions(data);
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("当前用户接口 - 返回前端权限契约")
+    void currentUserReturnsFrontendPermissionContract() throws Exception {
+        MvcResult loginResult = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String token = objectMapper.readTree(loginResult.getResponse().getContentAsString())
+                .path("data")
+                .path("accessToken")
+                .asText();
+
+        MvcResult meResult = mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode data = objectMapper.readTree(meResult.getResponse().getContentAsString()).path("data");
+        assertEquals("admin", data.path("username").asText());
+        assertFalse(data.has("password"), "当前用户接口不应返回密码字段");
+        assertFalse(data.has("authorities"), "当前用户接口应返回前端契约字段，而不是Spring Security authorities");
+        assertRolesAndPermissions(data);
+    }
+
+    private void assertRolesAndPermissions(JsonNode data) {
+        assertTrue(data.has("roles"), "响应应返回roles字段");
+        assertTrue(data.path("roles").isArray(), "roles应为数组");
+        assertTrue(data.path("roles").toString().contains("ROLE_ADMIN"), "admin应包含ROLE_ADMIN角色");
+        assertTrue(data.has("permissions"), "响应应返回permissions字段");
+        assertTrue(data.path("permissions").isArray(), "permissions应为数组");
+        assertFalse(data.path("permissions").isEmpty(), "admin权限列表不应为空");
     }
 }

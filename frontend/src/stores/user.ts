@@ -6,6 +6,8 @@ interface UserInfo {
   userId: number | string
   username: string
   realName: string
+  roles?: string[]
+  permissions?: string[]
 }
 
 function normalizeStringList(value: unknown): string[] {
@@ -110,8 +112,20 @@ export const useUserStore = defineStore('user', () => {
   // 获取当前用户信息
   async function getUserInfo() {
     const res: any = await request.get('/auth/me')
-    userInfo.value = res.data
-    return res.data
+    const data = res.data
+    userInfo.value = {
+      userId: data.userId,
+      username: data.username,
+      realName: data.realName,
+      roles: normalizeStringList(data.roles),
+      permissions: normalizeStringList(data.permissions)
+    }
+    roles.value = userInfo.value.roles || []
+    permissions.value = userInfo.value.permissions || []
+    localStorage.setItem('aml_user', JSON.stringify(userInfo.value))
+    localStorage.setItem('aml_roles', JSON.stringify(roles.value))
+    localStorage.setItem('aml_permissions', JSON.stringify(permissions.value))
+    return userInfo.value
   }
 
   // 初始化：从 localStorage 恢复
