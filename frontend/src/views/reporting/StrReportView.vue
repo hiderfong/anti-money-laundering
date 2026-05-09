@@ -135,7 +135,7 @@ const statusFilter = ref('')
 async function loadData() {
   loading.value = true
   try {
-    const res: any = await request.get('/str-reports', {
+    const res: any = await request.get('/str-reports/page', {
       params: {
         page: currentPage.value,
         size: pageSize.value,
