@@ -2,6 +2,7 @@ package com.insurance.aml.module.screening.service;
 
 import com.insurance.aml.module.screening.mapper.WatchlistAliasMapper;
 import com.insurance.aml.module.screening.mapper.WatchlistIdentityMapper;
+import com.insurance.aml.common.enums.StatusEnum;
 import com.insurance.aml.module.screening.mapper.WatchlistMapper;
 import com.insurance.aml.module.screening.model.entity.Watchlist;
 import com.insurance.aml.module.screening.model.entity.WatchlistAlias;
@@ -140,7 +141,7 @@ public class WatchlistCacheService {
         log.info("从DB批量加载启用的制裁名单...");
         List<Watchlist> list = watchlistMapper.selectList(
                 new LambdaQueryWrapper<Watchlist>()
-                        .eq(Watchlist::getStatus, "ACTIVE")
+                        .eq(Watchlist::getStatus, StatusEnum.ACTIVE.getCode())
         );
         log.info("DB加载制裁名单完成，数量={}", list.size());
         putToCache("watchlists", list);

@@ -2,6 +2,9 @@ package com.insurance.aml.module.product.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.insurance.aml.common.enums.ReportStatus;
+import com.insurance.aml.common.enums.RiskLevel;
+import com.insurance.aml.common.enums.StatusEnum;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.service.impl.BaseServiceXImpl;
 import com.insurance.aml.module.product.mapper.ProductMapper;
@@ -45,9 +48,9 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
 
         Product product = new Product();
         BeanUtils.copyProperties(req, product);
-        product.setRiskLevel("LOW");
+        product.setRiskLevel(RiskLevel.LOW.getCode());
         product.setRiskScore(0);
-        product.setStatus("ACTIVE");
+        product.setStatus(StatusEnum.ACTIVE.getCode());
         productMapper.insert(product);
         log.info("产品创建成功，id={}", product.getId());
         return product;
@@ -124,11 +127,11 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
         // 确定风险等级：>60=HIGH, 30-60=MEDIUM, <30=LOW
         String riskLevel;
         if (totalScore > 60) {
-            riskLevel = "HIGH";
+            riskLevel = RiskLevel.HIGH.getCode();
         } else if (totalScore >= 30) {
-            riskLevel = "MEDIUM";
+            riskLevel = RiskLevel.MEDIUM.getCode();
         } else {
-            riskLevel = "LOW";
+            riskLevel = RiskLevel.LOW.getCode();
         }
 
         // 创建评估记录
@@ -144,7 +147,7 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
         assessment.setChannelScore(req.getChannelScore());
         assessment.setTotalScore(totalScore);
         assessment.setRiskLevel(riskLevel);
-        assessment.setStatus("DRAFT");
+        assessment.setStatus(ReportStatus.DRAFT.getCode());
         assessmentMapper.insert(assessment);
 
         // 同步更新产品的风险等级和评分

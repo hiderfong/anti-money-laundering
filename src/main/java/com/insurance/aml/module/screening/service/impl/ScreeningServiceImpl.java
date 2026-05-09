@@ -3,6 +3,10 @@ package com.insurance.aml.module.screening.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.insurance.aml.common.enums.AlertStatus;
+import com.insurance.aml.common.enums.ReportStatus;
+import com.insurance.aml.common.enums.RiskLevel;
+import com.insurance.aml.common.enums.ScreeningStatus;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageQuery;
 import com.insurance.aml.common.result.PageResult;
@@ -86,7 +90,7 @@ public class ScreeningServiceImpl implements ScreeningService {
         request.setRequestNo(idGenerator.generateScreeningNo());
         request.setCustomerId(customerId);
         request.setScreeningType(screeningType);
-        request.setStatus("PROCESSING");
+        request.setStatus(ScreeningStatus.PROCESSING.getCode());
         request.setCreatedTime(LocalDateTime.now());
         screeningRequestMapper.insert(request);
 
@@ -210,7 +214,7 @@ public class ScreeningServiceImpl implements ScreeningService {
             // 5. 更新筛查请求统计
             request.setTotalScanned(watchlistEntries.size());
             request.setTotalHit(totalHit);
-            request.setStatus("COMPLETED");
+            request.setStatus(ScreeningStatus.COMPLETED.getCode());
             request.setCompletedTime(LocalDateTime.now());
             screeningRequestMapper.updateById(request);
 
@@ -219,13 +223,13 @@ public class ScreeningServiceImpl implements ScreeningService {
 
         } catch (BusinessException e) {
             log.error("制裁名单筛查业务异常，customerId={}", customerId, e);
-            request.setStatus("FAILED");
+            request.setStatus(ScreeningStatus.FAILED.getCode());
             request.setErrorMessage(e.getMessage());
             screeningRequestMapper.updateById(request);
             throw e;
         } catch (Exception e) {
             log.error("制裁名单筛查异常，customerId={}", customerId, e);
-            request.setStatus("FAILED");
+            request.setStatus(ScreeningStatus.FAILED.getCode());
             request.setErrorMessage(e.getMessage());
             screeningRequestMapper.updateById(request);
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "筛查处理失败: " + e.getMessage());
@@ -262,7 +266,7 @@ public class ScreeningServiceImpl implements ScreeningService {
         log.info("审核筛查命中结果，resultId={}, reviewStatus={}", req.getResultId(), req.getReviewStatus());
 
         // 校验审核状态合法性
-        if (!"CONFIRMED".equals(req.getReviewStatus()) && !"EXCLUDED".equals(req.getReviewStatus())) {
+        if (!AlertStatus.CONFIRMED.getCode().equals(req.getReviewStatus()) && !AlertStatus.EXCLUDED.getCode().equals(req.getReviewStatus())) {
             throw new BusinessException("审核状态必须为 CONFIRMED 或 EXCLUDED");
         }
 
@@ -279,14 +283,14 @@ public class ScreeningServiceImpl implements ScreeningService {
         screeningResultMapper.updateById(result);
 
         // 如果确认命中，标记客户为制裁状态并提升为高风险
-        if ("CONFIRMED".equals(req.getReviewStatus())) {
+        if (AlertStatus.CONFIRMED.getCode().equals(req.getReviewStatus())) {
             log.warn("客户被确认命中制裁名单，customerId={}, watchlistEntryId={}",
                     result.getCustomerId(), result.getWatchlistEntryId());
             if (result.getCustomerId() != null) {
                 Customer customerUpdate = new Customer();
                 customerUpdate.setId(result.getCustomerId());
                 customerUpdate.setIsSanctioned(true);
-                customerUpdate.setRiskLevel("HIGH");
+                customerUpdate.setRiskLevel(RiskLevel.HIGH.getCode());
                 customerUpdate.setRiskScore(100);
                 customerUpdate.setRiskUpdateTime(LocalDateTime.now());
                 customerMapper.updateById(customerUpdate);
@@ -343,7 +347,7 @@ public class ScreeningServiceImpl implements ScreeningService {
         result.setMatchType(matchType);
         result.setMatchField(matchField);
         result.setMatchDetail(matchDetail);
-        result.setReviewStatus("PENDING_REVIEW");
+        result.setReviewStatus(ReportStatus.PENDING_REVIEW.getCode());
         result.setWhitelisted(false);
         result.setCreatedTime(LocalDateTime.now());
         return result;

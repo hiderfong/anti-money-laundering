@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
+import com.insurance.aml.common.enums.AlertProcessResult;
+import com.insurance.aml.common.enums.AlertStatus;
+import com.insurance.aml.common.enums.RiskLevel;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.alert.mapper.AlertAssignmentLogMapper;
@@ -67,7 +70,7 @@ public class AlertServiceImpl implements AlertService {
         alert.setAlertNo(idGenerator.generateAlertNo());
 
         // 设置初始状态为NEW
-        alert.setStatus("NEW");
+        alert.setStatus(AlertStatus.NEW.getCode());
 
         // 设置时间
         LocalDateTime now = LocalDateTime.now();
@@ -238,7 +241,7 @@ public class AlertServiceImpl implements AlertService {
         }
 
         // 校验状态：只有NEW或ASSIGNED状态才能分配
-        if (!"NEW".equals(alert.getStatus()) && !"ASSIGNED".equals(alert.getStatus())) {
+        if (!AlertStatus.NEW.getCode().equals(alert.getStatus()) && !AlertStatus.ASSIGNED.getCode().equals(alert.getStatus())) {
             throw new BusinessException(ResultCode.ALERT_STATUS_ERROR,
                     "当前预警状态不允许分配，状态：" + alert.getStatus());
         }
@@ -249,7 +252,7 @@ public class AlertServiceImpl implements AlertService {
         // 更新预警分配信息
         alert.setAssignedTo(req.getAssignTo());
         alert.setAssignedTime(LocalDateTime.now());
-        alert.setStatus("ASSIGNED");
+        alert.setStatus(AlertStatus.ASSIGNED.getCode());
         alert.setUpdatedTime(LocalDateTime.now());
         alertMapper.updateById(alert);
 
@@ -277,7 +280,7 @@ public class AlertServiceImpl implements AlertService {
         }
 
         // 校验状态：只有ASSIGNED或PROCESSING状态才能处理
-        if (!"ASSIGNED".equals(alert.getStatus()) && !"PROCESSING".equals(alert.getStatus())) {
+        if (!AlertStatus.ASSIGNED.getCode().equals(alert.getStatus()) && !AlertStatus.PROCESSING.getCode().equals(alert.getStatus())) {
             throw new BusinessException(ResultCode.ALERT_STATUS_ERROR,
                     "当前预警状态不允许处理，状态：" + alert.getStatus());
         }
@@ -293,22 +296,19 @@ public class AlertServiceImpl implements AlertService {
         boolean shouldCreateCase = false;
 
         // 根据处理结果设置状态
-        switch (req.getProcessResult()) {
-            case "CONFIRMED_SUSPICIOUS":
-                alert.setStatus("CONFIRMED");
-                shouldCreateCase = true;
-                log.info("预警已确认可疑，预警ID：{}，准备创建案件", req.getAlertId());
-                break;
-            case "EXCLUDED":
-                alert.setStatus("EXCLUDED");
-                log.info("预警已排除，预警ID：{}", req.getAlertId());
-                break;
-            case "ESCALATED":
-                alert.setStatus("ESCALATED");
-                log.info("预警已升级，预警ID：{}", req.getAlertId());
-                break;
-            default:
-                throw new BusinessException(ResultCode.BAD_REQUEST, "无效的处理结果：" + req.getProcessResult());
+        String processResult = req.getProcessResult();
+        if (AlertProcessResult.CONFIRMED_SUSPICIOUS.getCode().equals(processResult)) {
+            alert.setStatus(AlertStatus.CONFIRMED.getCode());
+            shouldCreateCase = true;
+            log.info("预警已确认可疑，预警ID：{}，准备创建案件", req.getAlertId());
+        } else if (AlertProcessResult.EXCLUDED.getCode().equals(processResult)) {
+            alert.setStatus(AlertStatus.EXCLUDED.getCode());
+            log.info("预警已排除，预警ID：{}", req.getAlertId());
+        } else if (AlertProcessResult.ESCALATED.getCode().equals(processResult)) {
+            alert.setStatus(AlertStatus.ESCALATED.getCode());
+            log.info("预警已升级，预警ID：{}", req.getAlertId());
+        } else {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "无效的处理结果：" + processResult);
         }
 
         alertMapper.updateById(alert);
@@ -351,7 +351,7 @@ public class AlertServiceImpl implements AlertService {
 
         // 查询所有NEW状态的预警
         LambdaQueryWrapper<Alert> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Alert::getStatus, "NEW");
+        wrapper.eq(Alert::getStatus, AlertStatus.NEW.getCode());
         wrapper.orderByAsc(Alert::getCreatedTime);
         List<Alert> newAlerts = alertMapper.selectList(wrapper);
 
@@ -395,7 +395,7 @@ public class AlertServiceImpl implements AlertService {
 
         // 查询分配时间早于48小时前且状态仍为ASSIGNED的预警
         LambdaQueryWrapper<Alert> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Alert::getStatus, "ASSIGNED");
+        wrapper.eq(Alert::getStatus, AlertStatus.ASSIGNED.getCode());
         wrapper.le(Alert::getAssignedTime, threshold);
         List<Alert> overdueAlerts = alertMapper.selectList(wrapper);
 
@@ -414,7 +414,7 @@ public class AlertServiceImpl implements AlertService {
             Long fromUserId = alert.getAssignedTo();
 
             // 更新预警状态为ESCALATED
-            alert.setStatus("ESCALATED");
+            alert.setStatus(AlertStatus.ESCALATED.getCode());
             alert.setUpdatedTime(LocalDateTime.now());
             alertMapper.updateById(alert);
 
@@ -442,7 +442,10 @@ public class AlertServiceImpl implements AlertService {
 
         // 统计各状态数量
         Map<String, Long> statusCount = new HashMap<>();
-        String[] statuses = {"NEW", "ASSIGNED", "PROCESSING", "CONFIRMED", "EXCLUDED", "ESCALATED"};
+        String[] statuses = {
+                AlertStatus.NEW.getCode(), AlertStatus.ASSIGNED.getCode(), AlertStatus.PROCESSING.getCode(),
+                AlertStatus.CONFIRMED.getCode(), AlertStatus.EXCLUDED.getCode(), AlertStatus.ESCALATED.getCode()
+        };
         for (String status : statuses) {
             LambdaQueryWrapper<Alert> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(Alert::getStatus, status);
@@ -453,7 +456,10 @@ public class AlertServiceImpl implements AlertService {
 
         // 统计各风险等级数量
         Map<String, Long> riskLevelCount = new HashMap<>();
-        String[] riskLevels = {"LOW", "MEDIUM", "HIGH", "CRITICAL"};
+        String[] riskLevels = {
+                RiskLevel.LOW.getCode(), RiskLevel.MEDIUM.getCode(),
+                RiskLevel.HIGH.getCode(), RiskLevel.CRITICAL.getCode()
+        };
         for (String level : riskLevels) {
             LambdaQueryWrapper<Alert> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(Alert::getRiskLevel, level);
@@ -494,7 +500,7 @@ public class AlertServiceImpl implements AlertService {
 
         alert.setAssignedTo(officerId);
         alert.setAssignedTime(LocalDateTime.now());
-        alert.setStatus("ASSIGNED");
+        alert.setStatus(AlertStatus.ASSIGNED.getCode());
         alert.setUpdatedTime(LocalDateTime.now());
         alertMapper.updateById(alert);
 
@@ -532,16 +538,16 @@ public class AlertServiceImpl implements AlertService {
     }
 
     private Integer resolveCasePriority(String riskLevel) {
-        if ("CRITICAL".equals(riskLevel)) {
+        if (RiskLevel.CRITICAL.getCode().equals(riskLevel)) {
             return 5;
         }
-        if ("HIGH".equals(riskLevel)) {
+        if (RiskLevel.HIGH.getCode().equals(riskLevel)) {
             return 4;
         }
-        if ("MEDIUM".equals(riskLevel)) {
+        if (RiskLevel.MEDIUM.getCode().equals(riskLevel)) {
             return 3;
         }
-        if ("LOW".equals(riskLevel)) {
+        if (RiskLevel.LOW.getCode().equals(riskLevel)) {
             return 2;
         }
         return 3;

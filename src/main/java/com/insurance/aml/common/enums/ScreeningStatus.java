@@ -6,29 +6,27 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 整改状态枚举
+ * 筛查任务状态枚举
  */
 @Getter
 @AllArgsConstructor
-public enum RectificationStatus {
+public enum ScreeningStatus {
 
-    OPEN("OPEN", "待整改"),
-    IN_PROGRESS("IN_PROGRESS", "整改中"),
+    PROCESSING("PROCESSING", "处理中"),
     COMPLETED("COMPLETED", "已完成"),
-    OVERDUE("OVERDUE", "已逾期"),
-    VERIFIED("VERIFIED", "已验证");
+    FAILED("FAILED", "失败");
 
     @EnumValue
     @JsonValue
     private final String code;
     private final String desc;
 
-    public static RectificationStatus fromCode(String code) {
-        for (RectificationStatus status : values()) {
+    public static ScreeningStatus fromCode(String code) {
+        for (ScreeningStatus status : values()) {
             if (status.code.equals(code)) {
                 return status;
             }
         }
-        throw new IllegalArgumentException("未知的整改状态: " + code);
+        throw new IllegalArgumentException("未知的筛查状态: " + code);
     }
 }

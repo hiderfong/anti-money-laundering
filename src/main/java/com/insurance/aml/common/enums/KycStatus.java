@@ -6,29 +6,28 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 案件状态枚举
+ * KYC 客户身份识别状态枚举
  */
 @Getter
 @AllArgsConstructor
-public enum CaseStatus {
+public enum KycStatus {
 
-    DRAFT("DRAFT", "草稿"),
-    INVESTIGATING("INVESTIGATING", "调查中"),
-    PENDING_APPROVAL("PENDING_APPROVAL", "待审批"),
-    SUBMITTED("SUBMITTED", "已报送"),
-    CLOSED("CLOSED", "已关闭");
+    INCOMPLETE("INCOMPLETE", "未完成"),
+    COMPLETE("COMPLETE", "已完成"),
+    PENDING_REVIEW("PENDING_REVIEW", "待复核"),
+    REJECTED("REJECTED", "已拒绝");
 
     @EnumValue
     @JsonValue
     private final String code;
     private final String desc;
 
-    public static CaseStatus fromCode(String code) {
-        for (CaseStatus status : values()) {
+    public static KycStatus fromCode(String code) {
+        for (KycStatus status : values()) {
             if (status.code.equals(code)) {
                 return status;
             }
         }
-        throw new IllegalArgumentException("未知的案件状态: " + code);
+        throw new IllegalArgumentException("未知的KYC状态: " + code);
     }
 }

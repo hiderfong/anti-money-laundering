@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.insurance.aml.common.enums.AlertProcessResult;
+import com.insurance.aml.common.enums.AlertStatus;
 import com.insurance.aml.module.alert.mapper.AlertMapper;
 import com.insurance.aml.module.alert.model.entity.Alert;
 import com.insurance.aml.module.monitoring.mapper.RuleDefinitionMapper;
@@ -150,9 +152,9 @@ public class RuleFeedbackService {
         // 2. 关联预警数: t_alert 中 source_rule_codes LIKE '%ruleCode%'
         // 同时统计各处理结果
         Long alertCount = countAlertsByRule(rule.getRuleCode(), null);
-        Long confirmedCount = countAlertsByRuleAndResult(rule.getRuleCode(), "CONFIRMED_SUSPICIOUS");
+        Long confirmedCount = countAlertsByRuleAndResult(rule.getRuleCode(), AlertProcessResult.CONFIRMED_SUSPICIOUS.getCode());
         Long excludedCount = countAlertsByExcluded(rule.getRuleCode());
-        Long escalatedCount = countAlertsByRuleAndResult(rule.getRuleCode(), "ESCALATED");
+        Long escalatedCount = countAlertsByRuleAndResult(rule.getRuleCode(), AlertProcessResult.ESCALATED.getCode());
         Long pendingCount = countAlertsByStatus(rule.getRuleCode());
 
         vo.setAlertCount(alertCount);
@@ -325,9 +327,9 @@ public class RuleFeedbackService {
         return alertMapper.selectCount(
                 new LambdaQueryWrapper<Alert>()
                         .like(Alert::getSourceRuleCodes, ruleCode)
-                        .and(w -> w.eq(Alert::getProcessResult, "EXCLUDED")
+                        .and(w -> w.eq(Alert::getProcessResult, AlertProcessResult.EXCLUDED.getCode())
                                 .or()
-                                .eq(Alert::getStatus, "EXCLUDED"))
+                                .eq(Alert::getStatus, AlertStatus.EXCLUDED.getCode()))
         );
     }
 
@@ -350,7 +352,7 @@ public class RuleFeedbackService {
         return alertMapper.selectCount(
                 new LambdaQueryWrapper<Alert>()
                         .like(Alert::getSourceRuleCodes, ruleCode)
-                        .in(Alert::getStatus, "NEW", "ASSIGNED", "PROCESSING")
+                        .in(Alert::getStatus, AlertStatus.NEW.getCode(), AlertStatus.ASSIGNED.getCode(), AlertStatus.PROCESSING.getCode())
         );
     }
 

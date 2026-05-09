@@ -6,6 +6,7 @@ import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.module.system.mapper.SysRoleMapper;
+import com.insurance.aml.common.enums.StatusEnum;
 import com.insurance.aml.module.system.mapper.SysUserMapper;
 import com.insurance.aml.module.system.mapper.SysUserRoleMapper;
 import com.insurance.aml.module.system.model.dto.*;
@@ -59,7 +60,7 @@ public class UserServiceImpl implements UserService {
         user.setPhone(req.getPhone());
         user.setDepartment(req.getDepartment());
         user.setPosition(req.getPosition());
-        user.setStatus("ACTIVE");
+        user.setStatus(StatusEnum.ACTIVE.getCode());
         user.setLoginFailCount(0);
 
         sysUserMapper.insert(user);

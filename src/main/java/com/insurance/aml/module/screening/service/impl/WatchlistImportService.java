@@ -3,6 +3,7 @@ package com.insurance.aml.module.screening.service.impl;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.module.screening.mapper.WatchlistAliasMapper;
 import com.insurance.aml.module.screening.mapper.WatchlistIdentityMapper;
+import com.insurance.aml.common.enums.StatusEnum;
 import com.insurance.aml.module.screening.mapper.WatchlistMapper;
 import com.insurance.aml.module.screening.model.entity.Watchlist;
 import com.insurance.aml.module.screening.model.entity.WatchlistAlias;
@@ -91,7 +92,7 @@ public class WatchlistImportService {
                     entry.setDateOfBirth(getField(fields, 6));
                     entry.setPlaceOfBirth(getField(fields, 7));
                     entry.setRemarks(getField(fields, 8));
-                    entry.setStatus("ACTIVE");
+                    entry.setStatus(StatusEnum.ACTIVE.getCode());
                     entries.add(entry);
 
                     // 将主名称也作为别名（ORIGINAL类型）
@@ -172,7 +173,7 @@ public class WatchlistImportService {
                     entry.setDateOfBirth(getString(data, "dateOfBirth"));
                     entry.setPlaceOfBirth(getString(data, "placeOfBirth"));
                     entry.setRemarks(getString(data, "remarks"));
-                    entry.setStatus("ACTIVE");
+                    entry.setStatus(StatusEnum.ACTIVE.getCode());
                     watchlistMapper.insert(entry);
 
                     // 解析并保存别名

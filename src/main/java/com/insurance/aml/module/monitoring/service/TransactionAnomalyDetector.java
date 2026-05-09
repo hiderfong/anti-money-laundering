@@ -1,6 +1,7 @@
 package com.insurance.aml.module.monitoring.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.insurance.aml.common.enums.TransactionStatus;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import jakarta.annotation.PostConstruct;
@@ -121,7 +122,7 @@ public class TransactionAnomalyDetector {
         LocalDateTime since = LocalDateTime.now().minusDays(trainingDays);
         LambdaQueryWrapper<Transaction> wrapper = new LambdaQueryWrapper<>();
         wrapper.ge(Transaction::getTransactionTime, since)
-               .eq(Transaction::getStatus, "SUCCESS")
+               .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode())
                .isNotNull(Transaction::getAmount)
                .isNotNull(Transaction::getTransactionTime)
                .orderByDesc(Transaction::getTransactionTime)
@@ -312,7 +313,7 @@ public class TransactionAnomalyDetector {
         LambdaQueryWrapper<Transaction> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Transaction::getCustomerId, customerId)
                .ge(Transaction::getTransactionTime, since)
-               .eq(Transaction::getStatus, "SUCCESS")
+               .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode())
                .ne(Transaction::getId, excludeTxnId)
                .select(Transaction::getAmount);
 

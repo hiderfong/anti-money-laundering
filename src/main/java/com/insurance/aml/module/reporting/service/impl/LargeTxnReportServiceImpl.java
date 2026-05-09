@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
+import com.insurance.aml.common.enums.ReportStatus;
+import com.insurance.aml.common.enums.SubmitStatus;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.kyc.model.entity.Customer;
@@ -75,7 +77,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         report.setAmount(transaction.getAmount());
         report.setCurrency(transaction.getCurrency());
         report.setPaymentMethod(transaction.getPaymentMethod());
-        report.setReportStatus("DRAFT");
+        report.setReportStatus(ReportStatus.DRAFT.getCode());
         report.setCreatedTime(LocalDateTime.now());
         report.setUpdatedTime(LocalDateTime.now());
 
@@ -106,11 +108,11 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         }
 
         // 只有草稿状态的报告才能审核
-        if (!"DRAFT".equals(report.getReportStatus())) {
+        if (!ReportStatus.DRAFT.getCode().equals(report.getReportStatus())) {
             throw new BusinessException("只有草稿状态的报告才能审核，当前状态：" + report.getReportStatus());
         }
 
-        report.setReportStatus("REVIEWED");
+        report.setReportStatus(ReportStatus.REVIEWED.getCode());
         report.setReviewedBy(reviewedBy);
         report.setReviewedTime(LocalDateTime.now());
         report.setUpdatedTime(LocalDateTime.now());
@@ -154,7 +156,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         }
 
         // 只有已审核状态的报告才能提交
-        if (!"REVIEWED".equals(report.getReportStatus())) {
+        if (!ReportStatus.REVIEWED.getCode().equals(report.getReportStatus())) {
             throw new BusinessException("只有已审核状态的报告才能提交，当前状态：" + report.getReportStatus());
         }
 
@@ -163,7 +165,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
 
         // 更新报告状态
         report.setXmlContent(xmlContent);
-        report.setReportStatus("SUBMITTED");
+        report.setReportStatus(ReportStatus.SUBMITTED.getCode());
         report.setSubmittedBy("system"); // TODO: 从SecurityContext获取当前用户
         report.setSubmittedTime(LocalDateTime.now());
         report.setUpdatedTime(LocalDateTime.now());
@@ -174,7 +176,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         submitLog.setReportType("LARGE_TXN");
         submitLog.setReportId(reportId);
         submitLog.setSubmitTime(LocalDateTime.now());
-        submitLog.setSubmitStatus("SUCCESS");
+        submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
         submitLog.setRequestData(xmlContent);
         submitLog.setResponseData("{\"status\":\"ACCEPTED\"}"); // TODO: 替换为实际响应
         submitLog.setRetryCount(0);
@@ -235,7 +237,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
 
         // 查询失败的提交日志
         LambdaQueryWrapper<ReportSubmitLog> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ReportSubmitLog::getSubmitStatus, "FAILED")
+        wrapper.eq(ReportSubmitLog::getSubmitStatus, SubmitStatus.FAILED.getCode())
                 .lt(ReportSubmitLog::getRetryCount, 3); // retry_count < max_retries(默认3)
 
         List<ReportSubmitLog> failedLogs = reportSubmitLogMapper.selectList(wrapper);
@@ -252,7 +254,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
                 submitReport(submitLog.getReportId());
 
                 // 更新日志状态为成功
-                submitLog.setSubmitStatus("SUCCESS");
+                submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
                 submitLog.setErrorMessage(null);
                 reportSubmitLogMapper.updateById(submitLog);
 

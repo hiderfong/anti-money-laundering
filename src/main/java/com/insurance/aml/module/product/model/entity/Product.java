@@ -2,6 +2,9 @@ package com.insurance.aml.module.product.model.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.insurance.aml.common.entity.BaseEntity;
+import com.insurance.aml.common.enums.RiskLevel;
+import com.insurance.aml.common.enums.StatusEnum;
+
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -62,7 +65,7 @@ public class Product extends BaseEntity {
     /**
      * 风险等级：LOW-低、MEDIUM-中、HIGH-高
      */
-    private String riskLevel = "LOW";
+    private String riskLevel = RiskLevel.LOW.getCode();
 
     /**
      * 风险评分
@@ -77,7 +80,7 @@ public class Product extends BaseEntity {
     /**
      * 状态：ACTIVE-启用、INACTIVE-停用
      */
-    private String status = "ACTIVE";
+    private String status = StatusEnum.ACTIVE.getCode();
 
     /**
      * 生效日期

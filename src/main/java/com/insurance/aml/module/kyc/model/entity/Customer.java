@@ -6,6 +6,10 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import com.insurance.aml.common.enums.CustomerStatus;
+import com.insurance.aml.common.enums.KycStatus;
+import com.insurance.aml.common.enums.RiskLevel;
+
 import java.time.LocalDateTime;
 
 /**
@@ -148,7 +152,7 @@ public class Customer extends BaseEntity {
     /**
      * 风险等级：LOW-低，MEDIUM-中，HIGH-高
      */
-    private String riskLevel = "LOW";
+    private String riskLevel = RiskLevel.LOW.getCode();
 
     /**
      * 风险评分
@@ -178,7 +182,7 @@ public class Customer extends BaseEntity {
     /**
      * KYC状态：INCOMPLETE-不完整，COMPLETE-完整，REVIEWING-审核中
      */
-    private String kycStatus = "INCOMPLETE";
+    private String kycStatus = KycStatus.INCOMPLETE.getCode();
 
     /**
      * KYC最近审核时间
@@ -198,5 +202,5 @@ public class Customer extends BaseEntity {
     /**
      * 状态：ACTIVE-活跃，INACTIVE-停用，FROZEN-冻结
      */
-    private String status = "ACTIVE";
+    private String status = CustomerStatus.ACTIVE.getCode();
 }

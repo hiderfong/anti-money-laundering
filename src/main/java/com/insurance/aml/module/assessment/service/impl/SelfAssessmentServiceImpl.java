@@ -11,6 +11,9 @@ import com.insurance.aml.module.assessment.model.dto.SelfAssessmentDetailVO;
 import com.insurance.aml.module.assessment.model.entity.AssessmentIndicator;
 import com.insurance.aml.module.assessment.model.entity.AssessmentScore;
 import com.insurance.aml.module.assessment.model.entity.SelfAssessment;
+import com.insurance.aml.common.enums.AlertStatus;
+import com.insurance.aml.common.enums.AssessmentStatusEnum;
+import com.insurance.aml.common.enums.RiskLevel;
 import com.insurance.aml.module.assessment.service.SelfAssessmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +49,7 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
         assessment.setAssessmentYear(req.getAssessmentYear());
         assessment.setAssessmentPeriod(req.getAssessmentPeriod());
         assessment.setAssessorId(req.getAssessorId());
-        assessment.setAssessmentStatus("DRAFT");
+        assessment.setAssessmentStatus(AssessmentStatusEnum.CREATED.getCode());
         assessment.setCreatedTime(LocalDateTime.now());
         assessment.setUpdatedTime(LocalDateTime.now());
         assessmentMapper.insert(assessment);
@@ -66,12 +69,12 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
             throw new RuntimeException("评估不存在，id=" + req.getAssessmentId());
         }
         if (!"IN_PROGRESS".equals(assessment.getAssessmentStatus())
-                && !"DRAFT".equals(assessment.getAssessmentStatus())) {
+                && !AssessmentStatusEnum.CREATED.getCode().equals(assessment.getAssessmentStatus())) {
             throw new RuntimeException("当前评估状态不允许评分，status=" + assessment.getAssessmentStatus());
         }
 
         // 如果是草稿状态，自动切换为进行中
-        if ("DRAFT".equals(assessment.getAssessmentStatus())) {
+        if (AssessmentStatusEnum.CREATED.getCode().equals(assessment.getAssessmentStatus())) {
             assessment.setAssessmentStatus("IN_PROGRESS");
             assessment.setUpdatedTime(LocalDateTime.now());
             assessmentMapper.updateById(assessment);
@@ -182,11 +185,11 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
         // 确定综合风险等级：>70=HIGH, 40-70=MEDIUM, <40=LOW
         String riskLevel;
         if (overallScore > 70) {
-            riskLevel = "HIGH";
+            riskLevel = RiskLevel.HIGH.getCode();
         } else if (overallScore >= 40) {
-            riskLevel = "MEDIUM";
+            riskLevel = RiskLevel.MEDIUM.getCode();
         } else {
-            riskLevel = "LOW";
+            riskLevel = RiskLevel.LOW.getCode();
         }
 
         // 更新评估记录
@@ -194,7 +197,7 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
         assessment.setControlEffectivenessScore(controlScore);
         assessment.setOverallScore(overallScore);
         assessment.setOverallRiskLevel(riskLevel);
-        assessment.setAssessmentStatus("COMPLETED");
+        assessment.setAssessmentStatus(AssessmentStatusEnum.COMPLETED.getCode());
         assessment.setUpdatedTime(LocalDateTime.now());
         assessmentMapper.updateById(assessment);
 
@@ -215,7 +218,7 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
             throw new RuntimeException("只有已完成的评估才能审批，当前状态=" + assessment.getAssessmentStatus());
         }
 
-        assessment.setAssessmentStatus("APPROVED");
+        assessment.setAssessmentStatus(AssessmentStatusEnum.APPROVED.getCode());
         assessment.setApprovedBy(approvedBy);
         assessment.setApprovedTime(LocalDateTime.now());
         assessment.setUpdatedTime(LocalDateTime.now());

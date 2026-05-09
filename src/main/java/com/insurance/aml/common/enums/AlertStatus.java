@@ -15,9 +15,9 @@ public enum AlertStatus {
     NEW("NEW", "新建"),
     ASSIGNED("ASSIGNED", "已分配"),
     PROCESSING("PROCESSING", "处理中"),
-    ESCALATED("ESCALATED", "已升级"),
-    DISMISSED("DISMISSED", "已忽略"),
-    CLOSED("CLOSED", "已关闭");
+    CONFIRMED("CONFIRMED", "已确认"),
+    EXCLUDED("EXCLUDED", "已排除"),
+    ESCALATED("ESCALATED", "已升级");
 
     @EnumValue
     @JsonValue

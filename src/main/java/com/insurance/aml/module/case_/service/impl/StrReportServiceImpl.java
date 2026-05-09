@@ -3,6 +3,8 @@ package com.insurance.aml.module.case_.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.ResultCode;
+import com.insurance.aml.common.enums.CaseStatus;
+import com.insurance.aml.common.enums.ReportStatus;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.case_.mapper.CaseMapper;
@@ -62,7 +64,7 @@ public class StrReportServiceImpl implements StrReportService {
         report.setCaseId(req.getCaseId());
         report.setCustomerId(caseEntity.getCustomerId());
         report.setReportType(req.getReportType());
-        report.setReportStatus("DRAFT");
+        report.setReportStatus(ReportStatus.DRAFT.getCode());
         report.setReportContent(req.getReportContent());
         report.setAnalysisOpinion(req.getAnalysisOpinion());
         report.setMeasuresTaken(req.getMeasuresTaken());
@@ -88,12 +90,12 @@ public class StrReportServiceImpl implements StrReportService {
         }
 
         // 只有DRAFT状态的报告才能提交审核
-        if (!"DRAFT".equals(report.getReportStatus())) {
+        if (!ReportStatus.DRAFT.getCode().equals(report.getReportStatus())) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR,
                     "只有草稿状态的报告才能提交审核，当前状态=" + report.getReportStatus());
         }
 
-        report.setReportStatus("PENDING_REVIEW");
+        report.setReportStatus(ReportStatus.PENDING_REVIEW.getCode());
         report.setUpdatedTime(LocalDateTime.now());
         strReportMapper.updateById(report);
 
@@ -111,7 +113,7 @@ public class StrReportServiceImpl implements StrReportService {
         }
 
         // 只有PENDING_REVIEW状态的报告才能审核
-        if (!"PENDING_REVIEW".equals(report.getReportStatus())) {
+        if (!ReportStatus.PENDING_REVIEW.getCode().equals(report.getReportStatus())) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR,
                     "只有待审核状态的报告才能审核，当前状态=" + report.getReportStatus());
         }
@@ -121,7 +123,7 @@ public class StrReportServiceImpl implements StrReportService {
 
         if (Boolean.TRUE.equals(req.getApproved())) {
             // 批准：更新为APPROVED状态
-            report.setReportStatus("APPROVED");
+            report.setReportStatus(ReportStatus.APPROVED.getCode());
             report.setReviewerId(currentUserId);
             report.setReviewerOpinion(req.getOpinion());
             report.setReviewerTime(now);
@@ -130,13 +132,13 @@ public class StrReportServiceImpl implements StrReportService {
 
             // 审核通过后，自动触发案件状态流转到PENDING_APPROVAL
             log.info("报告审核通过，自动触发案件状态流转，caseId={}", report.getCaseId());
-            caseService.changeCaseStatus(report.getCaseId(), "PENDING_APPROVAL",
+            caseService.changeCaseStatus(report.getCaseId(), CaseStatus.PENDING_APPROVAL.getCode(),
                     "可疑交易报告审核通过，案件进入待审批状态");
 
             log.info("可疑交易报告审核通过，reportId={}", req.getReportId());
         } else {
             // 拒绝：更新为REJECTED状态
-            report.setReportStatus("REJECTED");
+            report.setReportStatus(ReportStatus.REJECTED.getCode());
             report.setReviewerId(currentUserId);
             report.setReviewerOpinion(req.getOpinion());
             report.setReviewerTime(now);
@@ -158,13 +160,13 @@ public class StrReportServiceImpl implements StrReportService {
         }
 
         // 只有APPROVED状态的报告才能提交至监管机构
-        if (!"APPROVED".equals(report.getReportStatus())) {
+        if (!ReportStatus.APPROVED.getCode().equals(report.getReportStatus())) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR,
                     "只有已批准的报告才能提交至监管机构，当前状态=" + report.getReportStatus());
         }
 
         LocalDateTime now = LocalDateTime.now();
-        report.setReportStatus("SUBMITTED");
+        report.setReportStatus(ReportStatus.SUBMITTED.getCode());
         report.setSubmitTime(now);
         // 实际XML生成和提交将在reporting模块中实现
         report.setSubmitResult("提交成功");

@@ -6,29 +6,27 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 案件状态枚举
+ * 提交状态枚举（用于报送日志、任务执行记录等）
  */
 @Getter
 @AllArgsConstructor
-public enum CaseStatus {
+public enum SubmitStatus {
 
-    DRAFT("DRAFT", "草稿"),
-    INVESTIGATING("INVESTIGATING", "调查中"),
-    PENDING_APPROVAL("PENDING_APPROVAL", "待审批"),
-    SUBMITTED("SUBMITTED", "已报送"),
-    CLOSED("CLOSED", "已关闭");
+    SUCCESS("SUCCESS", "成功"),
+    FAILED("FAILED", "失败"),
+    PENDING("PENDING", "待处理");
 
     @EnumValue
     @JsonValue
     private final String code;
     private final String desc;
 
-    public static CaseStatus fromCode(String code) {
-        for (CaseStatus status : values()) {
+    public static SubmitStatus fromCode(String code) {
+        for (SubmitStatus status : values()) {
             if (status.code.equals(code)) {
                 return status;
             }
         }
-        throw new IllegalArgumentException("未知的案件状态: " + code);
+        throw new IllegalArgumentException("未知的提交状态: " + code);
     }
 }

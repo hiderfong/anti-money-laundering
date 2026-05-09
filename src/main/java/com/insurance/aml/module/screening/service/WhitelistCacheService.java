@@ -1,5 +1,6 @@
 package com.insurance.aml.module.screening.service;
 
+import com.insurance.aml.common.enums.WhitelistStatus;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.insurance.aml.module.screening.mapper.WhitelistMapper;
 import com.insurance.aml.module.screening.model.entity.Whitelist;
@@ -38,7 +39,7 @@ public class WhitelistCacheService {
         log.debug("从数据库加载全部活跃白名单");
         List<Whitelist> list = whitelistMapper.selectList(
                 new LambdaQueryWrapper<Whitelist>()
-                        .eq(Whitelist::getReviewStatus, "ACTIVE")
+                        .eq(Whitelist::getReviewStatus, WhitelistStatus.ACTIVE.getCode())
         );
         log.debug("加载活跃白名单完成，数量={}", list.size());
         return list;

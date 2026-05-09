@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.insurance.aml.module.assessment.mapper.RectificationTaskMapper;
 import com.insurance.aml.module.assessment.model.dto.RectificationTaskRequest;
 import com.insurance.aml.module.assessment.model.entity.RectificationTask;
+import com.insurance.aml.common.enums.RectificationStatus;
 import com.insurance.aml.module.assessment.service.RectificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,7 @@ public class RectificationServiceImpl implements RectificationService {
         task.setResponsibleDept(req.getResponsibleDept());
         task.setResponsiblePerson(req.getResponsiblePerson());
         task.setDeadline(req.getDeadline());
-        task.setStatus("OPEN");
+        task.setStatus(RectificationStatus.OPEN.getCode());
         taskMapper.insert(task);
 
         log.info("整改任务创建成功，id={}", task.getId());
@@ -55,7 +56,7 @@ public class RectificationServiceImpl implements RectificationService {
         }
 
         task.setStatus(status);
-        if ("COMPLETED".equals(status)) {
+        if (RectificationStatus.COMPLETED.getCode().equals(status)) {
             task.setCompletedTime(LocalDateTime.now());
         }
         taskMapper.updateById(task);
@@ -77,10 +78,10 @@ public class RectificationServiceImpl implements RectificationService {
         // 逾期检测：状态为OPEN或IN_PROGRESS且已过截止日期的任务，标记为OVERDUE
         LocalDate today = LocalDate.now();
         for (RectificationTask task : tasks) {
-            if (("OPEN".equals(task.getStatus()) || "IN_PROGRESS".equals(task.getStatus()))
+            if ((RectificationStatus.OPEN.getCode().equals(task.getStatus()) || RectificationStatus.IN_PROGRESS.getCode().equals(task.getStatus()))
                     && task.getDeadline() != null
                     && task.getDeadline().isBefore(today)) {
-                task.setStatus("OVERDUE");
+                task.setStatus(RectificationStatus.OVERDUE.getCode());
                 taskMapper.updateById(task);
             }
         }
@@ -97,7 +98,7 @@ public class RectificationServiceImpl implements RectificationService {
         if (task == null) {
             throw new RuntimeException("整改任务不存在，id=" + taskId);
         }
-        if (!"COMPLETED".equals(task.getStatus())) {
+        if (!RectificationStatus.COMPLETED.getCode().equals(task.getStatus())) {
             throw new RuntimeException("只有已完成的任务才能验证，当前状态=" + task.getStatus());
         }
 

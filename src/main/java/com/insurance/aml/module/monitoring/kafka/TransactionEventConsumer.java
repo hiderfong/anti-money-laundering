@@ -1,5 +1,6 @@
 package com.insurance.aml.module.monitoring.kafka;
 
+import com.insurance.aml.common.enums.RiskLevel;
 import com.insurance.aml.common.config.KafkaConfig;
 import com.insurance.aml.module.alert.model.entity.Alert;
 import com.insurance.aml.module.alert.model.entity.AlertRuleDetail;
@@ -178,10 +179,10 @@ public class TransactionEventConsumer {
      * 根据风险分数确定风险等级
      */
     private String resolveRiskLevel(BigDecimal score) {
-        if (score.compareTo(BigDecimal.valueOf(90)) >= 0) return "CRITICAL";
-        if (score.compareTo(BigDecimal.valueOf(70)) >= 0) return "HIGH";
-        if (score.compareTo(BigDecimal.valueOf(40)) >= 0) return "MEDIUM";
-        return "LOW";
+        if (score.compareTo(BigDecimal.valueOf(90)) >= 0) return RiskLevel.CRITICAL.getCode();
+        if (score.compareTo(BigDecimal.valueOf(70)) >= 0) return RiskLevel.HIGH.getCode();
+        if (score.compareTo(BigDecimal.valueOf(40)) >= 0) return RiskLevel.MEDIUM.getCode();
+        return RiskLevel.LOW.getCode();
     }
 
     /**

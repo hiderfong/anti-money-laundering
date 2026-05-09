@@ -13,7 +13,8 @@ import lombok.Getter;
 public enum ReportStatus {
 
     DRAFT("DRAFT", "草稿"),
-    PENDING("PENDING", "待审批"),
+    PENDING_REVIEW("PENDING_REVIEW", "待审核"),
+    REVIEWED("REVIEWED", "已审核"),
     APPROVED("APPROVED", "已通过"),
     REJECTED("REJECTED", "已驳回"),
     SUBMITTED("SUBMITTED", "已报送");

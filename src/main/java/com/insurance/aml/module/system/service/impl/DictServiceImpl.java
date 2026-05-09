@@ -6,6 +6,7 @@ import com.insurance.aml.module.system.mapper.SysDictItemMapper;
 import com.insurance.aml.module.system.mapper.SysDictMapper;
 import com.insurance.aml.module.system.model.entity.SysDict;
 import com.insurance.aml.module.system.model.entity.SysDictItem;
+import com.insurance.aml.common.enums.StatusEnum;
 import com.insurance.aml.module.system.service.DictService;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ public class DictServiceImpl implements DictService {
     @Override
     public List<SysDict> listDicts() {
         LambdaQueryWrapper<SysDict> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysDict::getStatus, "ACTIVE");
+        wrapper.eq(SysDict::getStatus, StatusEnum.ACTIVE.getCode());
         wrapper.orderByAsc(SysDict::getDictCode);
         return sysDictMapper.selectList(wrapper);
     }
@@ -67,7 +68,7 @@ public class DictServiceImpl implements DictService {
         // 先查字典ID
         LambdaQueryWrapper<SysDict> dictWrapper = new LambdaQueryWrapper<>();
         dictWrapper.eq(SysDict::getDictCode, dictCode)
-                .eq(SysDict::getStatus, "ACTIVE");
+                .eq(SysDict::getStatus, StatusEnum.ACTIVE.getCode());
         SysDict dict = sysDictMapper.selectOne(dictWrapper);
 
         if (dict == null) {
@@ -77,7 +78,7 @@ public class DictServiceImpl implements DictService {
         // 查字典项
         LambdaQueryWrapper<SysDictItem> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysDictItem::getDictId, dict.getId())
-                .eq(SysDictItem::getStatus, "ACTIVE")
+                .eq(SysDictItem::getStatus, StatusEnum.ACTIVE.getCode())
                 .orderByAsc(SysDictItem::getSortOrder);
         return sysDictItemMapper.selectList(wrapper);
     }

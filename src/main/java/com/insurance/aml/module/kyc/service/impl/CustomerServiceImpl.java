@@ -7,6 +7,9 @@ import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.common.service.impl.BaseServiceXImpl;
+import com.insurance.aml.common.enums.CustomerStatus;
+import com.insurance.aml.common.enums.KycStatus;
+import com.insurance.aml.common.enums.RiskLevel;
 import com.insurance.aml.common.util.EncryptUtils;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.common.util.SecurityUtils;
@@ -81,12 +84,12 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
         }
 
         // 设置默认值
-        customer.setRiskLevel("LOW");
+        customer.setRiskLevel(RiskLevel.LOW.getCode());
         customer.setRiskScore(0);
         customer.setIsPep(false);
         customer.setIsSanctioned(false);
-        customer.setKycStatus("INCOMPLETE");
-        customer.setStatus("ACTIVE");
+        customer.setKycStatus(KycStatus.INCOMPLETE.getCode());
+        customer.setStatus(CustomerStatus.ACTIVE.getCode());
 
         // 保存
         baseMapper.insert(customer);
@@ -161,7 +164,7 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
         // 加载受益所有人
         LambdaQueryWrapper<CustomerBeneficialOwner> ownerWrapper = new LambdaQueryWrapper<>();
         ownerWrapper.eq(CustomerBeneficialOwner::getCustomerId, id)
-                .eq(CustomerBeneficialOwner::getStatus, "ACTIVE");
+                .eq(CustomerBeneficialOwner::getStatus, CustomerStatus.ACTIVE.getCode());
         List<CustomerBeneficialOwner> owners = beneficialOwnerMapper.selectList(ownerWrapper);
         vo.setBeneficialOwners(owners.stream()
                 .map(this::convertOwnerToVO)
@@ -290,11 +293,11 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
         // 确定风险等级
         String newRiskLevel;
         if (score > 60) {
-            newRiskLevel = "HIGH";
+            newRiskLevel = RiskLevel.HIGH.getCode();
         } else if (score >= 30) {
-            newRiskLevel = "MEDIUM";
+            newRiskLevel = RiskLevel.MEDIUM.getCode();
         } else {
-            newRiskLevel = "LOW";
+            newRiskLevel = RiskLevel.LOW.getCode();
         }
 
         // 更新客户风险信息

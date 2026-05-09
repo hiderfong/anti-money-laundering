@@ -7,6 +7,8 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import com.insurance.aml.common.enums.TransactionStatus;
+
 import java.time.LocalDateTime;
 
 /**
@@ -103,7 +105,7 @@ public class Transaction implements Serializable {
      * 交易状态
      * SUCCESS-成功, FAILED-失败, PENDING-待处理, REVERSED-已冲正
      */
-    private String status = "SUCCESS";
+    private String status = TransactionStatus.SUCCESS.getCode();
 
     /**
      * 来源系统

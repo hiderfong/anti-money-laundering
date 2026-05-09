@@ -6,29 +6,27 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 案件状态枚举
+ * 白名单状态枚举
  */
 @Getter
 @AllArgsConstructor
-public enum CaseStatus {
+public enum WhitelistStatus {
 
-    DRAFT("DRAFT", "草稿"),
-    INVESTIGATING("INVESTIGATING", "调查中"),
-    PENDING_APPROVAL("PENDING_APPROVAL", "待审批"),
-    SUBMITTED("SUBMITTED", "已报送"),
-    CLOSED("CLOSED", "已关闭");
+    ACTIVE("ACTIVE", "有效"),
+    EXPIRED("EXPIRED", "已过期"),
+    REVOKED("REVOKED", "已撤销");
 
     @EnumValue
     @JsonValue
     private final String code;
     private final String desc;
 
-    public static CaseStatus fromCode(String code) {
-        for (CaseStatus status : values()) {
+    public static WhitelistStatus fromCode(String code) {
+        for (WhitelistStatus status : values()) {
             if (status.code.equals(code)) {
                 return status;
             }
         }
-        throw new IllegalArgumentException("未知的案件状态: " + code);
+        throw new IllegalArgumentException("未知的白名单状态: " + code);
     }
 }

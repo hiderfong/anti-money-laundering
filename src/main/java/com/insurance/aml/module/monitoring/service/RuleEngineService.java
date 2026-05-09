@@ -9,6 +9,7 @@ import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
 import com.insurance.aml.module.monitoring.model.entity.DroolsRuleResult;
 import com.insurance.aml.module.monitoring.model.entity.RuleDefinition;
 import com.insurance.aml.module.monitoring.model.entity.RuleExecutionLog;
+import com.insurance.aml.common.enums.TransactionStatus;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.model.entity.TransactionEvaluationContext;
 import lombok.RequiredArgsConstructor;
@@ -947,7 +948,7 @@ public class RuleEngineService {
         LambdaQueryWrapper<Transaction> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Transaction::getCustomerId, customerId)
                 .ge(Transaction::getTransactionTime, since)
-                .eq(Transaction::getStatus, "SUCCESS");
+                .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode());
         Long count = transactionMapper.selectCount(wrapper);
         return count != null ? count.intValue() : 0;
     }
@@ -964,7 +965,7 @@ public class RuleEngineService {
         wrapper.eq(Transaction::getCustomerId, customerId)
                 .ge(Transaction::getTransactionTime, dayStart)
                 .lt(Transaction::getTransactionTime, dayEnd)
-                .eq(Transaction::getStatus, "SUCCESS")
+                .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode())
                 .select(Transaction::getAmount);
 
         List<Transaction> transactions = transactionMapper.selectList(wrapper);
@@ -985,7 +986,7 @@ public class RuleEngineService {
         wrapper.eq(Transaction::getCustomerId, customerId)
                 .ge(Transaction::getTransactionTime, dayStart)
                 .lt(Transaction::getTransactionTime, dayEnd)
-                .eq(Transaction::getStatus, "SUCCESS");
+                .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode());
         Long count = transactionMapper.selectCount(wrapper);
         return count != null ? count.intValue() : 0;
     }

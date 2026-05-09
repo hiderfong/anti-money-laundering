@@ -3,6 +3,7 @@ package com.insurance.aml.module.monitoring.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.insurance.aml.common.result.PageResult;
+import com.insurance.aml.common.enums.TransactionStatus;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.module.monitoring.event.TransactionCommittedEvent;
 import com.insurance.aml.module.monitoring.mapper.TransactionDailySummaryMapper;
@@ -228,7 +229,7 @@ public class TransactionServiceImpl implements TransactionService {
             transaction.setIsCrossBorder(false);
         }
         if (!StringUtils.hasText(transaction.getStatus())) {
-            transaction.setStatus("SUCCESS");
+            transaction.setStatus(TransactionStatus.SUCCESS.getCode());
         }
         return transaction;
     }

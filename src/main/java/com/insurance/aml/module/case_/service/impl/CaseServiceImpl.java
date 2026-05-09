@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
+import com.insurance.aml.common.enums.AlertStatus;
+import com.insurance.aml.common.enums.CaseStatus;
+import com.insurance.aml.common.enums.StatusEnum;
 import com.insurance.aml.common.util.IdGenerator;
 import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.case_.mapper.CaseAttachmentMapper;
@@ -65,10 +68,10 @@ public class CaseServiceImpl implements CaseService {
     private static final Map<String, List<String>> VALID_TRANSITIONS = new HashMap<>();
 
     static {
-        VALID_TRANSITIONS.put("DRAFT", Arrays.asList("INVESTIGATING"));
-        VALID_TRANSITIONS.put("INVESTIGATING", Arrays.asList("PENDING_APPROVAL"));
-        VALID_TRANSITIONS.put("PENDING_APPROVAL", Arrays.asList("SUBMITTED", "INVESTIGATING"));
-        VALID_TRANSITIONS.put("SUBMITTED", Arrays.asList("CLOSED"));
+        VALID_TRANSITIONS.put(CaseStatus.DRAFT.getCode(), Arrays.asList(CaseStatus.INVESTIGATING.getCode()));
+        VALID_TRANSITIONS.put(CaseStatus.INVESTIGATING.getCode(), Arrays.asList(CaseStatus.PENDING_APPROVAL.getCode()));
+        VALID_TRANSITIONS.put(CaseStatus.PENDING_APPROVAL.getCode(), Arrays.asList(CaseStatus.SUBMITTED.getCode(), CaseStatus.INVESTIGATING.getCode()));
+        VALID_TRANSITIONS.put(CaseStatus.SUBMITTED.getCode(), Arrays.asList(CaseStatus.CLOSED.getCode()));
         // CLOSED 为终态，不可再流转
     }
 
@@ -82,7 +85,7 @@ public class CaseServiceImpl implements CaseService {
         if (alert == null) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "关联告警不存在，alertId=" + req.getAlertId());
         }
-        if (!"CONFIRMED".equals(alert.getStatus())) {
+        if (!AlertStatus.CONFIRMED.getCode().equals(alert.getStatus())) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "只有已确认的告警才能创建案件，当前状态=" + alert.getStatus());
         }
 
@@ -92,7 +95,7 @@ public class CaseServiceImpl implements CaseService {
         caseEntity.setAlertId(req.getAlertId());
         caseEntity.setCustomerId(alert.getCustomerId());
         caseEntity.setCustomerName(alert.getCustomerName());
-        caseEntity.setCaseStatus("DRAFT");
+        caseEntity.setCaseStatus(CaseStatus.DRAFT.getCode());
         caseEntity.setCaseType(req.getCaseType());
         caseEntity.setPriority(req.getPriority() != null ? req.getPriority() : 3);
         caseEntity.setSummary(req.getSummary());
@@ -105,7 +108,7 @@ public class CaseServiceImpl implements CaseService {
         log.info("案件创建成功，caseId={}, caseNo={}", caseEntity.getId(), caseEntity.getCaseNo());
 
         // 记录状态变更日志：null → DRAFT
-        saveStatusLog(caseEntity.getId(), null, "DRAFT", "创建案件", SecurityUtils.getCurrentUsername());
+        saveStatusLog(caseEntity.getId(), null, CaseStatus.DRAFT.getCode(), "创建案件", SecurityUtils.getCurrentUsername());
 
         return caseEntity;
     }
@@ -135,7 +138,7 @@ public class CaseServiceImpl implements CaseService {
         caseEntity.setUpdatedTime(LocalDateTime.now());
 
         // 如果流转到已提交，记录提交时间
-        if ("SUBMITTED".equals(toStatus)) {
+        if (CaseStatus.SUBMITTED.getCode().equals(toStatus)) {
             caseEntity.setSubmitTime(LocalDateTime.now());
         }
 
@@ -313,7 +316,7 @@ public class CaseServiceImpl implements CaseService {
         }
 
         // 只有已提交的案件才能关闭
-        if (!"SUBMITTED".equals(caseEntity.getCaseStatus())) {
+        if (!CaseStatus.SUBMITTED.getCode().equals(caseEntity.getCaseStatus())) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR,
                     "只有已提交的案件才能关闭，当前状态=" + caseEntity.getCaseStatus());
         }
@@ -321,7 +324,7 @@ public class CaseServiceImpl implements CaseService {
         String fromStatus = caseEntity.getCaseStatus();
 
         // 更新案件为已关闭
-        caseEntity.setCaseStatus("CLOSED");
+        caseEntity.setCaseStatus(CaseStatus.CLOSED.getCode());
         caseEntity.setCloseTime(LocalDateTime.now());
         caseEntity.setCloseReason(reason);
         caseEntity.setUpdatedBy(SecurityUtils.getCurrentUsername());
@@ -330,7 +333,7 @@ public class CaseServiceImpl implements CaseService {
         caseMapper.updateById(caseEntity);
 
         // 记录状态变更日志
-        saveStatusLog(caseId, fromStatus, "CLOSED", reason, SecurityUtils.getCurrentUsername());
+        saveStatusLog(caseId, fromStatus, CaseStatus.CLOSED.getCode(), reason, SecurityUtils.getCurrentUsername());
 
         log.info("案件关闭成功，caseId={}", caseId);
     }

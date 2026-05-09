@@ -10,6 +10,11 @@ import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.reporting.model.entity.LargeTxnReport;
 import com.insurance.aml.module.reporting.mapper.LargeTxnReportMapper;
 import com.insurance.aml.module.reporting.model.dto.*;
+import com.insurance.aml.common.enums.AlertStatus;
+import com.insurance.aml.common.enums.CaseStatus;
+import com.insurance.aml.common.enums.KycStatus;
+import com.insurance.aml.common.enums.ReportStatus;
+import com.insurance.aml.common.enums.RiskLevel;
 import com.insurance.aml.module.reporting.service.DashboardService;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
@@ -40,27 +45,26 @@ public class DashboardServiceImpl implements DashboardService {
     private final LargeTxnReportMapper largeTxnReportMapper;
 
     // 告警状态常量
-    private static final String ALERT_STATUS_NEW = "NEW";
-    private static final String ALERT_STATUS_PROCESSING = "PROCESSING";
-    private static final String ALERT_STATUS_CONFIRMED = "CONFIRMED";
+    private static final String ALERT_STATUS_NEW = AlertStatus.NEW.getCode();
+    private static final String ALERT_STATUS_PROCESSING = AlertStatus.PROCESSING.getCode();
+    private static final String ALERT_STATUS_CONFIRMED = AlertStatus.CONFIRMED.getCode();
 
-    // 案件状态常量
-    private static final String CASE_STATUS_OPEN = "OPEN";
-    private static final String CASE_STATUS_CLOSED = "CLOSED";
+    // 案件状态常量（OPEN 统计除 CLOSED 外的所有状态）
+    private static final String CASE_STATUS_CLOSED = CaseStatus.CLOSED.getCode();
 
     // KYC状态常量
     private static final String KYC_STATUS_COMPLETE = "COMPLETED";
-    private static final String KYC_STATUS_INCOMPLETE = "INCOMPLETE";
+    private static final String KYC_STATUS_INCOMPLETE = KycStatus.INCOMPLETE.getCode();
     private static final String KYC_STATUS_REVIEWING = "REVIEWING";
 
     // 风险等级常量
-    private static final String RISK_LEVEL_LOW = "LOW";
-    private static final String RISK_LEVEL_MEDIUM = "MEDIUM";
-    private static final String RISK_LEVEL_HIGH = "HIGH";
+    private static final String RISK_LEVEL_LOW = RiskLevel.LOW.getCode();
+    private static final String RISK_LEVEL_MEDIUM = RiskLevel.MEDIUM.getCode();
+    private static final String RISK_LEVEL_HIGH = RiskLevel.HIGH.getCode();
 
     // 报告状态常量
-    private static final String REPORT_STATUS_SUBMITTED = "SUBMITTED";
-    private static final String REPORT_STATUS_PENDING = "PENDING";
+    private static final String REPORT_STATUS_SUBMITTED = ReportStatus.SUBMITTED.getCode();
+    private static final String REPORT_STATUS_PENDING = ReportStatus.REVIEWED.getCode();
 
     @Override
     public DashboardOverviewVO getOverview() {
@@ -81,7 +85,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 案件统计
         overview.setTotalCases(countCases(null));
-        overview.setOpenCases(countCasesByStatus(CASE_STATUS_OPEN));
+        overview.setOpenCases(countOpenCases());
         overview.setClosedCases(countCasesByStatus(CASE_STATUS_CLOSED));
 
         // 交易统计
@@ -286,6 +290,15 @@ public class DashboardServiceImpl implements DashboardService {
     private long countCasesByStatus(String status) {
         return caseMapper.selectCount(
                 new LambdaQueryWrapper<Case>().eq(Case::getCaseStatus, status)
+        );
+    }
+
+    /**
+     * 统计未关闭案件数（除 CLOSED 外的所有状态）
+     */
+    private long countOpenCases() {
+        return caseMapper.selectCount(
+                new LambdaQueryWrapper<Case>().ne(Case::getCaseStatus, CASE_STATUS_CLOSED)
         );
     }
 
