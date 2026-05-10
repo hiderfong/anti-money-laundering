@@ -39,10 +39,12 @@ CI 中的 E2E 使用 `ubuntu-latest` runner，并通过 service container 启动
 
 运行时配置：
 
-- 后端：`dev,no-redis,no-es` profile，禁用 Kafka，连接 CI MySQL。
+- 后端：`dev,no-redis,no-es` profile，禁用 Kafka/Redis/Redisson，连接 CI MySQL。
 - 前端：Vite dev server，监听 `127.0.0.1:5173`。
 - 浏览器：Playwright Chromium，默认 headless。
 - 测试数据隔离：使用 `E2E_RUN_ID=ci-${{ github.run_id }}-${{ github.run_attempt }}`。
+
+CI 中还会显式设置 `AML_REDIS_ENABLED=false` 与 `SPRING_AUTOCONFIGURE_EXCLUDE`，确保 Spring Boot Maven run 不会加载 Redis/Redisson 自动配置。
 
 ## Gitea Runner
 

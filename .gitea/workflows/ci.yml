@@ -177,6 +177,8 @@ jobs:
       E2E_IP: 127.0.0.201
       E2E_LIMIT_IP: 127.0.0.202
       HEADLESS: "true"
+      AML_REDIS_ENABLED: "false"
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.redisson.spring.starter.RedissonAutoConfigurationV2,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     steps:
       - name: Checkout
@@ -228,7 +230,7 @@ jobs:
         run: |
           nohup mvn -B -ntp spring-boot:run \
             -Dspring-boot.run.profiles=dev,no-redis,no-es \
-            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
+            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --aml.redis.enabled=false --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
             > /tmp/aml-backend.log 2>&1 &
           echo $! > /tmp/aml-backend.pid
 
