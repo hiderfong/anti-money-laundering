@@ -17,6 +17,7 @@ import com.insurance.aml.module.monitoring.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -48,7 +49,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionMapper transactionMapper;
     private final TransactionDailySummaryMapper dailySummaryMapper;
     private final IdGenerator idGenerator;
-    private final StringRedisTemplate redisTemplate;
+    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     /** 注入异步任务执行器，用于CompletableFuture异步管道 */
@@ -249,10 +250,13 @@ public class TransactionServiceImpl implements TransactionService {
         // 1. Redis实时计数
         String redisKey = SUMMARY_KEY_PREFIX + customerId + ":" + today.format(DATE_FMT) + ":" + type;
         try {
-            redisTemplate.opsForValue().increment(redisKey, transaction.getAmount().doubleValue());
-            // 设置过期时间为30天
-            redisTemplate.expire(redisKey, 30, TimeUnit.DAYS);
-            log.debug("Redis日汇总更新: key={}, amount={}", redisKey, transaction.getAmount());
+            StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+            if (redisTemplate != null) {
+                redisTemplate.opsForValue().increment(redisKey, transaction.getAmount().doubleValue());
+                // 设置过期时间为30天
+                redisTemplate.expire(redisKey, 30, TimeUnit.DAYS);
+                log.debug("Redis日汇总更新: key={}, amount={}", redisKey, transaction.getAmount());
+            }
         } catch (Exception e) {
             log.warn("Redis日汇总更新失败: {}", e.getMessage());
         }

@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +39,7 @@ public class WatchlistCacheService {
     private final WatchlistMapper watchlistMapper;
     private final WatchlistAliasMapper watchlistAliasMapper;
     private final WatchlistIdentityMapper watchlistIdentityMapper;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
     private final ObjectMapper objectMapper;
 
     /** Redis缓存Key */
@@ -96,6 +97,11 @@ public class WatchlistCacheService {
      */
     public void evictCache() {
         String key = CACHE_KEY;
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            log.debug("Redis未启用，跳过制裁名单缓存清理");
+            return;
+        }
         stringRedisTemplate.delete(key);
         log.info("已清除制裁名单Redis缓存，key={}", key);
     }
@@ -107,6 +113,10 @@ public class WatchlistCacheService {
      * 缓存结构：所有数据存在同一个Hash key中，field区分类型
      */
     private <T> T getFromCache(String field, TypeReference<T> typeRef) {
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            return null;
+        }
         try {
             Object raw = stringRedisTemplate.opsForHash().get(CACHE_KEY, field);
             if (raw == null) {
@@ -123,6 +133,10 @@ public class WatchlistCacheService {
      * 将数据写入Redis缓存
      */
     private void putToCache(String field, Object data) {
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            return;
+        }
         try {
             String json = objectMapper.writeValueAsString(data);
             stringRedisTemplate.opsForHash().put(CACHE_KEY, field, json);

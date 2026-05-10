@@ -1,6 +1,7 @@
 package com.insurance.aml.module.auth.filter;
 
 import com.insurance.aml.module.auth.model.JwtUserDetails;
+import com.insurance.aml.module.auth.service.AuthTokenStore;
 import com.insurance.aml.module.auth.service.JwtService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -9,7 +10,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,7 +22,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * JWT认证过滤器
@@ -34,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final StringRedisTemplate redisTemplate;
+    private final AuthTokenStore authTokenStore;
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
@@ -52,11 +51,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/swagger-resources/**",
             "/v3/api-docs/**"
     };
-
-    /**
-     * Redis中JWT黑名单的前缀
-     */
-    private static final String JWT_BLACKLIST_PREFIX = "jwt:blacklist:";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -151,11 +145,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private boolean isTokenBlacklisted(String token) {
         try {
-            String blacklistKey = JWT_BLACKLIST_PREFIX + token;
-            return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey));
+            return authTokenStore.isAccessTokenBlacklisted(token);
         } catch (Exception e) {
-            // Redis不可用时不阻塞认证流程
-            log.warn("检查JWT黑名单失败（Redis不可用）: {}", e.getMessage());
+            // 令牌状态仓库不可用时不阻塞认证流程
+            log.warn("检查JWT黑名单失败: {}", e.getMessage());
             return false;
         }
     }

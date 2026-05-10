@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -54,6 +55,9 @@ class TransactionServiceImplTest {
     private StringRedisTemplate redisTemplate;
 
     @Mock
+    private ObjectProvider<StringRedisTemplate> redisTemplateProvider;
+
+    @Mock
     private ApplicationEventPublisher applicationEventPublisher;
 
     @Mock
@@ -78,6 +82,7 @@ class TransactionServiceImplTest {
         testRequest.setPaymentMethod("TRANSFER");
         testRequest.setTransactionTime(LocalDateTime.now());
 
+        when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 

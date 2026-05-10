@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -50,7 +51,7 @@ public class RuleEngineService {
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
     private final KieContainer kieContainer;
-    private final StringRedisTemplate redisTemplate;
+    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final Executor amlTaskExecutor;
     private final TransactionAnomalyDetector anomalyDetector;
 
@@ -585,6 +586,11 @@ public class RuleEngineService {
      * 优势：Redis单线程保证原子性，Lua脚本减少网络往返，适合高频交易场景
      */
     private List<RuleExecutionLog> evaluateRedisLuaRules(Transaction transaction) {
+        if (redisTemplateProvider.getIfAvailable() == null) {
+            log.debug("Redis未启用，跳过Redis Lua规则评估: transactionNo={}", transaction.getTransactionNo());
+            return Collections.emptyList();
+        }
+
         List<RuleExecutionLog> matchedLogs = new ArrayList<>();
 
         try {
@@ -652,6 +658,10 @@ public class RuleEngineService {
         String member = transaction.getTransactionNo() + ":" + nowMs;
 
         try {
+            StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+            if (redisTemplate == null) {
+                return null;
+            }
             DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
             Long count = redisTemplate.execute(script,
                     Collections.singletonList(redisKey),
@@ -725,6 +735,10 @@ public class RuleEngineService {
         }
 
         try {
+            StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+            if (redisTemplate == null) {
+                return null;
+            }
             DefaultRedisScript<String> script = new DefaultRedisScript<>(luaScript, String.class);
             String result = redisTemplate.execute(script,
                     Collections.singletonList(redisKey),
@@ -791,6 +805,10 @@ public class RuleEngineService {
         String redisKey = LUA_DAILY_COUNT_KEY_PREFIX + customerId + ":" + today;
 
         try {
+            StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+            if (redisTemplate == null) {
+                return null;
+            }
             DefaultRedisScript<Long> script = new DefaultRedisScript<>(luaScript, Long.class);
             Long result = redisTemplate.execute(script,
                     Collections.singletonList(redisKey),

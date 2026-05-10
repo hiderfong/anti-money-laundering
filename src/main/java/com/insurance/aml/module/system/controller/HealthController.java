@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +29,7 @@ import java.util.Map;
 @Tag(name = "系统管理", description = "系统管理相关接口")
 public class HealthController {
     private final DataSource dataSource;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
     @Value("${spring.application.name:aml-system}")
     private String appName;
     @Value("${app.version:1.0.0}")
@@ -57,16 +58,21 @@ public class HealthController {
             allHealthy = false;
         }
 
-        // 检查Redis连通性
-        try {
-            String pong = stringRedisTemplate.getConnectionFactory().getConnection().ping();
-            healthInfo.put("redis", "UP");
-            healthInfo.put("redisPing", pong);
-        } catch (Exception e) {
-            log.error("Redis健康检查失败：{}", e.getMessage());
-            healthInfo.put("redis", "DOWN");
-            healthInfo.put("redisError", e.getMessage());
-            allHealthy = false;
+        // 检查Redis连通性。no-redis 本地验收环境下，Redis 为显式禁用。
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            healthInfo.put("redis", "DISABLED");
+        } else {
+            try {
+                String pong = stringRedisTemplate.getConnectionFactory().getConnection().ping();
+                healthInfo.put("redis", "UP");
+                healthInfo.put("redisPing", pong);
+            } catch (Exception e) {
+                log.error("Redis健康检查失败：{}", e.getMessage());
+                healthInfo.put("redis", "DOWN");
+                healthInfo.put("redisError", e.getMessage());
+                allHealthy = false;
+            }
         }
 
         healthInfo.put("status", allHealthy ? "UP" : "DEGRADED");

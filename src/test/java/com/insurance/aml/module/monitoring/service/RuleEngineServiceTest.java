@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.kie.api.runtime.KieContainer;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
@@ -58,6 +59,9 @@ class RuleEngineServiceTest {
 
     @Mock
     StringRedisTemplate redisTemplate;
+
+    @Mock
+    ObjectProvider<StringRedisTemplate> redisTemplateProvider;
 
     @Mock
     Executor amlTaskExecutor;
@@ -123,6 +127,7 @@ class RuleEngineServiceTest {
     @BeforeEach
     void setUp() {
         // Mock Redis template (用于Redis Lua引擎)
+        lenient().when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
         lenient().when(redisTemplate.execute(any(DefaultRedisScript.class), anyList(), any()))
                 .thenReturn(null);
         lenient().when(redisTemplate.execute(any(DefaultRedisScript.class), anyList(), any(), any()))

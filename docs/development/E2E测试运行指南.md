@@ -21,6 +21,14 @@ mvn spring-boot:run \
 -Dspring-boot.run.arguments="--spring.datasource.password= --aml.kafka.enabled=false"
 ```
 
+如本地未启动 Redis，可使用 `no-redis` profile。该模式会禁用 Redis/Redisson 自动配置，并使用内存令牌存储与内存限流，适合本地 E2E 验收：
+
+```bash
+mvn spring-boot:run \
+  -Dspring-boot.run.profiles=dev,no-redis \
+  -Dspring-boot.run.arguments="--spring.datasource.password= --aml.kafka.enabled=false"
+```
+
 前端：
 
 ```bash

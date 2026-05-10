@@ -10,6 +10,7 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -20,7 +21,11 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * 接口限流切面
@@ -33,8 +38,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RateLimitAspect {
 
-    private final StringRedisTemplate redisTemplate;
+    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final HttpServletRequest request;
+    private final Map<String, Deque<Long>> localWindows = new ConcurrentHashMap<>();
 
     private DefaultRedisScript<List> rateLimitScript;
 
@@ -60,14 +66,7 @@ public class RateLimitAspect {
         int maxRequests = rateLimit.maxRequests();
         long now = System.currentTimeMillis();
 
-        @SuppressWarnings("unchecked")
-        List<Long> result = redisTemplate.execute(
-                rateLimitScript,
-                Collections.singletonList(limitKey),
-                String.valueOf(windowMs),
-                String.valueOf(maxRequests),
-                String.valueOf(now)
-        );
+        List<Long> result = executeRateLimit(limitKey, windowMs, maxRequests, now);
 
         if (result != null && !result.isEmpty()) {
             long allowed = result.get(0);
@@ -89,6 +88,45 @@ public class RateLimitAspect {
                         retryAfter / 1000 + 1
                 );
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Long> executeRateLimit(String limitKey, long windowMs, int maxRequests, long now) {
+        StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate != null) {
+            try {
+                return redisTemplate.execute(
+                        rateLimitScript,
+                        Collections.singletonList(limitKey),
+                        String.valueOf(windowMs),
+                        String.valueOf(maxRequests),
+                        String.valueOf(now)
+                );
+            } catch (Exception e) {
+                log.warn("Redis限流执行失败，降级为本地内存限流: key={}, error={}", limitKey, e.getMessage());
+            }
+        }
+        return executeLocalRateLimit(limitKey, windowMs, maxRequests, now);
+    }
+
+    private List<Long> executeLocalRateLimit(String limitKey, long windowMs, int maxRequests, long now) {
+        Deque<Long> timestamps = localWindows.computeIfAbsent(limitKey, ignored -> new ConcurrentLinkedDeque<>());
+        synchronized (timestamps) {
+            long windowStart = now - windowMs;
+            while (!timestamps.isEmpty() && timestamps.peekFirst() <= windowStart) {
+                timestamps.removeFirst();
+            }
+
+            if (timestamps.size() >= maxRequests) {
+                Long first = timestamps.peekFirst();
+                long retryAfter = first == null ? windowMs : Math.max(0, first + windowMs - now);
+                return List.of(0L, 0L, retryAfter);
+            }
+
+            timestamps.addLast(now);
+            long remaining = Math.max(0, maxRequests - timestamps.size());
+            return List.of(1L, remaining, windowMs);
         }
     }
 

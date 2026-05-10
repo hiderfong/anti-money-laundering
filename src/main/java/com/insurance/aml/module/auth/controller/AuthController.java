@@ -16,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -57,8 +58,9 @@ public class AuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "用户登出")
-    public Result<Void> logout(@AuthenticationPrincipal JwtUserDetails userDetails) {
-        authService.logout(userDetails);
+    public Result<Void> logout(@AuthenticationPrincipal JwtUserDetails userDetails,
+                               @RequestHeader(value = "Authorization", required = false) String authorization) {
+        authService.logout(userDetails, extractBearerToken(authorization));
         return Result.success();
     }
 
@@ -79,5 +81,12 @@ public class AuthController {
         @jakarta.validation.constraints.NotBlank(message = "刷新令牌不能为空")
         @io.swagger.v3.oas.annotations.media.Schema(description = "刷新令牌")
         private String refreshToken;
+    }
+
+    private String extractBearerToken(String authorization) {
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
+        return null;
     }
 }

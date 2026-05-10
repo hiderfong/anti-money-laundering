@@ -3,6 +3,8 @@ package com.insurance.aml.module.monitoring.service;
 import com.insurance.aml.module.monitoring.model.entity.RuleExecutionLog;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -32,6 +34,8 @@ import java.util.ArrayList;
  */
 @Slf4j
 @Service
+@ConditionalOnBean(RedisTemplate.class)
+@ConditionalOnProperty(name = "aml.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisLuaRuleService {
 
     private final RedisTemplate<String, Object> redisTemplate;

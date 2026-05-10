@@ -4,12 +4,12 @@ import com.insurance.aml.module.auth.model.JwtUserDetails;
 import com.insurance.aml.module.auth.model.LoginRequest;
 import com.insurance.aml.module.auth.model.LoginResponse;
 import com.insurance.aml.module.auth.model.UserProfileResponse;
+import com.insurance.aml.module.auth.service.AuthTokenStore;
 import com.insurance.aml.module.auth.service.JwtService;
 import com.insurance.aml.module.system.mapper.SysPermissionMapper;
 import com.insurance.aml.module.system.mapper.SysRoleMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 /**
  * 认证服务实现
@@ -33,19 +33,9 @@ public class AuthServiceImpl {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UserDetailsServiceImpl userDetailsService;
-    private final StringRedisTemplate redisTemplate;
+    private final AuthTokenStore authTokenStore;
     private final SysRoleMapper sysRoleMapper;
     private final SysPermissionMapper sysPermissionMapper;
-
-    /**
-     * Redis中刷新令牌的前缀
-     */
-    private static final String REFRESH_TOKEN_PREFIX = "jwt:refresh:";
-
-    /**
-     * Redis中JWT黑名单的前缀
-     */
-    private static final String JWT_BLACKLIST_PREFIX = "jwt:blacklist:";
 
     /**
      * 用户登录
@@ -68,9 +58,8 @@ public class AuthServiceImpl {
         String accessToken = jwtService.generateAccessToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);
 
-        // 将刷新令牌存储到Redis，设置过期时间
-        String refreshKey = REFRESH_TOKEN_PREFIX + userDetails.getUserId();
-        redisTemplate.opsForValue().set(refreshKey, refreshToken, 7, TimeUnit.DAYS);
+        // 将刷新令牌存储到令牌状态仓库，设置过期时间
+        authTokenStore.saveRefreshToken(userDetails.getUserId(), refreshToken, Duration.ofDays(7));
 
         log.info("用户登录成功: userId={}, username={}", userDetails.getUserId(), userDetails.getUsername());
 
@@ -110,9 +99,8 @@ public class AuthServiceImpl {
         Long userId = jwtService.getUserIdFromToken(refreshToken);
         String username = jwtService.getUsernameFromToken(refreshToken);
 
-        // 从Redis中验证刷新令牌
-        String refreshKey = REFRESH_TOKEN_PREFIX + userId;
-        String storedRefreshToken = redisTemplate.opsForValue().get(refreshKey);
+        // 从令牌状态仓库中验证刷新令牌
+        String storedRefreshToken = authTokenStore.getRefreshToken(userId);
 
         if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
             throw new RuntimeException("刷新令牌无效，请重新登录");
@@ -126,8 +114,8 @@ public class AuthServiceImpl {
         // 生成新的刷新令牌
         String newRefreshToken = jwtService.generateRefreshToken(userDetails);
 
-        // 更新Redis中的刷新令牌
-        redisTemplate.opsForValue().set(refreshKey, newRefreshToken, 7, TimeUnit.DAYS);
+        // 更新令牌状态仓库中的刷新令牌
+        authTokenStore.saveRefreshToken(userId, newRefreshToken, Duration.ofDays(7));
 
         log.info("访问令牌刷新成功: userId={}", userId);
 
@@ -155,20 +143,28 @@ public class AuthServiceImpl {
      * @param userDetails 当前用户信息
      */
     public void logout(JwtUserDetails userDetails) {
+        logout(userDetails, null);
+    }
+
+    /**
+     * 用户登出。
+     *
+     * @param userDetails 当前用户信息
+     * @param accessToken 当前访问令牌，可为空
+     */
+    public void logout(JwtUserDetails userDetails, String accessToken) {
         log.info("用户登出: userId={}, username={}", userDetails.getUserId(), userDetails.getUsername());
 
         try {
-            // 将当前访问令牌加入黑名单
-            // 注意：这里需要从SecurityContext中获取当前令牌
-            // 实际项目中，可以通过过滤器将令牌存入请求属性中
-            String blacklistKey = JWT_BLACKLIST_PREFIX + userDetails.getUserId();
-            // 设置黑名单过期时间（与令牌过期时间一致）
-            redisTemplate.opsForValue().set(blacklistKey, "logout",
-                    jwtService.getAccessTokenExpireSeconds(), TimeUnit.SECONDS);
+            Duration accessTokenTtl = Duration.ofSeconds(jwtService.getAccessTokenExpireSeconds());
+            if (accessToken != null && !accessToken.isBlank()) {
+                authTokenStore.blacklistAccessToken(accessToken, accessTokenTtl);
+            } else {
+                authTokenStore.blacklistUserTokens(userDetails.getUserId(), accessTokenTtl);
+            }
 
-            // 清除Redis中的刷新令牌
-            String refreshKey = REFRESH_TOKEN_PREFIX + userDetails.getUserId();
-            redisTemplate.delete(refreshKey);
+            // 清除刷新令牌
+            authTokenStore.deleteRefreshToken(userDetails.getUserId());
 
             log.info("用户登出成功: userId={}", userDetails.getUserId());
         } catch (Exception e) {

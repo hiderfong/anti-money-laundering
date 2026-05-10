@@ -64,6 +64,8 @@ aml:
     enabled: false
   kafka:
     enabled: false
+  redis:
+    enabled: false
   es:
     enabled: false
 

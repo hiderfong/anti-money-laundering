@@ -3,6 +3,7 @@ package com.insurance.aml.module.auth.service;
 import com.insurance.aml.module.auth.model.JwtUserDetails;
 import com.insurance.aml.module.auth.model.LoginRequest;
 import com.insurance.aml.module.auth.model.LoginResponse;
+import com.insurance.aml.module.auth.service.AuthTokenStore;
 import com.insurance.aml.module.auth.service.impl.AuthServiceImpl;
 import com.insurance.aml.module.auth.service.impl.UserDetailsServiceImpl;
 import com.insurance.aml.module.system.mapper.SysPermissionMapper;
@@ -16,8 +17,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,9 +24,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -52,16 +51,13 @@ class AuthServiceImplTest {
     private UserDetailsServiceImpl userDetailsService;
 
     @Mock
-    private StringRedisTemplate redisTemplate;
+    private AuthTokenStore authTokenStore;
 
     @Mock
     private SysRoleMapper sysRoleMapper;
 
     @Mock
     private SysPermissionMapper sysPermissionMapper;
-
-    @Mock
-    private ValueOperations<String, String> valueOperations;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -87,7 +83,6 @@ class AuthServiceImplTest {
         authentication = mock(Authentication.class);
         when(authentication.getPrincipal()).thenReturn(testUserDetails);
 
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     /**
@@ -120,8 +115,8 @@ class AuthServiceImplTest {
         assertTrue(response.getRoles().contains("ROLE_ADMIN"), "角色列表应包含ROLE_ADMIN");
         assertFalse(response.getPermissions().isEmpty(), "权限列表不应为空");
 
-        // 验证Redis存储刷新令牌
-        verify(valueOperations).set(eq("jwt:refresh:1"), eq("refresh_token_456"), eq(7L), eq(TimeUnit.DAYS));
+        // 验证存储刷新令牌
+        verify(authTokenStore).saveRefreshToken(1L, "refresh_token_456", Duration.ofDays(7));
     }
 
     /**
@@ -173,7 +168,7 @@ class AuthServiceImplTest {
         when(jwtService.validateToken(oldRefreshToken)).thenReturn(true);
         when(jwtService.getUserIdFromToken(oldRefreshToken)).thenReturn(1L);
         when(jwtService.getUsernameFromToken(oldRefreshToken)).thenReturn("admin");
-        when(valueOperations.get("jwt:refresh:1")).thenReturn(oldRefreshToken);
+        when(authTokenStore.getRefreshToken(1L)).thenReturn(oldRefreshToken);
         when(userDetailsService.loadUserByUsername("admin")).thenReturn(testUserDetails);
         when(jwtService.generateAccessToken(testUserDetails)).thenReturn("new_access_token");
         when(jwtService.generateRefreshToken(testUserDetails)).thenReturn("new_refresh_token");
@@ -190,8 +185,8 @@ class AuthServiceImplTest {
         assertEquals("new_refresh_token", response.getRefreshToken(), "新refreshToken应正确");
         assertEquals(1L, response.getUserId(), "userId应正确");
 
-        // 验证Redis中的刷新令牌已更新
-        verify(valueOperations).set(eq("jwt:refresh:1"), eq("new_refresh_token"), eq(7L), eq(TimeUnit.DAYS));
+        // 验证刷新令牌已更新
+        verify(authTokenStore).saveRefreshToken(1L, "new_refresh_token", Duration.ofDays(7));
     }
 
     /**
@@ -210,17 +205,17 @@ class AuthServiceImplTest {
     }
 
     /**
-     * 测试Redis中刷新令牌不匹配抛异常
+     * 测试令牌仓库中刷新令牌不匹配抛异常
      */
     @Test
-    @DisplayName("Redis刷新令牌不匹配 -> 抛出RuntimeException")
+    @DisplayName("刷新令牌仓库不匹配 -> 抛出RuntimeException")
     void refreshToken_mismatchInRedis_throwsException() {
         // 准备
         String refreshToken = "current_refresh_token";
         when(jwtService.validateToken(refreshToken)).thenReturn(true);
         when(jwtService.getUserIdFromToken(refreshToken)).thenReturn(1L);
         when(jwtService.getUsernameFromToken(refreshToken)).thenReturn("admin");
-        when(valueOperations.get("jwt:refresh:1")).thenReturn("different_token");
+        when(authTokenStore.getRefreshToken(1L)).thenReturn("different_token");
 
         // 执行 & 验证
         RuntimeException ex = assertThrows(RuntimeException.class,
@@ -229,7 +224,7 @@ class AuthServiceImplTest {
     }
 
     /**
-     * 测试用户登出清除Redis令牌
+     * 测试用户登出清除令牌
      */
     @Test
     @DisplayName("用户登出 -> 将token加入黑名单并清除刷新令牌")
@@ -240,28 +235,27 @@ class AuthServiceImplTest {
         // 执行
         authService.logout(testUserDetails);
 
-        // 验证：将token加入黑名单
-        verify(valueOperations).set(
-                eq("jwt:blacklist:1"), eq("logout"), eq(3600L), eq(TimeUnit.SECONDS));
+        // 验证：将当前用户令牌加入黑名单
+        verify(authTokenStore).blacklistUserTokens(1L, Duration.ofSeconds(3600));
 
         // 验证：清除刷新令牌
-        verify(redisTemplate).delete("jwt:refresh:1");
+        verify(authTokenStore).deleteRefreshToken(1L);
     }
 
     /**
-     * 测试登出时Redis异常不影响主流程
+     * 测试登出时令牌仓库异常不影响主流程
      */
     @Test
-    @DisplayName("登出时Redis异常 -> 不抛出异常")
+    @DisplayName("登出时令牌仓库异常 -> 不抛出异常")
     void logout_redisException_doesNotThrow() {
-        // 准备：Redis操作抛异常
+        // 准备：令牌仓库操作抛异常
         when(jwtService.getAccessTokenExpireSeconds()).thenReturn(3600L);
-        doThrow(new RuntimeException("Redis连接失败")).when(valueOperations)
-                .set(anyString(), anyString(), anyLong(), any(TimeUnit.class));
+        doThrow(new RuntimeException("令牌仓库不可用")).when(authTokenStore)
+                .blacklistUserTokens(anyLong(), any(Duration.class));
 
         // 执行 & 验证：不应抛出异常（logout内部catch了异常）
         assertDoesNotThrow(() -> authService.logout(testUserDetails),
-                "登出时Redis异常不应抛出");
+                "登出时令牌仓库异常不应抛出");
     }
 
     /**
@@ -349,15 +343,15 @@ class AuthServiceImplTest {
         // 验证：未生成任何token
         verify(jwtService, never()).generateAccessToken(any());
         verify(jwtService, never()).generateRefreshToken(any());
-        // 验证：未存储token到Redis
-        verify(valueOperations, never()).set(anyString(), anyString(), anyLong(), any(TimeUnit.class));
+        // 验证：未存储token
+        verify(authTokenStore, never()).saveRefreshToken(anyLong(), anyString(), any(Duration.class));
     }
 
     /**
      * 测试错误密码登录（不同密码场景）
      */
     @Test
-    @DisplayName("错误密码登录 -> 验证不生成token且不存储Redis")
+    @DisplayName("错误密码登录 -> 验证不生成token且不存储令牌")
     void testLoginWithWrongPassword() {
         // 准备
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
@@ -375,8 +369,8 @@ class AuthServiceImplTest {
         // 验证：未生成token
         verify(jwtService, never()).generateAccessToken(any());
         verify(jwtService, never()).generateRefreshToken(any());
-        // 验证：未存储任何Redis数据
-        verify(redisTemplate, never()).opsForValue();
+        // 验证：未存储任何令牌数据
+        verifyNoInteractions(authTokenStore);
     }
 
     /**
@@ -394,8 +388,8 @@ class AuthServiceImplTest {
                 () -> authService.refreshToken(expiredToken));
         assertTrue(ex.getMessage().contains("刷新令牌无效"), "过期token应提示令牌无效或已过期");
 
-        // 验证：未从Redis获取数据
-        verify(valueOperations, never()).get(anyString());
+        // 验证：未从令牌仓库获取数据
+        verify(authTokenStore, never()).getRefreshToken(anyLong());
         // 验证：未生成新token
         verify(jwtService, never()).generateAccessToken(any());
         verify(jwtService, never()).generateRefreshToken(any());
@@ -416,8 +410,8 @@ class AuthServiceImplTest {
                 () -> authService.refreshToken(malformedToken));
         assertTrue(ex.getMessage().contains("刷新令牌无效"), "无效格式token应提示令牌无效");
 
-        // 验证：未查询Redis
-        verify(valueOperations, never()).get(anyString());
+        // 验证：未查询令牌仓库
+        verify(authTokenStore, never()).getRefreshToken(anyLong());
         // 验证：未重新加载用户
         verify(userDetailsService, never()).loadUserByUsername(anyString());
     }
@@ -435,15 +429,14 @@ class AuthServiceImplTest {
         authService.logout(testUserDetails);
 
         // 验证：将当前用户token加入黑名单
-        verify(valueOperations).set(
-                eq("jwt:blacklist:1"), eq("logout"), eq(7200L), eq(TimeUnit.SECONDS));
+        verify(authTokenStore).blacklistUserTokens(1L, Duration.ofSeconds(7200));
 
         // 验证：清除刷新令牌
-        verify(redisTemplate).delete("jwt:refresh:1");
+        verify(authTokenStore).deleteRefreshToken(1L);
 
-        // 验证：Redis操作只执行了两次（一次set黑名单，一次delete刷新令牌）
-        verify(valueOperations, times(1)).set(anyString(), anyString(), anyLong(), any(TimeUnit.class));
-        verify(redisTemplate, times(1)).delete(anyString());
+        // 验证：令牌仓库操作只执行了两次（一次黑名单，一次删除刷新令牌）
+        verify(authTokenStore, times(1)).blacklistUserTokens(anyLong(), any(Duration.class));
+        verify(authTokenStore, times(1)).deleteRefreshToken(anyLong());
     }
 
     /**

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -39,6 +40,7 @@ import java.time.Duration;
 @Configuration
 @EnableCaching
 @Profile("!test")
+@ConditionalOnProperty(name = "aml.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisConfig {
 
     /** 默认缓存过期时间：24小时 */
