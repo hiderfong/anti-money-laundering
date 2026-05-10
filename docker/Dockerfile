@@ -20,11 +20,12 @@ WORKDIR /build
 
 # Copy pom.xml first for dependency caching
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+COPY scripts/ci-maven.sh ./scripts/ci-maven.sh
+RUN bash scripts/ci-maven.sh dependency:go-offline
 
 # Copy source code and build
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+RUN bash scripts/ci-maven.sh clean package -DskipTests
 
 # ---- Stage 2: Runtime ----
 FROM eclipse-temurin:21-jre-alpine
