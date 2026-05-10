@@ -6,9 +6,11 @@
 
 本机 Gitea 的 job 容器无法稳定访问以 `localhost` 生成的 artifact 上传地址，因此 `.gitea/workflows/ci.yml` 不上传 artifact，而是在日志中列出后端测试报告、前端构建产物和浏览器 E2E 截图路径。GitHub 镜像工作流仍保留 artifact 上传。
 
-Gitea job 容器是冷启动环境，Maven 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，默认重试 3 次，并在重试前清理 `.lastUpdated` 传输标记；单次尝试默认 900 秒超时，同时设置 Maven HTTP 连接与读取超时，避免半开连接拖满整条门禁。
+Gitea job 容器是冷启动环境，Maven 和 npm 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，使用 `scripts/ci-npm.sh` 包装 npm 命令，默认重试 3 次；Maven 重试前会清理 `.lastUpdated` 传输标记，npm 重试前会校验本地缓存，避免半开连接拖满整条门禁。
 
 本机 Gitea runner 默认使用 `docker/gitea-actions-runner/Dockerfile` 构建预热 job 镜像 `aml-gitea-job:latest`，其中预装 JDK 21、Maven、MySQL client、jq 以及 Playwright Chromium 依赖。`.gitea/workflows/ci.yml` 会在工具链已存在时跳过 `apt-get` 冷安装，避免发布门禁耗时受外部包仓库下载速度影响。
+
+为降低本机 Gitea 对外网 GitHub 的依赖，`.gitea/workflows/ci.yml` 使用预装在 job 镜像中的 `aml-ci-checkout` 直接从本机 Gitea 拉取当前提交，不再下载 `actions/checkout`。该命令由仓库内的 `scripts/ci-checkout.sh` 构建进 `aml-gitea-job:latest`。
 
 Docker 镜像构建使用 BuildKit Maven cache，不再单独执行 `dependency:go-offline`。这样可以避免冷启动 runner 在 Docker 构建阶段重复长时间解析依赖，同时仍通过 `scripts/ci-maven.sh clean package -DskipTests` 校验镜像内可完成应用打包。
 
@@ -26,7 +28,7 @@ Docker 镜像构建使用 BuildKit Maven cache，不再单独执行 `dependency:
 | 任务 | 目的 | 关键命令 |
 | --- | --- | --- |
 | `backend-test` | 校验后端单元测试和集成测试 | `scripts/ci-maven.sh test` |
-| `frontend-build` | 校验前端依赖锁定和生产构建 | `npm ci`, `npm run build` |
+| `frontend-build` | 校验前端依赖锁定和生产构建 | `scripts/ci-npm.sh ci`, `npm run build` |
 | `prod-readiness` | 防止占位符配置进入生产发布 | `scripts/prod-readiness-check.sh` |
 | `container-build` | 校验 Dockerfile 可构建应用镜像 | `docker build` |
 | `e2e` | 启动 MySQL、后端、前端并执行全量端到端回归 | `scripts/e2e-test.sh`, `scripts/frontend-e2e.sh`, `scripts/frontend-browser-e2e.sh`, `scripts/rbac-e2e.sh` |
@@ -93,7 +95,7 @@ bash scripts/start-gitea-actions-runner.sh
 
 ```bash
 bash scripts/ci-maven.sh test
-npm --prefix frontend ci
+(cd frontend && bash ../scripts/ci-npm.sh ci)
 npm --prefix frontend run build
 bash scripts/prod-readiness-check.sh /path/to/prod.env
 bash scripts/e2e-test.sh

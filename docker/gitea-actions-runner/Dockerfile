@@ -17,3 +17,6 @@ RUN npm install -g @playwright/test@1.59.1 \
     && mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" \
     && npx playwright install --with-deps chromium \
     && chmod -R 777 "$PLAYWRIGHT_BROWSERS_PATH"
+
+COPY scripts/ci-checkout.sh /usr/local/bin/aml-ci-checkout
+RUN chmod +x /usr/local/bin/aml-ci-checkout

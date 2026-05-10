@@ -23,7 +23,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        env:
+          GITEA_CHECKOUT_TOKEN: ${{ github.token }}
+        run: aml-ci-checkout
 
       - name: Install backend toolchain
         run: |
@@ -50,10 +52,12 @@ jobs:
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        env:
+          GITEA_CHECKOUT_TOKEN: ${{ github.token }}
+        run: aml-ci-checkout
 
       - name: Check Node toolchain
         run: |
@@ -62,7 +66,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: bash ../scripts/ci-npm.sh ci
 
       - name: Build frontend
         working-directory: frontend
@@ -80,7 +84,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        env:
+          GITEA_CHECKOUT_TOKEN: ${{ github.token }}
+        run: aml-ci-checkout
 
       - name: Verify example env is rejected
         run: |
@@ -123,6 +129,9 @@ jobs:
       - name: Validate scripts
         run: |
           bash -n scripts/deploy.sh
+          bash -n scripts/ci-checkout.sh
+          bash -n scripts/ci-maven.sh
+          bash -n scripts/ci-npm.sh
           bash -n scripts/prod-readiness-check.sh
           bash -n scripts/e2e-test.sh
           bash -n scripts/frontend-e2e.sh
@@ -140,7 +149,9 @@ jobs:
       - prod-readiness
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        env:
+          GITEA_CHECKOUT_TOKEN: ${{ github.token }}
+        run: aml-ci-checkout
 
       - name: Build application image
         run: DOCKER_BUILDKIT=1 docker build -t aml-system:${{ github.sha }} -f docker/Dockerfile .
@@ -182,7 +193,9 @@ jobs:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        env:
+          GITEA_CHECKOUT_TOKEN: ${{ github.token }}
+        run: aml-ci-checkout
 
       - name: Install system tools
         run: |
@@ -212,7 +225,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: bash ../scripts/ci-npm.sh ci
 
       - name: Install Playwright browser
         working-directory: frontend
@@ -230,7 +243,7 @@ jobs:
         run: |
           nohup mvn -B -ntp spring-boot:run \
             -Dspring-boot.run.profiles=dev,no-redis,no-es \
-            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --aml.redis.enabled=false --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
+            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --aml.redis.enabled=false --spring.autoconfigure.exclude=${SPRING_AUTOCONFIGURE_EXCLUDE} --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
             > /tmp/aml-backend.log 2>&1 &
           echo $! > /tmp/aml-backend.pid
 
