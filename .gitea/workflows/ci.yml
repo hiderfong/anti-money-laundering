@@ -19,7 +19,7 @@ jobs:
   backend-test:
     name: Backend Unit And Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
           mvn -version
 
       - name: Run backend tests
-        run: mvn -q test
+        run: bash scripts/ci-maven.sh test
 
       - name: List backend test reports
         if: always()
@@ -145,7 +145,7 @@ jobs:
   e2e:
     name: End-To-End Release Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     needs:
       - backend-test
       - frontend-build
@@ -208,9 +208,12 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Warm backend Maven dependencies
+        run: bash scripts/ci-maven.sh -DskipTests package
+
       - name: Start backend
         run: |
-          nohup mvn spring-boot:run \
+          nohup mvn -B -ntp spring-boot:run \
             -Dspring-boot.run.profiles=dev,no-redis \
             -Dspring-boot.run.arguments="--aml.kafka.enabled=false --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
             > /tmp/aml-backend.log 2>&1 &

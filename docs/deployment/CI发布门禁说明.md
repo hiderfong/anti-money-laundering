@@ -6,6 +6,8 @@
 
 本机 Gitea 的 job 容器无法稳定访问以 `localhost` 生成的 artifact 上传地址，因此 `.gitea/workflows/ci.yml` 不上传 artifact，而是在日志中列出后端测试报告、前端构建产物和浏览器 E2E 截图路径。GitHub 镜像工作流仍保留 artifact 上传。
 
+Gitea job 容器是冷启动环境，Maven 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，默认重试 3 次，并在重试前清理 `.lastUpdated` 传输标记。
+
 ## 触发方式
 
 - 推送到 `main`
@@ -19,7 +21,7 @@
 
 | 任务 | 目的 | 关键命令 |
 | --- | --- | --- |
-| `backend-test` | 校验后端单元测试和集成测试 | `mvn -q test` |
+| `backend-test` | 校验后端单元测试和集成测试 | `scripts/ci-maven.sh test` |
 | `frontend-build` | 校验前端依赖锁定和生产构建 | `npm ci`, `npm run build` |
 | `prod-readiness` | 防止占位符配置进入生产发布 | `scripts/prod-readiness-check.sh` |
 | `container-build` | 校验 Dockerfile 可构建应用镜像 | `docker build` |
@@ -80,7 +82,7 @@ bash scripts/start-gitea-actions-runner.sh
 本地复现建议按 CI 顺序执行：
 
 ```bash
-mvn -q test
+bash scripts/ci-maven.sh test
 npm --prefix frontend ci
 npm --prefix frontend run build
 bash scripts/prod-readiness-check.sh /path/to/prod.env
