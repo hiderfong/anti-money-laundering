@@ -8,6 +8,8 @@
 
 Gitea job 容器是冷启动环境，Maven 和 npm 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，使用 `scripts/ci-npm.sh` 包装 npm 命令，默认重试 3 次；Maven 重试前会清理 `.lastUpdated` 传输标记，npm 重试前会校验本地缓存，避免半开连接拖满整条门禁。
 
+由于当前本机 Docker/Colima 环境对 `repo.maven.apache.org` 的 DNS 解析不稳定，`scripts/ci-maven.sh` 默认给 Maven Central 配置 `https://maven.aliyun.com/repository/public` 镜像源。可通过 `CI_MAVEN_MIRROR_URL` 替换为企业 Nexus/Artifactory，或设置 `CI_MAVEN_USE_DEFAULT_MIRROR=false` 禁用默认镜像。
+
 本机 Gitea runner 默认使用 `docker/gitea-actions-runner/Dockerfile` 构建预热 job 镜像 `aml-gitea-job:latest`，其中预装 JDK 21、Maven、MySQL client、jq 以及 Playwright Chromium 依赖。`.gitea/workflows/ci.yml` 会在工具链已存在时跳过 `apt-get` 冷安装，避免发布门禁耗时受外部包仓库下载速度影响。
 
 为降低本机 Gitea 对外网 GitHub 的依赖，`.gitea/workflows/ci.yml` 使用预装在 job 镜像中的 `aml-ci-checkout` 直接从本机 Gitea 拉取当前提交，不再下载 `actions/checkout`。该命令由仓库内的 `scripts/ci-checkout.sh` 构建进 `aml-gitea-job:latest`。
