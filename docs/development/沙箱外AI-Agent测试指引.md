@@ -223,7 +223,30 @@ bash scripts/frontend-e2e.sh
 - 第 6 次错误登录触发 `429` 限流。
 - 失败数为 `0`。
 
-### 8.4 RBAC E2E
+### 8.4 前端浏览器 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$E2E_RUN_ID \
+bash scripts/frontend-browser-e2e.sh
+```
+
+期望：
+
+- 真实浏览器可登录 `admin/admin123` 并进入 `/dashboard`。
+- 刷新后登录态仍保留。
+- `/api/auth/me` 返回 `roles`、`permissions`，管理员包含 `ROLE_ADMIN` 与 `system:user`。
+- `/dashboard`、`/system`、`/kyc`、`/monitoring`、`/alerts`、`/products` 页面渲染非空。
+- 页面无 Vite/Vue 错误覆盖层。
+- 访问过程中无新增 `console.error`、`console.warn` 或 `pageerror`。
+
+如本机没有 Chrome/Edge，可先在 `frontend` 目录执行：
+
+```bash
+npx playwright install chromium
+```
+
+### 8.5 RBAC E2E
 
 ```bash
 API_URL=http://127.0.0.1:8080/api \
@@ -370,8 +393,8 @@ DB_PASSWORD=aml_dev_123 bash scripts/cleanup-e2e-data.sh --execute
 3. 用 dev,no-redis profile 启动后端，并显式设置 --aml.kafka.enabled=false。
 4. 启动 frontend Vite 服务。
 5. 准备 RBAC E2E 账号。
-6. 依次运行 mvn -q test、scripts/e2e-test.sh、scripts/frontend-e2e.sh、scripts/rbac-e2e.sh。
-7. 用浏览器登录 admin/admin123，检查 dashboard/system/kyc/monitoring 等页面。
+6. 依次运行 mvn -q test、scripts/e2e-test.sh、scripts/frontend-e2e.sh、scripts/frontend-browser-e2e.sh、scripts/rbac-e2e.sh。
+7. 用浏览器登录 admin/admin123，复核 dashboard/system/kyc/monitoring 等页面。
 8. 记录每条命令、退出码、失败响应、关键截图路径。
 9. 不要修改业务代码；如发现问题，只提交测试报告和最小复现信息。
 
@@ -415,6 +438,7 @@ DB_PASSWORD=aml_dev_123 bash scripts/cleanup-e2e-data.sh --execute
 | 后端全量测试 | `mvn -q test` | PASS/FAIL | |
 | API E2E | `scripts/e2e-test.sh` | PASS/FAIL | |
 | 前端 smoke | `scripts/frontend-e2e.sh` | PASS/FAIL | |
+| 前端浏览器 E2E | `scripts/frontend-browser-e2e.sh` | PASS/FAIL | |
 | RBAC E2E | `scripts/rbac-e2e.sh` | PASS/FAIL | |
 
 ## 浏览器核验
