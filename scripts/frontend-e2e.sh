@@ -32,10 +32,10 @@ compact_response() {
     fi
 }
 
-pass() { ((PASS++)); ((TOTAL++)); echo -e "  ${GREEN}✓ $1${NC}"; }
+pass() { ((PASS+=1)); ((TOTAL+=1)); echo -e "  ${GREEN}✓ $1${NC}"; }
 fail() {
-    ((FAIL++))
-    ((TOTAL++))
+    ((FAIL+=1))
+    ((TOTAL+=1))
     echo -e "  ${RED}✗ $1${NC}"
     if [ -n "${2:-}" ]; then
         printf "    Detail: %.1000s\n" "$(compact_response "$2")"
