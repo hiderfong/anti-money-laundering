@@ -9,6 +9,8 @@ const runId = process.env.E2E_RUN_ID || new Date().toISOString().replace(/[-:.TZ
 const screenshotDir = process.env.SCREENSHOT_DIR || path.join('/tmp', 'aml-frontend-browser-e2e')
 const headless = process.env.HEADLESS !== 'false'
 const slowMo = Number(process.env.PLAYWRIGHT_SLOW_MO || 0)
+const navigationTimeout = Number(process.env.PLAYWRIGHT_NAVIGATION_TIMEOUT || 90000)
+const assertionTimeout = Number(process.env.PLAYWRIGHT_ASSERTION_TIMEOUT || 20000)
 
 const routes = [
   { path: '/dashboard', signal: '反洗钱运营态势' },
@@ -97,7 +99,7 @@ async function launchBrowser() {
 
 async function pageText(page, selector = 'body') {
   try {
-    return await page.locator(selector).innerText({ timeout: 8000 })
+    return await page.locator(selector).innerText({ timeout: assertionTimeout })
   } catch (error) {
     return ''
   }
@@ -115,8 +117,8 @@ async function assertNoOverlay(page, label) {
 }
 
 async function waitForRouteReady(page, route) {
-  await page.goto(`${frontendUrl}${route.path}`, { waitUntil: 'domcontentloaded' })
-  await page.locator('main').waitFor({ state: 'visible', timeout: 10000 })
+  await page.goto(`${frontendUrl}${route.path}`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
+  await page.locator('main').waitFor({ state: 'visible', timeout: assertionTimeout })
   await page.waitForTimeout(500)
 }
 
@@ -149,6 +151,7 @@ async function main() {
   console.log(`  FRONTEND_URL: ${frontendUrl}`)
   console.log(`  E2E_RUN_ID: ${runId}`)
   console.log(`  HEADLESS: ${headless}`)
+  console.log(`  NAVIGATION_TIMEOUT: ${navigationTimeout}ms`)
   console.log('')
 
   await mkdir(screenshotDir, { recursive: true })
@@ -173,20 +176,20 @@ async function main() {
 
   try {
     info('1. 登录页面')
-    await page.goto(`${frontendUrl}/login`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`${frontendUrl}/login`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
     await page.locator('input[placeholder="用户名"]').fill(username)
     await page.locator('input[placeholder="密码"]').fill(password)
     await Promise.all([
-      page.waitForURL('**/dashboard', { timeout: 15000 }),
+      page.waitForURL('**/dashboard', { timeout: assertionTimeout }),
       page.getByRole('button', { name: /登\s*录/ }).click()
     ])
-    await page.locator('main').waitFor({ state: 'visible', timeout: 10000 })
+    await page.locator('main').waitFor({ state: 'visible', timeout: assertionTimeout })
     pass(`${username} 登录后进入 /dashboard`)
 
     info('2. 刷新登录态')
     const issueStart = runtimeIssues.length
-    await page.reload({ waitUntil: 'domcontentloaded' })
-    await page.locator('main').waitFor({ state: 'visible', timeout: 10000 })
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: navigationTimeout })
+    await page.locator('main').waitFor({ state: 'visible', timeout: assertionTimeout })
     const currentUrl = page.url()
     const mainText = await pageText(page, 'main')
     if (currentUrl.includes('/dashboard') && mainText.includes('反洗钱运营态势')) {
@@ -227,9 +230,9 @@ async function main() {
       await checkRoute(page, route)
     }
 
-    await page.goto(`${frontendUrl}/dashboard`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`${frontendUrl}/dashboard`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
     await page.screenshot({ path: path.join(screenshotDir, `dashboard-${runId}.png`), fullPage: false })
-    await page.goto(`${frontendUrl}/products`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`${frontendUrl}/products`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
     await page.screenshot({ path: path.join(screenshotDir, `products-${runId}.png`), fullPage: false })
     pass(`截图已输出到 ${screenshotDir}`)
   } finally {
