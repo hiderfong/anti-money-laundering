@@ -8,6 +8,8 @@
 
 Gitea job 容器是冷启动环境，Maven 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，默认重试 3 次，并在重试前清理 `.lastUpdated` 传输标记；单次尝试默认 900 秒超时，同时设置 Maven HTTP 连接与读取超时，避免半开连接拖满整条门禁。
 
+本机 Gitea runner 默认使用 `docker/gitea-actions-runner/Dockerfile` 构建预热 job 镜像 `aml-gitea-job:latest`，其中预装 JDK 21、Maven、MySQL client、jq 以及 Playwright Chromium 依赖。`.gitea/workflows/ci.yml` 会在工具链已存在时跳过 `apt-get` 冷安装，避免发布门禁耗时受外部包仓库下载速度影响。
+
 Docker 镜像构建使用 BuildKit Maven cache，不再单独执行 `dependency:go-offline`。这样可以避免冷启动 runner 在 Docker 构建阶段重复长时间解析依赖，同时仍通过 `scripts/ci-maven.sh clean package -DskipTests` 校验镜像内可完成应用打包。
 
 ## 触发方式
@@ -61,13 +63,14 @@ bash scripts/start-gitea-actions-runner.sh
 - 从 `origin` 远端解析 Gitea 地址和仓库路径。
 - 通过 Gitea API 获取仓库 runner 注册令牌。
 - 启动 `gitea/act_runner` Docker 容器。
+- 构建本机预热 job 镜像 `aml-gitea-job:latest`。
 - 注册 `ubuntu-latest` 标签，供 `.gitea/workflows/ci.yml` 使用。
 
 如果 Gitea 不是通过 `localhost` 暴露，或 Docker 容器无法访问宿主机 Gitea，可通过环境变量覆盖：
 
 ```bash
 GITEA_RUNNER_INSTANCE_URL=http://host.docker.internal:3333/ \
-GITEA_RUNNER_LABELS='ubuntu-latest:docker://catthehacker/ubuntu:act-latest' \
+GITEA_RUNNER_LABELS='ubuntu-latest:docker://aml-gitea-job:latest' \
 bash scripts/start-gitea-actions-runner.sh
 ```
 

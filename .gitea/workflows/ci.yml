@@ -14,6 +14,7 @@ env:
   JAVA_VERSION: "21"
   NODE_VERSION: "24"
   MAVEN_OPTS: "-Xmx1536m"
+  PLAYWRIGHT_BROWSERS_PATH: "/ms-playwright"
 
 jobs:
   backend-test:
@@ -26,9 +27,11 @@ jobs:
 
       - name: Install backend toolchain
         run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
-          $SUDO apt-get update
-          $SUDO apt-get install -y openjdk-21-jdk maven
+          if ! command -v java >/dev/null 2>&1 || ! command -v mvn >/dev/null 2>&1; then
+            if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
+            $SUDO apt-get update
+            $SUDO apt-get install -y openjdk-21-jdk maven
+          fi
           java -version
           mvn -version
 
@@ -181,9 +184,14 @@ jobs:
 
       - name: Install system tools
         run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
-          $SUDO apt-get update
-          $SUDO apt-get install -y curl jq default-mysql-client openjdk-21-jdk maven
+          if ! command -v java >/dev/null 2>&1 || \
+             ! command -v mvn >/dev/null 2>&1 || \
+             ! command -v mysqladmin >/dev/null 2>&1 || \
+             ! command -v jq >/dev/null 2>&1; then
+            if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
+            $SUDO apt-get update
+            $SUDO apt-get install -y curl jq default-mysql-client openjdk-21-jdk maven
+          fi
           java -version
           mvn -version
           node --version
@@ -206,7 +214,12 @@ jobs:
 
       - name: Install Playwright browser
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       - name: Warm backend Maven dependencies
         run: bash scripts/ci-maven.sh -DskipTests package

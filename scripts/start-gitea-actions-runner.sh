@@ -70,7 +70,10 @@ RUNNER_CONTAINER="${GITEA_RUNNER_CONTAINER:-aml-gitea-act-runner}"
 RUNNER_VOLUME="${GITEA_RUNNER_VOLUME:-aml-gitea-act-runner-data}"
 RUNNER_IMAGE="${GITEA_ACT_RUNNER_IMAGE:-gitea/act_runner:latest}"
 RUNNER_NAME="${GITEA_RUNNER_NAME:-aml-local-runner}"
-RUNNER_LABELS="${GITEA_RUNNER_LABELS:-ubuntu-latest:docker://catthehacker/ubuntu:act-latest}"
+JOB_IMAGE="${GITEA_RUNNER_JOB_IMAGE:-aml-gitea-job:latest}"
+JOB_IMAGE_DOCKERFILE="${GITEA_RUNNER_JOB_IMAGE_DOCKERFILE:-docker/gitea-actions-runner/Dockerfile}"
+BUILD_JOB_IMAGE="${GITEA_RUNNER_BUILD_JOB_IMAGE:-true}"
+RUNNER_LABELS="${GITEA_RUNNER_LABELS:-ubuntu-latest:docker://${JOB_IMAGE}}"
 
 token_json="$(api_get "/repos/${OWNER}/${REPO}/actions/runners/registration-token")"
 registration_token="$(printf '%s' "$token_json" | jq -r '.token')"
@@ -88,6 +91,11 @@ echo "  Instance:   ${INSTANCE_URL}"
 echo "  Container:  ${RUNNER_CONTAINER}"
 echo "  Labels:     ${RUNNER_LABELS}"
 echo ""
+
+if [ "$BUILD_JOB_IMAGE" = "true" ] && [ -f "$JOB_IMAGE_DOCKERFILE" ]; then
+    echo "Building local job image: ${JOB_IMAGE}"
+    docker build -t "$JOB_IMAGE" -f "$JOB_IMAGE_DOCKERFILE" .
+fi
 
 docker pull "$RUNNER_IMAGE"
 docker volume create "$RUNNER_VOLUME" >/dev/null
