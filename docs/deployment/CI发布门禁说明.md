@@ -49,7 +49,7 @@ CI 中的 E2E 使用 `ubuntu-latest` runner，并通过 service container 启动
 - 浏览器：Playwright Chromium，默认 headless。
 - 测试数据隔离：使用 `E2E_RUN_ID=ci-${{ github.run_id }}-${{ github.run_attempt }}`。
 
-CI 中还会显式设置 `AML_REDIS_ENABLED=false` 与 `SPRING_AUTOCONFIGURE_EXCLUDE`，确保 Spring Boot Maven run 不会加载 Redis/Redisson 自动配置。
+CI 中还会显式设置 `AML_REDIS_ENABLED=false`、`AML_NEO4J_ENABLED=false` 与合并后的 `SPRING_AUTOCONFIGURE_EXCLUDE`，确保 Spring Boot 启动不会加载 Redis/Redisson、Neo4j、Elasticsearch 自动配置。
 
 ## Gitea Runner
 

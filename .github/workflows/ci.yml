@@ -178,7 +178,8 @@ jobs:
       E2E_LIMIT_IP: 127.0.0.202
       HEADLESS: "true"
       AML_REDIS_ENABLED: "false"
-      SPRING_AUTOCONFIGURE_EXCLUDE: org.redisson.spring.starter.RedissonAutoConfigurationV2,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      AML_NEO4J_ENABLED: "false"
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.redisson.spring.starter.RedissonAutoConfigurationV2,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration,org.springframework.boot.autoconfigure.data.neo4j.Neo4jDataAutoConfiguration,org.springframework.boot.autoconfigure.data.neo4j.Neo4jRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.neo4j.Neo4jReactiveDataAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchAutoConfiguration,org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration,org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration,org.springframework.boot.autoconfigure.elasticsearch.ReactiveElasticsearchClientAutoConfiguration
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     steps:
       - name: Checkout
@@ -227,7 +228,7 @@ jobs:
         run: |
           nohup mvn spring-boot:run \
             -Dspring-boot.run.profiles=dev,no-redis,no-es \
-            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --aml.redis.enabled=false --spring.autoconfigure.exclude=${SPRING_AUTOCONFIGURE_EXCLUDE} --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
+            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --aml.redis.enabled=false --aml.neo4j.enabled=false --spring.autoconfigure.exclude=${SPRING_AUTOCONFIGURE_EXCLUDE} --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
             > /tmp/aml-backend.log 2>&1 &
           echo $! > /tmp/aml-backend.pid
 
