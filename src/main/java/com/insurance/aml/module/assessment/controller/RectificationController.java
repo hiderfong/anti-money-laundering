@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +33,7 @@ public class RectificationController {
      */
     @PostMapping
     @Operation(summary = "创建整改任务", description = "为评估问题创建整改任务")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<RectificationTask> createTask(@Valid @RequestBody RectificationTaskRequest req) {
         log.info("创建整改任务请求，assessmentId={}, severity={}", req.getAssessmentId(), req.getSeverity());
         RectificationTask task = rectificationService.createTask(req);
@@ -43,6 +45,7 @@ public class RectificationController {
      */
     @PutMapping("/{id}/status")
     @Operation(summary = "更新任务状态", description = "更新整改任务的状态")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<Void> updateTaskStatus(
             @Parameter(description = "任务ID") @PathVariable Long id,
             @Parameter(description = "新状态（OPEN/IN_PROGRESS/COMPLETED/OVERDUE）") @RequestParam String status) {
@@ -67,6 +70,7 @@ public class RectificationController {
      */
     @PostMapping("/{id}/verify")
     @Operation(summary = "验证整改任务", description = "验证已完成整改任务的完成情况")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<Void> verifyTask(
             @Parameter(description = "任务ID") @PathVariable Long id,
             @Parameter(description = "验证人") @RequestParam String verifiedBy) {

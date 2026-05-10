@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -38,6 +39,7 @@ public class ScreeningController {
      */
     @PostMapping("/screen")
     @Operation(summary = "触发客户筛查", description = "对指定客户进行制裁名单筛查匹配")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:execute')")
     public Result<Long> screenCustomer(@Valid @RequestBody ScreeningRequestDTO dto) {
         log.info("收到筛查请求，customerId={}, screeningType={}", dto.getCustomerId(), dto.getScreeningType());
         Long hitCount = screeningService.screenCustomer(dto.getCustomerId(), dto.getScreeningType());
@@ -49,6 +51,7 @@ public class ScreeningController {
      */
     @PostMapping("/batch-screen")
     @Operation(summary = "批量筛查", description = "批量对多个客户进行制裁名单筛查")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:execute')")
     public Result<List<Long>> batchScreen(@RequestBody List<Long> customerIds) {
         log.info("收到批量筛查请求，客户数={}", customerIds.size());
         List<Long> results = screeningService.screenBatch(customerIds);
@@ -73,6 +76,7 @@ public class ScreeningController {
      */
     @PostMapping("/review")
     @Operation(summary = "审核筛查命中", description = "对筛查命中的结果进行人工审核，确认或排除")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:execute')")
     public Result<Void> reviewHit(@Valid @RequestBody ReviewRequest req) {
         log.info("收到审核请求，resultId={}, reviewStatus={}", req.getResultId(), req.getReviewStatus());
         screeningService.reviewHit(req);
@@ -103,6 +107,7 @@ public class ScreeningController {
      */
     @PostMapping("/whitelist")
     @Operation(summary = "新增白名单", description = "将筛查命中结果加入白名单，后续筛查将不再告警")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:execute')")
     public Result<Void> addWhitelist(@RequestBody Whitelist whitelist) {
         log.info("新增白名单，customerId={}, watchlistEntryId={}", whitelist.getCustomerId(), whitelist.getWatchlistEntryId());
         whitelistMapper.insert(whitelist);

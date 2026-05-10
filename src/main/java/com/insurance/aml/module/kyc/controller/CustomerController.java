@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -32,6 +33,7 @@ public class CustomerController {
     @PostMapping
     @Operation(summary = "创建客户", description = "新建客户信息，校验证件号唯一性")
     @AuditLog(module = "KYC", operationType = "CREATE", description = "创建客户")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:create')")
     public Result<Customer> createCustomer(@Valid @RequestBody CustomerCreateRequest request) {
         log.info("接收到创建客户请求，客户名称：{}", request.getName());
         Customer customer = customerService.createCustomer(request);
@@ -44,6 +46,7 @@ public class CustomerController {
     @PutMapping
     @Operation(summary = "更新客户", description = "更新客户信息，仅更新非空字段")
     @AuditLog(module = "KYC", operationType = "UPDATE", description = "更新客户信息")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:update')")
     public Result<Customer> updateCustomer(@Valid @RequestBody CustomerUpdateRequest request) {
         log.info("接收到更新客户请求，客户ID：{}", request.getId());
         Customer customer = customerService.updateCustomer(request);
@@ -91,6 +94,7 @@ public class CustomerController {
     @PostMapping("/{id}/risk-assessment")
     @Operation(summary = "触发风险评估", description = "手动触发客户风险评估，计算风险评分并更新风险等级")
     @AuditLog(module = "KYC", operationType = "UPDATE", description = "触发客户风险评估")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:update')")
     public Result<Void> triggerRiskAssessment(
             @Parameter(description = "客户ID", required = true) @PathVariable Long id) {
         log.info("接收到触发客户风险评估请求，客户ID：{}", id);

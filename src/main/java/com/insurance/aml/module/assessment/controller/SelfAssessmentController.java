@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,6 +35,7 @@ public class SelfAssessmentController {
      */
     @PostMapping
     @Operation(summary = "创建风险自评估", description = "创建新的风险自评估任务")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<SelfAssessment> createAssessment(@Valid @RequestBody AssessmentCreateRequest req) {
         log.info("创建风险自评估请求，year={}, period={}", req.getAssessmentYear(), req.getAssessmentPeriod());
         SelfAssessment assessment = assessmentService.createAssessment(req);
@@ -45,6 +47,7 @@ public class SelfAssessmentController {
      */
     @PostMapping("/score")
     @Operation(summary = "提交指标评分", description = "为评估提交指标的评分数据")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<Void> submitScore(@Valid @RequestBody AssessmentScoreRequest req) {
         log.info("提交评估评分请求，assessmentId={}, indicatorId={}", req.getAssessmentId(), req.getIndicatorId());
         assessmentService.submitScore(req);
@@ -56,6 +59,7 @@ public class SelfAssessmentController {
      */
     @PostMapping("/{id}/complete")
     @Operation(summary = "完成评估", description = "计算综合评分和风险等级，完成评估")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<SelfAssessment> completeAssessment(
             @Parameter(description = "评估ID") @PathVariable Long id) {
         log.info("完成评估请求，assessmentId={}", id);
@@ -68,6 +72,7 @@ public class SelfAssessmentController {
      */
     @PostMapping("/{id}/approve")
     @Operation(summary = "审批评估", description = "审批通过已完成的评估")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:manage')")
     public Result<Void> approveAssessment(
             @Parameter(description = "评估ID") @PathVariable Long id,
             @Parameter(description = "审批人") @RequestParam String approvedBy) {

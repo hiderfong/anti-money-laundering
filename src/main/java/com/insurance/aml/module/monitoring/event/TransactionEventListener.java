@@ -5,6 +5,7 @@ import com.insurance.aml.module.monitoring.model.dto.TransactionEvent;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -20,6 +21,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "aml.kafka.enabled", havingValue = "true", matchIfMissing = true)
 public class TransactionEventListener {
 
     private final TransactionEventProducer transactionEventProducer;

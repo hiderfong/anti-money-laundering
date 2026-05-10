@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -36,6 +37,7 @@ public class CaseController {
     @PostMapping
     @Operation(summary = "创建案件", description = "从已确认的告警创建调查案件")
     @AuditLog(module = "案件管理", operationType = "CREATE", description = "创建案件")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('case:create')")
     public Result<Case> createCase(@Valid @RequestBody CaseCreateRequest req) {
         log.info("收到创建案件请求，alertId={}", req.getAlertId());
         Case caseEntity = caseService.createCase(req);
@@ -48,6 +50,7 @@ public class CaseController {
     @PutMapping("/{id}/status")
     @Operation(summary = "变更案件状态", description = "变更案件状态，支持状态流转校验")
     @AuditLog(module = "案件管理", operationType = "UPDATE", description = "变更案件状态")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('case:approve')")
     public Result<Void> changeCaseStatus(
             @Parameter(description = "案件ID") @PathVariable Long id,
             @Parameter(description = "目标状态") @RequestParam String toStatus,
@@ -85,6 +88,7 @@ public class CaseController {
      */
     @PostMapping("/{id}/investigation")
     @Operation(summary = "添加调查记录", description = "为案件添加调查记录")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('case:create')")
     public Result<Void> addInvestigation(
             @Parameter(description = "案件ID") @PathVariable Long id,
             @Parameter(description = "调查内容") @RequestParam String content,
@@ -100,6 +104,7 @@ public class CaseController {
     @PostMapping("/{id}/close")
     @Operation(summary = "关闭案件", description = "关闭已提交的案件，记录关闭原因")
     @AuditLog(module = "案件管理", operationType = "UPDATE", description = "关闭案件")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('case:approve')")
     public Result<Void> closeCase(
             @Parameter(description = "案件ID") @PathVariable Long id,
             @Parameter(description = "关闭原因") @RequestParam String reason) {

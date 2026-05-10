@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.BeanUtils;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +51,7 @@ public class TransactionController {
      */
     @PostMapping("/ingest")
     @Operation(summary = "录入交易")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPLIANCE','INVESTIGATOR')")
     public Result<TransactionVO> ingestTransaction(@Valid @RequestBody TransactionIngestRequest request) {
         log.info("接收到交易录入请求: transactionNo={}, customerId={}, amount={}",
                 request.getTransactionNo(), request.getCustomerId(), request.getAmount());

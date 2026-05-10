@@ -207,6 +207,7 @@ public class AuthServiceImpl {
 
         return distinct(userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
+                .filter(authority -> authority != null && authority.startsWith("ROLE_"))
                 .toList());
     }
 

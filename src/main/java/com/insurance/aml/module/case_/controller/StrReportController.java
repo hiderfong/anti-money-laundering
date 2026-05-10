@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -53,6 +54,7 @@ public class StrReportController {
      */
     @PostMapping
     @Operation(summary = "创建可疑交易报告", description = "为案件创建可疑交易报告")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
     public Result<StrReport> createReport(@Valid @RequestBody StrReportCreateRequest req) {
         log.info("收到创建可疑交易报告请求，caseId={}, reportType={}", req.getCaseId(), req.getReportType());
         StrReport report = strReportService.createReport(req);
@@ -64,6 +66,7 @@ public class StrReportController {
      */
     @PostMapping("/{id}/submit-review")
     @Operation(summary = "提交报告审核", description = "将草稿状态的报告提交审核")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
     public Result<Void> submitForReview(
             @Parameter(description = "报告ID") @PathVariable Long id) {
         log.info("收到提交报告审核请求，reportId={}", id);
@@ -76,6 +79,7 @@ public class StrReportController {
      */
     @PostMapping("/{id}/review")
     @Operation(summary = "审核报告", description = "对报告进行审核，可批准或拒绝")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
     public Result<Void> reviewReport(
             @Parameter(description = "报告ID") @PathVariable Long id,
             @Valid @RequestBody StrReportReviewRequest req) {
@@ -90,6 +94,7 @@ public class StrReportController {
      */
     @PostMapping("/{id}/submit-regulator")
     @Operation(summary = "提交至监管机构", description = "将已批准的报告提交至监管机构")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
     public Result<Void> submitToRegulator(
             @Parameter(description = "报告ID") @PathVariable Long id) {
         log.info("收到提交报告至监管机构请求，reportId={}", id);

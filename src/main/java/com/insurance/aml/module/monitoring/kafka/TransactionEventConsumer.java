@@ -13,6 +13,7 @@ import com.insurance.aml.module.monitoring.service.GraphAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "aml.kafka.enabled", havingValue = "true", matchIfMissing = true)
 public class TransactionEventConsumer {
     private final RuleEngineService ruleEngineService;
     private final AlertService alertService;

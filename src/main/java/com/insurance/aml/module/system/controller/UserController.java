@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.List;
 @RequestMapping("/system/users")
 @RequiredArgsConstructor
 @Tag(name = "用户管理", description = "用户管理相关接口")
+@PreAuthorize("hasRole('ADMIN') or hasAuthority('system:user')")
 public class UserController {
     private final UserService userService;
 

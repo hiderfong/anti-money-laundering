@@ -59,7 +59,7 @@ public class SysUser implements Serializable {
     private String position;
 
     /**
-     * 状态：ACTIVE-活跃，INACTIVE-停用，LOCKED-锁定
+     * 状态：ENABLED-启用，DISABLED-禁用，LOCKED-锁定
      */
     private String status;
 

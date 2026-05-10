@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -56,6 +57,7 @@ public class AlertController {
     @PostMapping("/assign")
     @Operation(summary = "分配预警", description = "将预警分配给指定处理人")
     @AuditLog(module = "预警管理", operationType = "UPDATE", description = "分配预警")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:process')")
     public Result<Void> assignAlert(@Valid @RequestBody AlertAssignRequest request) {
         log.info("接收到分配预警请求，预警ID：{}，分配给：{}", request.getAlertId(), request.getAssignTo());
         alertService.assignAlert(request);
@@ -68,6 +70,7 @@ public class AlertController {
     @PostMapping("/process")
     @Operation(summary = "处理预警", description = "处理预警，确认可疑/排除/升级")
     @AuditLog(module = "预警管理", operationType = "UPDATE", description = "处理预警")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:process')")
     public Result<Void> processAlert(@Valid @RequestBody AlertProcessRequest request) {
         log.info("接收到处理预警请求，预警ID：{}，处理结果：{}", request.getAlertId(), request.getProcessResult());
         alertService.processAlert(request);
@@ -80,6 +83,7 @@ public class AlertController {
     @PostMapping("/batch-process")
     @Operation(summary = "批量处理预警", description = "批量处理多个预警")
     @AuditLog(module = "预警管理", operationType = "UPDATE", description = "批量处理预警")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:process')")
     public Result<Void> batchProcess(@RequestBody BatchProcessRequest request) {
         log.info("接收到批量处理预警请求，数量：{}，动作：{}", request.getAlertIds().size(), request.getAction());
         alertService.batchProcess(request.getAlertIds(), request.getAction());

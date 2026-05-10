@@ -43,6 +43,7 @@
         <bcpkix.version>1.77</bcpkix.version>
         <minio.version>8.5.7</minio.version>
         <lombok.version>1.18.34</lombok.version>
+        <byte-buddy-agent.version>1.15.11</byte-buddy-agent.version>
 
         <!-- Encoding -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -260,6 +261,12 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy-agent</artifactId>
+            <version>${byte-buddy-agent.version}</version>
+            <scope>test</scope>
+        </dependency>
         <!-- 嵌入式数据库 (集成测试用) -->
         <dependency>
             <groupId>com.h2database</groupId>
@@ -336,6 +343,15 @@
                             <version>${mapstruct.version}</version>
                         </path>
                     </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- Preload Byte Buddy agent so Mockito inline mocks work on JDK 21 without self-attach. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy-agent.version}/byte-buddy-agent-${byte-buddy-agent.version}.jar</argLine>
                 </configuration>
             </plugin>
         </plugins>

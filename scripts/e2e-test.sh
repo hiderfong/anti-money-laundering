@@ -4,16 +4,47 @@
 # 在应用启动后运行，验证核心 API 功能
 # ============================================================
 
+set -o pipefail
+
 BASE_URL="${BASE_URL:-http://localhost:8080/api}"
 E2E_IP="${E2E_IP:-127.0.0.101}"
+E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
+E2E_PREFIX="${E2E_PREFIX:-E2E}"
 PASS=0
 FAIL=0
 TOKEN=""
+
+RUN_NUM="$(printf '%s' "$E2E_RUN_ID" | tr -cd '0-9')"
+if [ -z "$RUN_NUM" ]; then
+    RUN_NUM="$(date +%H%M%S)"
+fi
+if [ ${#RUN_NUM} -gt 8 ]; then
+    RUN_TAIL="${RUN_NUM:$((${#RUN_NUM}-8))}"
+else
+    RUN_TAIL="$RUN_NUM"
+fi
+RUN_TAIL=$(printf "%08d" "$((10#$RUN_TAIL % 100000000))")
+ID_TAIL=$(printf "%04d" "$((10#$RUN_TAIL % 10000))")
+
+E2E_CUSTOMER_NAME="${E2E_CUSTOMER_NAME:-${E2E_PREFIX}客户_${E2E_RUN_ID}}"
+E2E_ID_NUMBER="${E2E_ID_NUMBER:-11010119900101${ID_TAIL}}"
+E2E_PHONE="${E2E_PHONE:-139${RUN_TAIL}}"
+E2E_EMAIL="${E2E_EMAIL:-e2e_${E2E_RUN_ID}@test.local}"
+E2E_TXN_NO="${E2E_TXN_NO:-${E2E_PREFIX}_TXN_${E2E_RUN_ID}_001}"
 
 # 颜色
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
+
+compact_response() {
+    local body="$1"
+    if command -v jq >/dev/null 2>&1 && echo "$body" | jq -e . >/dev/null 2>&1; then
+        echo "$body" | jq -c .
+    else
+        printf "%s" "$body"
+    fi
+}
 
 check() {
     local name="$1"
@@ -24,22 +55,29 @@ check() {
         PASS=$((PASS+1))
     else
         echo -e "  ${RED}✗${NC} $name (expected: $expected)"
-        echo "    Response: $actual" | head -3
+        printf "    Response: %.1000s\n" "$(compact_response "$actual")"
         FAIL=$((FAIL+1))
     fi
 }
 
 auth_get() {
-    curl -s "$1" -H "Authorization: Bearer $TOKEN"
+    curl -sS "$1" -H "Authorization: Bearer $TOKEN" -H "X-E2E-Run-Id: $E2E_RUN_ID"
 }
 
 auth_post() {
-    curl -s -X POST "$1" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "$2"
+    curl -sS -X POST "$1" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "X-E2E-Run-Id: $E2E_RUN_ID" \
+        -d "$2"
 }
 
 echo "=========================================="
 echo "  AML System 端到端 API 测试"
 echo "=========================================="
+echo "  BASE_URL: $BASE_URL"
+echo "  E2E_RUN_ID: $E2E_RUN_ID"
+echo "  E2E_PREFIX: $E2E_PREFIX"
 
 # ==================== 系统模块 ====================
 echo ""
@@ -55,9 +93,10 @@ check "系统信息" '"code":200' "$RESP"
 echo ""
 echo "[2] 认证模块"
 
-RESP=$(curl -s -X POST "$BASE_URL/auth/login" \
+RESP=$(curl -sS -X POST "$BASE_URL/auth/login" \
     -H "Content-Type: application/json" \
     -H "X-Forwarded-For: $E2E_IP" \
+    -H "X-E2E-Run-Id: $E2E_RUN_ID" \
     -d '{"username":"admin","password":"admin123"}')
 check "登录成功" '"code":200' "$RESP"
 TOKEN=$(echo "$RESP" | jq -r '.data.accessToken // empty' 2>/dev/null)
@@ -68,9 +107,10 @@ else
     echo "  Token: ${TOKEN:0:20}..."
 fi
 
-RESP=$(curl -s -X POST "$BASE_URL/auth/login" \
+RESP=$(curl -sS -X POST "$BASE_URL/auth/login" \
     -H "Content-Type: application/json" \
     -H "X-Forwarded-For: $E2E_IP" \
+    -H "X-E2E-Run-Id: $E2E_RUN_ID" \
     -d '{"username":"admin","password":"wrong"}')
 check "错误密码返回失败" '"code":401' "$RESP"
 
@@ -80,15 +120,16 @@ echo "[3] KYC 客户管理"
 
 RESP=$(auth_post "$BASE_URL/kyc/customers" '{
     "customerType":"INDIVIDUAL",
-    "name":"E2E测试客户",
+    "name":"'"$E2E_CUSTOMER_NAME"'",
     "nationality":"CN",
-    "idType":"ID_CARD",
-    "idNumber":"110101199001011234",
-    "phone":"13800138000",
-    "email":"e2e@test.com"
+    "idType":"IDCARD",
+    "idNumber":"'"$E2E_ID_NUMBER"'",
+    "phone":"'"$E2E_PHONE"'",
+    "email":"'"$E2E_EMAIL"'"
 }')
 check "创建客户" '"code":200' "$RESP"
 CUSTOMER_ID=$(echo "$RESP" | jq -r '.data.id // empty' 2>/dev/null)
+echo "  E2E客户: ${E2E_CUSTOMER_NAME} (id=${CUSTOMER_ID:-N/A})"
 
 RESP=$(auth_get "$BASE_URL/kyc/customers/page?page=1&size=10")
 check "查询客户列表" '"code":200' "$RESP"
@@ -102,9 +143,8 @@ fi
 echo ""
 echo "[4] 交易监测"
 
-TXN_NO="TXN$(date +%s)"
 RESP=$(auth_post "$BASE_URL/monitoring/transactions/ingest" "{
-    \"transactionNo\":\"$TXN_NO\",
+    \"transactionNo\":\"$E2E_TXN_NO\",
     \"customerId\":${CUSTOMER_ID:-1},
     \"transactionType\":\"PREMIUM\",
     \"amount\":60000,
@@ -113,6 +153,7 @@ RESP=$(auth_post "$BASE_URL/monitoring/transactions/ingest" "{
     \"transactionTime\":\"2026-05-01 10:00:00\"
 }")
 check "录入交易" '"code":200' "$RESP"
+echo "  E2E交易流水: $E2E_TXN_NO"
 
 RESP=$(auth_get "$BASE_URL/monitoring/transactions/page?page=1&size=10")
 check "查询交易列表" '"code":200' "$RESP"
@@ -170,7 +211,7 @@ check "未读通知数" '"code":200' "$RESP"
 echo ""
 echo "[11] API 文档"
 
-RESP=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/doc.html")
+RESP=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/doc.html")
 check "Swagger文档可访问" "200" "$RESP"
 
 # ==================== 结果汇总 ====================

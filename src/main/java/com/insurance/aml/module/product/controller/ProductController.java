@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,6 +35,7 @@ public class ProductController {
      */
     @PostMapping
     @Operation(summary = "创建产品", description = "创建新的保险产品")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('product:manage')")
     public Result<Product> createProduct(@Valid @RequestBody ProductCreateRequest req) {
         log.info("创建产品请求，productCode={}", req.getProductCode());
         Product product = productService.createProduct(req);
@@ -45,6 +47,7 @@ public class ProductController {
      */
     @PutMapping("/{id}")
     @Operation(summary = "更新产品", description = "更新指定产品的信息")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('product:manage')")
     public Result<Product> updateProduct(
             @Parameter(description = "产品ID") @PathVariable Long id,
             @Valid @RequestBody ProductCreateRequest req) {
@@ -79,6 +82,7 @@ public class ProductController {
      */
     @PostMapping("/{id}/assess")
     @Operation(summary = "产品风险评估", description = "对指定产品进行风险评估打分")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('product:manage')")
     public Result<ProductRiskAssessment> assessProductRisk(
             @Parameter(description = "产品ID") @PathVariable Long id,
             @Valid @RequestBody ProductRiskAssessRequest req) {

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -53,6 +54,7 @@ public class DictController {
      */
     @PostMapping("/refresh-cache")
     @Operation(summary = "刷新字典缓存", description = "将所有字典数据重新加载到Redis缓存")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('system:role')")
     public Result<Void> refreshDictCache() {
         log.info("接收到刷新字典缓存请求");
         dictService.refreshDictCache();

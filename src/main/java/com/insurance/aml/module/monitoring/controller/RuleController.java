@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -73,6 +74,7 @@ public class RuleController {
      */
     @PostMapping
     @Operation(summary = "创建规则")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:config')")
     public Result<RuleDefinition> createRule(@Valid @RequestBody RuleDefinition rule) {
         rule.setCreatedTime(LocalDateTime.now());
         rule.setUpdatedTime(LocalDateTime.now());
@@ -88,6 +90,7 @@ public class RuleController {
      */
     @PutMapping
     @Operation(summary = "更新规则")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:config')")
     public Result<RuleDefinition> updateRule(@Valid @RequestBody RuleDefinition rule) {
         rule.setUpdatedTime(LocalDateTime.now());
         ruleDefinitionMapper.updateById(rule);
@@ -99,6 +102,7 @@ public class RuleController {
      */
     @PostMapping("/{id}/enable")
     @Operation(summary = "启用规则")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:config')")
     public Result<Void> enableRule(@Parameter(description = "规则ID") @PathVariable Long id) {
         RuleDefinition rule = ruleDefinitionMapper.selectById(id);
         if (rule == null) {
@@ -115,6 +119,7 @@ public class RuleController {
      */
     @PostMapping("/{id}/disable")
     @Operation(summary = "禁用规则")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:config')")
     public Result<Void> disableRule(@Parameter(description = "规则ID") @PathVariable Long id) {
         RuleDefinition rule = ruleDefinitionMapper.selectById(id);
         if (rule == null) {
