@@ -7,7 +7,7 @@
 
 set -e
 
-BASE_URL="${BASE_URL:-http://localhost:5173}"
+BASE_URL="${FRONTEND_URL:-${BASE_URL:-http://localhost:5173}}"
 API_URL="${API_URL:-http://localhost:8080/api}"
 E2E_IP="${E2E_IP:-127.0.0.102}"
 E2E_LIMIT_IP="${E2E_LIMIT_IP:-127.0.0.103}"
