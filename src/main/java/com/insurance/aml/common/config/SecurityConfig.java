@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -44,9 +46,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
-
-    @Value("${spring.profiles.active:dev}")
-    private String activeProfile;
+    private final Environment environment;
 
     @Value("${aml.cors.allowed-origins:#{null}}")
     private List<String> allowedOrigins;
@@ -119,7 +119,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        if ("prod".equals(activeProfile)) {
+        if (isProdProfile()) {
             if (allowedOrigins == null || allowedOrigins.isEmpty()) {
                 log.warn("生产环境未配置 CORS 允许的域名列表(aml.cors.allowed-origins)，默认拒绝所有跨域请求");
                 configuration.setAllowedOrigins(List.of());
@@ -146,6 +146,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private boolean isProdProfile() {
+        return environment.acceptsProfiles(Profiles.of("prod"));
     }
 
     /**

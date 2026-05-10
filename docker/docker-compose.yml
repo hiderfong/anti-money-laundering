@@ -8,8 +8,6 @@
 #   Stop & remove data:  docker compose down -v
 # =============================================================
 
-version: "3.8"
-
 services:
   # ---- AML Application ----
   aml-app:
@@ -20,19 +18,29 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-aml_system}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
-      - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - AML_DB_HOST=mysql
+      - AML_DB_PORT=3306
+      - AML_DB_NAME=${AML_DB_NAME:-aml_system}
+      - AML_DB_USER=${AML_DB_USER:-root}
+      - AML_DB_PASSWORD=${AML_DB_PASSWORD:?Set AML_DB_PASSWORD in .env}
+      - AML_REDIS_ENABLED=${AML_REDIS_ENABLED:-true}
+      - AML_REDIS_HOST=redis
+      - AML_REDIS_PORT=6379
+      - AML_REDIS_PASSWORD=${AML_REDIS_PASSWORD:?Set AML_REDIS_PASSWORD in .env}
+      - AML_KAFKA_ENABLED=${AML_KAFKA_ENABLED:-true}
+      - AML_KAFKA_BROKERS=${AML_KAFKA_BROKERS:-kafka:9092}
+      - AML_ES_URIS=${AML_ES_URIS:-http://elasticsearch:9200}
+      - AML_NEO4J_ENABLED=${AML_NEO4J_ENABLED:-false}
+      - AML_NEO4J_PASSWORD=${AML_NEO4J_PASSWORD:-}
+      - AML_MINIO_ENDPOINT=${AML_MINIO_ENDPOINT:-http://minio:9000}
+      - AML_MINIO_ACCESS_KEY=${AML_MINIO_ACCESS_KEY:?Set AML_MINIO_ACCESS_KEY in .env}
+      - AML_MINIO_SECRET_KEY=${AML_MINIO_SECRET_KEY:?Set AML_MINIO_SECRET_KEY in .env}
+      - AML_MINIO_BUCKET=${AML_MINIO_BUCKET:-aml-documents-prod}
+      - AML_JWT_SECRET=${AML_JWT_SECRET:?Set AML_JWT_SECRET in .env}
+      - AML_ENCRYPTION_KEY=${AML_ENCRYPTION_KEY:?Set AML_ENCRYPTION_KEY in .env}
+      - AML_CORS_ORIGINS=${AML_CORS_ORIGINS:?Set AML_CORS_ORIGINS in .env}
+      - AML_API_DOCS_ENABLED=${AML_API_DOCS_ENABLED:-false}
     volumes:
       - aml-logs:/app/logs
     depends_on:
@@ -57,8 +65,8 @@ services:
     ports:
       - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-aml_dev_123}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-aml_system}
+      - MYSQL_ROOT_PASSWORD=${AML_DB_PASSWORD:?Set AML_DB_PASSWORD in .env}
+      - MYSQL_DATABASE=${AML_DB_NAME:-aml_system}
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d
@@ -68,7 +76,7 @@ services:
       --collation-server=utf8mb4_unicode_ci
       --max-connections=500
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-aml_dev_123}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${AML_DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -83,11 +91,13 @@ services:
     container_name: aml-redis
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    environment:
+      - AML_REDIS_PASSWORD=${AML_REDIS_PASSWORD:?Set AML_REDIS_PASSWORD in .env}
+    command: redis-server --appendonly yes --requirepass ${AML_REDIS_PASSWORD:?Set AML_REDIS_PASSWORD in .env} --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $$AML_REDIS_PASSWORD ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,8 +163,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_ROOT_USER=${AML_MINIO_ACCESS_KEY:?Set AML_MINIO_ACCESS_KEY in .env}
+      - MINIO_ROOT_PASSWORD=${AML_MINIO_SECRET_KEY:?Set AML_MINIO_SECRET_KEY in .env}
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data

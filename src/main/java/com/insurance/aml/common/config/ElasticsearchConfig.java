@@ -1,11 +1,16 @@
 package com.insurance.aml.common.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
+import org.springframework.util.StringUtils;
+
+import java.net.URI;
+import java.util.Arrays;
 
 /**
  * Elasticsearch 配置类
@@ -27,6 +32,15 @@ import org.springframework.data.elasticsearch.repository.config.EnableElasticsea
 @EnableElasticsearchRepositories(basePackages = "com.insurance.aml.module.system.repository")
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 
+    @Value("${spring.elasticsearch.uris:http://localhost:9200}")
+    private String elasticsearchUris;
+
+    @Value("${spring.elasticsearch.username:}")
+    private String elasticsearchUsername;
+
+    @Value("${spring.elasticsearch.password:}")
+    private String elasticsearchPassword;
+
     /**
      * 配置Elasticsearch客户端连接
      * 可通过 application.yml 中的配置覆盖以下默认值
@@ -35,23 +49,45 @@ public class ElasticsearchConfig extends ElasticsearchConfiguration {
      */
     @Override
     public ClientConfiguration clientConfiguration() {
-        log.info("初始化 Elasticsearch 客户端配置...");
-        ClientConfiguration config = ClientConfiguration.builder()
-                // Elasticsearch 连接地址（可通过配置文件覆盖）
-                .connectedTo("localhost:9200")
-                // 启用HTTPS（生产环境启用）
-                // .usingSsl()
-                // 连接超时设置
+        String[] endpoints = Arrays.stream(elasticsearchUris.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(this::toHostPort)
+                .toArray(String[]::new);
+
+        boolean useSsl = Arrays.stream(elasticsearchUris.split(","))
+                .map(String::trim)
+                .anyMatch(uri -> uri.startsWith("https://"));
+
+        log.info("初始化 Elasticsearch 客户端配置，连接地址={}", String.join(",", endpoints));
+        ClientConfiguration.MaybeSecureClientConfigurationBuilder endpointBuilder = ClientConfiguration.builder()
+                .connectedTo(endpoints);
+        ClientConfiguration.TerminalClientConfigurationBuilder builder = useSsl
+                ? endpointBuilder.usingSsl()
+                : endpointBuilder;
+
+        if (StringUtils.hasText(elasticsearchUsername)) {
+            builder = builder.withBasicAuth(elasticsearchUsername, elasticsearchPassword);
+        }
+
+        ClientConfiguration config = builder
                 .withConnectTimeout(5000)
                 .withSocketTimeout(60000)
-                // 请求头部配置（如需认证）
-                // .withDefaultHeaders(HttpHeaders.EMPTY)
-                // 启用嗅探模式（自动发现集群节点）
-                // .withClientConfigurer(ElasticsearchClientConfiguration.RestClientBuilderCallback.from(
-                //         builder -> builder.setHttpClientConfigCallback(httpAsyncClientBuilder ->
-                //                 httpAsyncClientBuilder.setDefaultCredentialsProvider(credentialsProvider))))
                 .build();
-        log.info("Elasticsearch 客户端配置完成：连接地址=localhost:9200");
+
+        log.info("Elasticsearch 客户端配置完成");
         return config;
+    }
+
+    private String toHostPort(String uri) {
+        if (uri.startsWith("http://") || uri.startsWith("https://")) {
+            URI parsed = URI.create(uri);
+            int port = parsed.getPort();
+            if (port < 0) {
+                port = "https".equals(parsed.getScheme()) ? 443 : 9200;
+            }
+            return parsed.getHost() + ":" + port;
+        }
+        return uri.replaceAll("/$", "");
     }
 }

@@ -8,8 +8,9 @@ set -e
 
 VERSION=${1:-latest}
 IMAGE_NAME="aml-system"
-CONTAINER_NAME="aml-system-prod"
+SERVICE_NAME="aml-app"
 COMPOSE_FILE="docker/docker-compose.yml"
+ENV_FILE=".env"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -19,6 +20,14 @@ NC='\033[0m'
 info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+compose() {
+    if [ "$COMPOSE_MODE" = "plugin" ]; then
+        docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+    else
+        docker-compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+    fi
+}
 
 echo ""
 echo "=========================================="
@@ -30,8 +39,20 @@ echo ""
 # ------ 1. 检查环境 ------
 info "检查部署环境..."
 command -v docker >/dev/null 2>&1 || error "Docker 未安装"
-command -v docker-compose >/dev/null 2>&1 || COMPOSE_CMD="docker compose" || error "Docker Compose 未安装"
-COMPOSE_CMD=${COMPOSE_CMD:-"docker-compose"}
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE_MODE="plugin"
+elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_MODE="legacy"
+else
+    error "Docker Compose 未安装"
+fi
+
+if [ ! -f "${ENV_FILE}" ]; then
+    error "缺少 ${ENV_FILE}，请复制 .env.example 并填入生产值"
+fi
+
+info "执行发布前配置检查..."
+bash scripts/prod-readiness-check.sh "${ENV_FILE}"
 
 # ------ 2. 构建镜像 ------
 info "构建 Docker 镜像..."
@@ -39,12 +60,12 @@ docker build -t ${IMAGE_NAME}:${VERSION} -f docker/Dockerfile .
 
 # ------ 3. 停止旧容器 ------
 info "停止旧容器..."
-${COMPOSE_CMD} -f ${COMPOSE_FILE} down --remove-orphans 2>/dev/null || true
+compose down --remove-orphans 2>/dev/null || true
 
 # ------ 4. 启动新容器 ------
 info "启动新容器..."
 export AML_VERSION=${VERSION}
-${COMPOSE_CMD} -f ${COMPOSE_FILE} up -d
+compose up -d
 
 # ------ 5. 健康检查 ------
 info "等待服务启动..."
@@ -57,7 +78,7 @@ for i in $(seq 1 ${MAX_RETRIES}); do
         break
     fi
     if [ "$i" -eq "${MAX_RETRIES}" ]; then
-        error "服务启动超时，请检查日志: docker logs ${CONTAINER_NAME}"
+        error "服务启动超时，请检查日志: docker compose --env-file ${ENV_FILE} -f ${COMPOSE_FILE} logs ${SERVICE_NAME}"
     fi
     warn "等待服务启动... (${i}/${MAX_RETRIES})"
     sleep ${RETRY_INTERVAL}
@@ -73,6 +94,6 @@ echo "  应用地址: http://localhost:8080"
 echo "  健康检查: http://localhost:8080/api/system/health"
 echo "  API 文档: http://localhost:8080/api/doc.html"
 echo ""
-echo "  查看日志: docker logs -f ${CONTAINER_NAME}"
-echo "  停止服务: ${COMPOSE_CMD} -f ${COMPOSE_FILE} down"
+echo "  查看日志: docker compose --env-file ${ENV_FILE} -f ${COMPOSE_FILE} logs -f ${SERVICE_NAME}"
+echo "  停止服务: docker compose --env-file ${ENV_FILE} -f ${COMPOSE_FILE} down"
 echo ""

@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -27,13 +29,11 @@ import java.util.List;
 @RequiredArgsConstructor
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
-    /** 当前激活的环境（dev/prod） */
-    @Value("${spring.profiles.active:dev}")
-    private String activeProfile;
     /** 生产环境允许的CORS来源域名列表 */
     @Value("${aml.cors.allowed-origins:#{null}}")
     private List<String> allowedOrigins;
     private final ObjectMapper objectMapper;
+    private final Environment environment;
 
     /**
      * 配置跨域资源共享（CORS）
@@ -45,9 +45,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        log.info("配置 CORS 策略，当前环境: {}", activeProfile);
+        boolean prodProfile = environment.acceptsProfiles(Profiles.of("prod"));
+        log.info("配置 CORS 策略，是否生产环境: {}", prodProfile);
 
-        if ("prod".equals(activeProfile)) {
+        if (prodProfile) {
             // 生产环境：严格限制CORS来源
             if (allowedOrigins == null || allowedOrigins.isEmpty()) {
                 log.warn("生产环境未配置 CORS 允许的域名列表(aml.cors.allowed-origins)，WebMvc CORS 未注册");
