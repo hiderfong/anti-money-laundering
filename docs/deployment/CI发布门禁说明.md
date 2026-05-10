@@ -8,6 +8,8 @@
 
 Gitea job 容器是冷启动环境，Maven 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，默认重试 3 次，并在重试前清理 `.lastUpdated` 传输标记；单次尝试默认 900 秒超时，同时设置 Maven HTTP 连接与读取超时，避免半开连接拖满整条门禁。
 
+Docker 镜像构建使用 BuildKit Maven cache，不再单独执行 `dependency:go-offline`。这样可以避免冷启动 runner 在 Docker 构建阶段重复长时间解析依赖，同时仍通过 `scripts/ci-maven.sh clean package -DskipTests` 校验镜像内可完成应用打包。
+
 ## 触发方式
 
 - 推送到 `main`
@@ -99,5 +101,6 @@ bash scripts/rbac-e2e.sh
 - 后端测试通过。
 - 前端构建通过。
 - 生产配置校验通过，且 `.env.example` 被正确拒绝。
+- Dockerfile 可成功构建应用镜像。
 - 全量 E2E 脚本通过。
 - 浏览器截图或截图路径日志无异常页面状态。

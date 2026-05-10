@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # =============================================================
 # AML System - Multi-stage Dockerfile
 # =============================================================
@@ -18,14 +19,12 @@ FROM maven:3.9-eclipse-temurin-21 AS builder
 
 WORKDIR /build
 
-# Copy pom.xml first for dependency caching
+# Copy project files and build with a persistent BuildKit Maven cache.
 COPY pom.xml .
 COPY scripts/ci-maven.sh ./scripts/ci-maven.sh
-RUN bash scripts/ci-maven.sh dependency:go-offline
-
-# Copy source code and build
 COPY src ./src
-RUN bash scripts/ci-maven.sh clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 \
+    bash scripts/ci-maven.sh clean package -DskipTests
 
 # ---- Stage 2: Runtime ----
 FROM eclipse-temurin:21-jre-alpine
