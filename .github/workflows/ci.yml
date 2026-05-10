@@ -224,7 +224,7 @@ jobs:
       - name: Start backend
         run: |
           nohup mvn spring-boot:run \
-            -Dspring-boot.run.profiles=dev,no-redis \
+            -Dspring-boot.run.profiles=dev,no-redis,no-es \
             -Dspring-boot.run.arguments="--aml.kafka.enabled=false --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
             > /tmp/aml-backend.log 2>&1 &
           echo $! > /tmp/aml-backend.pid

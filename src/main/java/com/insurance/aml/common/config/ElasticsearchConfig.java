@@ -28,7 +28,7 @@ import java.util.Arrays;
  */
 @Slf4j
 @Configuration
-@Profile("!test & !no-es")
+@Profile("!test & !no-es & !no-redis")
 @EnableElasticsearchRepositories(basePackages = "com.insurance.aml.module.system.repository")
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 

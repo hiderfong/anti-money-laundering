@@ -6,7 +6,7 @@
 
 本机 Gitea 的 job 容器无法稳定访问以 `localhost` 生成的 artifact 上传地址，因此 `.gitea/workflows/ci.yml` 不上传 artifact，而是在日志中列出后端测试报告、前端构建产物和浏览器 E2E 截图路径。GitHub 镜像工作流仍保留 artifact 上传。
 
-Gitea job 容器是冷启动环境，Maven 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，默认重试 3 次，并在重试前清理 `.lastUpdated` 传输标记。
+Gitea job 容器是冷启动环境，Maven 首次解析依赖可能受到网络抖动影响。`.gitea/workflows/ci.yml` 使用 `scripts/ci-maven.sh` 包装 Maven 命令，默认重试 3 次，并在重试前清理 `.lastUpdated` 传输标记；单次尝试默认 900 秒超时，同时设置 Maven HTTP 连接与读取超时，避免半开连接拖满整条门禁。
 
 ## 触发方式
 
@@ -35,7 +35,7 @@ CI 中的 E2E 使用 `ubuntu-latest` runner，并通过 service container 启动
 
 运行时配置：
 
-- 后端：`dev,no-redis` profile，禁用 Kafka，连接 CI MySQL。
+- 后端：`dev,no-redis,no-es` profile，禁用 Kafka，连接 CI MySQL。
 - 前端：Vite dev server，监听 `127.0.0.1:5173`。
 - 浏览器：Playwright Chromium，默认 headless。
 - 测试数据隔离：使用 `E2E_RUN_ID=ci-${{ github.run_id }}-${{ github.run_attempt }}`。
