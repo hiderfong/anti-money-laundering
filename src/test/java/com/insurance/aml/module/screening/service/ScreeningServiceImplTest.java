@@ -173,7 +173,31 @@ class ScreeningServiceImplTest {
         // 验证
         assertNotNull(hitCount, "命中数不应为空");
         assertEquals(0L, hitCount, "无匹配时命中数应为0");
+        verify(screeningRequestMapper).insert(argThat(request ->
+                "SCR20260101002".equals(request.getRequestNo())
+                        && Long.valueOf(200L).equals(request.getCustomerId())
+                        && "REGULAR".equals(request.getScreeningType())
+                        && "MANUAL".equals(request.getRequestSource())
+        ));
         verify(screeningResultMapper, never()).insert(any(ScreeningResult.class));
+    }
+
+    @Test
+    @DisplayName("开户筛查 -> 创建请求时写入KYC来源")
+    void screenCustomer_customerOnboardSetsKycSource() {
+        when(idGenerator.generateScreeningNo()).thenReturn("SCR20260101006");
+        when(customerMapper.selectById(201L)).thenReturn(createCustomer(201L, "开户客户", "ID_201"));
+        when(watchlistCacheService.getAllActiveWatchlists()).thenReturn(Collections.emptyList());
+
+        Long hitCount = screeningService.screenCustomer(201L, "CUSTOMER_ONBOARD");
+
+        assertEquals(0L, hitCount, "无名单时命中数应为0");
+        verify(screeningRequestMapper).insert(argThat(request ->
+                "SCR20260101006".equals(request.getRequestNo())
+                        && Long.valueOf(201L).equals(request.getCustomerId())
+                        && "CUSTOMER_ONBOARD".equals(request.getScreeningType())
+                        && "KYC".equals(request.getRequestSource())
+        ));
     }
 
     /**

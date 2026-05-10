@@ -33,6 +33,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -90,6 +91,7 @@ public class ScreeningServiceImpl implements ScreeningService {
         request.setRequestNo(idGenerator.generateScreeningNo());
         request.setCustomerId(customerId);
         request.setScreeningType(screeningType);
+        request.setRequestSource(resolveRequestSource(screeningType));
         request.setStatus(ScreeningStatus.PROCESSING.getCode());
         request.setCreatedTime(LocalDateTime.now());
         screeningRequestMapper.insert(request);
@@ -361,6 +363,17 @@ public class ScreeningServiceImpl implements ScreeningService {
                 .anyMatch(w -> w.getWatchlistEntryId() != null && w.getWatchlistEntryId().equals(watchlistEntryId));
     }
 
+    private String resolveRequestSource(String screeningType) {
+        if (screeningType == null || screeningType.isBlank()) {
+            return "MANUAL";
+        }
+        return switch (screeningType.trim().toUpperCase(Locale.ROOT)) {
+            case "CUSTOMER_ONBOARD", "INFO_CHANGE" -> "KYC";
+            case "TRANSACTION" -> "MONITORING";
+            case "PERIODIC" -> "SCHEDULED";
+            default -> "MANUAL";
+        };
+    }
 
     /**
      * 将实体转换为展示VO
