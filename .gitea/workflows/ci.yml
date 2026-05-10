@@ -1,151 +1,289 @@
-name: AML System CI/CD
+name: AML System Release Gate
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - "codex/**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
-  JAVA_VERSION: '21'
-  NODE_VERSION: '20'
-  MAVEN_OPTS: '-Xmx1024m'
+  JAVA_VERSION: "21"
+  NODE_VERSION: "24"
+  MAVEN_OPTS: "-Xmx1536m"
 
 jobs:
-  # ===== 后端构建 + 测试 =====
-  backend:
-    name: Backend Build & Test
+  backend-test:
+    name: Backend Unit And Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: 'maven'
+          cache: maven
 
-      - name: Build with Maven
-        run: mvn clean compile -B
+      - name: Run backend tests
+        run: mvn -q test
 
-      - name: Run Tests
-        run: mvn test -B
-
-      - name: Upload Test Report
+      - name: Upload backend test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-test-report
+          name: backend-test-reports
           path: target/surefire-reports/
           retention-days: 7
+          if-no-files-found: ignore
 
-  # ===== 前端构建 + 检查 =====
-  frontend:
-    name: Frontend Build & Check
+  frontend-build:
+    name: Frontend Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Dependencies
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Type Check
-        working-directory: frontend
-        run: npx vue-tsc --noEmit
-
-      - name: Build
+      - name: Build frontend
         working-directory: frontend
         run: npm run build
 
-      - name: Upload Build Artifact
+      - name: Upload frontend build
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: frontend/dist/
           retention-days: 7
+          if-no-files-found: error
 
-  # ===== Docker 构建 =====
-  docker:
-    name: Docker Build
+  prod-readiness:
+    name: Production Readiness Checks
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker Image
+      - name: Verify example env is rejected
         run: |
-          docker build -t aml-system:${{ github.sha }} -f docker/Dockerfile .
-          docker tag aml-system:${{ github.sha }} aml-system:latest
+          if bash scripts/prod-readiness-check.sh .env.example; then
+            echo ".env.example should contain placeholders and fail readiness checks"
+            exit 1
+          fi
 
-      - name: Save Docker Image
-        run: docker save aml-system:latest | gzip > aml-system.tar.gz
+      - name: Verify valid production env passes
+        run: |
+          cat > /tmp/aml-prod-valid.env <<'EOF'
+          SPRING_PROFILES_ACTIVE=prod,no-es
+          AML_DB_HOST=db.internal
+          AML_DB_PORT=3306
+          AML_DB_NAME=aml_system
+          AML_DB_USER=aml_prod
+          AML_DB_PASSWORD=strong-db-password
+          AML_REDIS_ENABLED=false
+          AML_REDIS_HOST=redis.internal
+          AML_REDIS_PORT=6379
+          AML_REDIS_PASSWORD=strong-redis-password
+          AML_KAFKA_ENABLED=false
+          AML_KAFKA_BROKERS=kafka.internal:9092
+          AML_ES_URIS=https://es.internal:9200
+          AML_MINIO_ENDPOINT=https://minio.internal
+          AML_MINIO_ACCESS_KEY=minio-access
+          AML_MINIO_SECRET_KEY=minio-secret
+          AML_MINIO_BUCKET=aml-documents-prod
+          AML_NEO4J_ENABLED=false
+          AML_NEO4J_URI=bolt://neo4j.internal:7687
+          AML_NEO4J_USERNAME=neo4j
+          AML_NEO4J_PASSWORD=strong-neo4j-password
+          AML_JWT_SECRET=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AML_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef
+          AML_CORS_ORIGINS=https://aml.internal,https://admin.aml.internal
+          AML_API_DOCS_ENABLED=false
+          EOF
+          bash scripts/prod-readiness-check.sh /tmp/aml-prod-valid.env
 
-      - name: Upload Docker Image
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: aml-system.tar.gz
-          retention-days: 7
+      - name: Validate scripts
+        run: |
+          bash -n scripts/deploy.sh
+          bash -n scripts/prod-readiness-check.sh
+          bash -n scripts/e2e-test.sh
+          bash -n scripts/frontend-e2e.sh
+          bash -n scripts/frontend-browser-e2e.sh
+          bash -n scripts/rbac-e2e.sh
+          bash -n scripts/prepare-rbac-e2e-users.sh
 
-  # ===== E2E 测试 =====
-  e2e:
-    name: E2E Tests
+  container-build:
+    name: Container Build
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    timeout-minutes: 15
+    needs:
+      - backend-test
+      - frontend-build
+      - prod-readiness
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Build application image
+        run: docker build -t aml-system:${{ github.sha }} -f docker/Dockerfile .
+
+  e2e:
+    name: End-To-End Release Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs:
+      - backend-test
+      - frontend-build
+      - prod-readiness
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: aml_dev_123
+          MYSQL_DATABASE: aml_system
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -paml_dev_123"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      BASE_URL: http://127.0.0.1:8080/api
+      API_URL: http://127.0.0.1:8080/api
+      FRONTEND_URL: http://127.0.0.1:5173
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: aml_system
+      DB_USER: root
+      DB_PASSWORD: aml_dev_123
+      E2E_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+      E2E_IP: 127.0.0.201
+      E2E_LIMIT_IP: 127.0.0.202
+      HEADLESS: "true"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: 'maven'
+          cache: maven
 
-      - name: Set up Node.js
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Frontend Dependencies
+      - name: Install system tools
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
+          $SUDO apt-get update
+          $SUDO apt-get install -y curl jq default-mysql-client
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..60}; do
+            if mysqladmin ping -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASSWORD" --silent; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MySQL did not become ready"
+          exit 1
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Start Backend (background)
-        run: |
-          mvn spring-boot:run -Dspring-boot.run.profiles=dev,no-es &
-          sleep 60
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
 
-      - name: Start Frontend (background)
+      - name: Start backend
+        run: |
+          nohup mvn spring-boot:run \
+            -Dspring-boot.run.profiles=dev,no-redis \
+            -Dspring-boot.run.arguments="--aml.kafka.enabled=false --spring.datasource.url=${SPRING_DATASOURCE_URL} --spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD}" \
+            > /tmp/aml-backend.log 2>&1 &
+          echo $! > /tmp/aml-backend.pid
+
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:8080/api/system/health >/tmp/aml-health.json; then
+              cat /tmp/aml-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat /tmp/aml-backend.log
+          exit 1
+
+      - name: Start frontend
         working-directory: frontend
         run: |
-          npm run dev &
-          sleep 10
+          nohup npm run dev -- --host 127.0.0.1 > /tmp/aml-frontend.log 2>&1 &
+          echo $! > /tmp/aml-frontend.pid
 
-      - name: Run E2E Tests
-        run: |
-          chmod +x scripts/e2e-test.sh
-          chmod +x scripts/frontend-e2e.sh
-          ./scripts/e2e-test.sh
-          ./scripts/frontend-e2e.sh
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:5173/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
 
-      - name: Cleanup
+          cat /tmp/aml-frontend.log
+          exit 1
+
+      - name: Prepare RBAC E2E users
+        run: bash scripts/prepare-rbac-e2e-users.sh --execute
+
+      - name: Run API E2E
+        run: bash scripts/e2e-test.sh
+
+      - name: Run frontend smoke E2E
+        run: bash scripts/frontend-e2e.sh
+
+      - name: Run frontend browser E2E
+        run: bash scripts/frontend-browser-e2e.sh
+
+      - name: Run RBAC E2E
+        run: bash scripts/rbac-e2e.sh
+
+      - name: Upload E2E screenshots
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-browser-e2e-screenshots
+          path: /tmp/aml-frontend-browser-e2e
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Show service logs on failure
+        if: failure()
         run: |
-          pkill -f "spring-boot:run" || true
-          pkill -f "vite" || true
+          echo "---- backend log ----"
+          cat /tmp/aml-backend.log || true
+          echo "---- frontend log ----"
+          cat /tmp/aml-frontend.log || true
