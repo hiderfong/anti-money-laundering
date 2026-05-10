@@ -71,6 +71,7 @@ public class ScreeningServiceImpl implements ScreeningService {
      * 精确匹配分数
      */
     private static final BigDecimal EXACT_SCORE = BigDecimal.valueOf(100);
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 512;
 
     /**
      * 对单个客户进行制裁名单筛查
@@ -226,13 +227,13 @@ public class ScreeningServiceImpl implements ScreeningService {
         } catch (BusinessException e) {
             log.error("制裁名单筛查业务异常，customerId={}", customerId, e);
             request.setStatus(ScreeningStatus.FAILED.getCode());
-            request.setErrorMessage(e.getMessage());
+            request.setErrorMessage(truncateErrorMessage(e.getMessage()));
             screeningRequestMapper.updateById(request);
             throw e;
         } catch (Exception e) {
             log.error("制裁名单筛查异常，customerId={}", customerId, e);
             request.setStatus(ScreeningStatus.FAILED.getCode());
-            request.setErrorMessage(e.getMessage());
+            request.setErrorMessage(truncateErrorMessage(e.getMessage()));
             screeningRequestMapper.updateById(request);
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "筛查处理失败: " + e.getMessage());
         }
@@ -373,6 +374,13 @@ public class ScreeningServiceImpl implements ScreeningService {
             case "PERIODIC" -> "SCHEDULED";
             default -> "MANUAL";
         };
+    }
+
+    private String truncateErrorMessage(String message) {
+        if (message == null || message.length() <= ERROR_MESSAGE_MAX_LENGTH) {
+            return message;
+        }
+        return message.substring(0, ERROR_MESSAGE_MAX_LENGTH);
     }
 
     /**

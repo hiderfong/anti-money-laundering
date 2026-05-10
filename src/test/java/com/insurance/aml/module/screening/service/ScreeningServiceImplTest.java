@@ -200,6 +200,22 @@ class ScreeningServiceImplTest {
         ));
     }
 
+    @Test
+    @DisplayName("筛查异常 -> 失败原因按数据库字段长度截断")
+    void screenCustomer_truncatesLongFailureMessage() {
+        when(idGenerator.generateScreeningNo()).thenReturn("SCR20260101007");
+        when(customerMapper.selectById(202L)).thenReturn(createCustomer(202L, "异常客户", "ID_202"));
+        when(watchlistCacheService.getAllActiveWatchlists()).thenThrow(new RuntimeException("x".repeat(700)));
+
+        assertThrows(BusinessException.class, () -> screeningService.screenCustomer(202L, "CUSTOMER_ONBOARD"));
+
+        verify(screeningRequestMapper).updateById(argThat(request ->
+                "FAILED".equals(request.getStatus())
+                        && request.getErrorMessage() != null
+                        && request.getErrorMessage().length() == 512
+        ));
+    }
+
     /**
      * 测试名称模糊匹配
      */
