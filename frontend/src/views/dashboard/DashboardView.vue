@@ -98,10 +98,11 @@ type EChartInstance = import('echarts/core').ECharts
 const loading = ref(false)
 const charts: EChartInstance[] = []
 const resizeHandlers: (() => void)[] = []
-const trendChart = ref()
-const pieChart = ref()
+const trendChart = ref<HTMLElement | null>(null)
+const pieChart = ref<HTMLElement | null>(null)
 const recentAlerts = ref<any[]>([])
 let echartsModule: EchartsModule | null = null
+let isMounted = false
 
 const statCards = reactive([
   { title: '客户总数', value: 0, icon: 'User', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
@@ -167,6 +168,7 @@ async function getEcharts() {
 }
 
 onMounted(async () => {
+  isMounted = true
   loading.value = true
   try {
     const res: any = await request.get('/dashboard/overview')
@@ -203,10 +205,12 @@ onMounted(async () => {
 })
 
 async function initTrendChart(data: any[]) {
-  if (!trendChart.value) return
+  const container = trendChart.value
+  if (!container) return
   const echarts = await getEcharts()
+  if (!isMounted || !container.isConnected) return
   const theme = chartTheme()
-  const chart = echarts.init(trendChart.value)
+  const chart = echarts.init(container)
   charts.push(chart)
   chart.setOption({
     color: [theme.accent],
@@ -241,10 +245,12 @@ async function initTrendChart(data: any[]) {
 }
 
 async function initPieChart(data: any[]) {
-  if (!pieChart.value) return
+  const container = pieChart.value
+  if (!container) return
   const echarts = await getEcharts()
+  if (!isMounted || !container.isConnected) return
   const theme = chartTheme()
-  const chart = echarts.init(pieChart.value)
+  const chart = echarts.init(container)
   charts.push(chart)
   chart.setOption({
     color: [theme.accent, theme.muted, '#d97706', '#dc2626', '#7c3aed'],
@@ -265,6 +271,7 @@ async function initPieChart(data: any[]) {
 }
 
 onUnmounted(() => {
+  isMounted = false
   charts.forEach(c => c.dispose())
   resizeHandlers.forEach(h => window.removeEventListener('resize', h))
 })
