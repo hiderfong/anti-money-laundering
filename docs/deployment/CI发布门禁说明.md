@@ -4,6 +4,8 @@
 
 当前仓库远端为本机 Gitea，因此实际生效的主工作流文件为 `.gitea/workflows/ci.yml`。`.github/workflows/ci.yml` 保持同等配置，用于未来镜像到 GitHub 时直接复用。
 
+本机 Gitea 的 job 容器无法稳定访问以 `localhost` 生成的 artifact 上传地址，因此 `.gitea/workflows/ci.yml` 不上传 artifact，而是在日志中列出后端测试报告、前端构建产物和浏览器 E2E 截图路径。GitHub 镜像工作流仍保留 artifact 上传。
+
 ## 触发方式
 
 - 推送到 `main`
@@ -71,7 +73,7 @@ bash scripts/start-gitea-actions-runner.sh
 
 - 后端启动失败：查看 `Show service logs on failure` 中的 `/tmp/aml-backend.log`。
 - 前端启动失败：查看 `/tmp/aml-frontend.log`。
-- 浏览器 E2E 失败：下载 `frontend-browser-e2e-screenshots` artifact，结合失败步骤日志定位页面状态。
+- 浏览器 E2E 失败：在 `List E2E screenshots` 步骤日志中查看截图路径，结合失败步骤日志定位页面状态；GitHub 镜像流水线可下载 `frontend-browser-e2e-screenshots` artifact。
 - 生产配置门禁失败：确认 `.env.example` 仍保留占位符，并确认有效生产配置样例能通过 `scripts/prod-readiness-check.sh`。
 - 任务长期 `queued`：运行 `bash scripts/gitea-actions-status.sh`，确认 runner 数量不为 0 且包含 `ubuntu-latest` 标签。
 
@@ -96,4 +98,4 @@ bash scripts/rbac-e2e.sh
 - 前端构建通过。
 - 生产配置校验通过，且 `.env.example` 被正确拒绝。
 - 全量 E2E 脚本通过。
-- 浏览器截图 artifact 无异常页面状态。
+- 浏览器截图或截图路径日志无异常页面状态。

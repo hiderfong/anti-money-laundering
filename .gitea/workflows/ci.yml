@@ -35,14 +35,14 @@ jobs:
       - name: Run backend tests
         run: mvn -q test
 
-      - name: Upload backend test reports
+      - name: List backend test reports
         if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: backend-test-reports
-          path: target/surefire-reports/
-          retention-days: 7
-          if-no-files-found: ignore
+        run: |
+          if [ -d target/surefire-reports ]; then
+            find target/surefire-reports -maxdepth 1 -type f | sort
+          else
+            echo "No backend test reports found."
+          fi
 
   frontend-build:
     name: Frontend Build
@@ -65,13 +65,11 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Upload frontend build
-        uses: actions/upload-artifact@v3
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 7
-          if-no-files-found: error
+      - name: Verify frontend build output
+        run: |
+          test -d frontend/dist
+          du -sh frontend/dist
+          find frontend/dist -maxdepth 2 -type f | sort | head -n 80
 
   prod-readiness:
     name: Production Readiness Checks
@@ -260,14 +258,14 @@ jobs:
       - name: Run RBAC E2E
         run: bash scripts/rbac-e2e.sh
 
-      - name: Upload E2E screenshots
+      - name: List E2E screenshots
         if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: frontend-browser-e2e-screenshots
-          path: /tmp/aml-frontend-browser-e2e
-          retention-days: 7
-          if-no-files-found: ignore
+        run: |
+          if [ -d /tmp/aml-frontend-browser-e2e ]; then
+            find /tmp/aml-frontend-browser-e2e -maxdepth 2 -type f | sort
+          else
+            echo "No frontend browser E2E screenshots found."
+          fi
 
       - name: Show service logs on failure
         if: failure()
