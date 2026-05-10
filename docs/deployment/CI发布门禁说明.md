@@ -44,6 +44,7 @@ CI 中的 E2E 使用 `ubuntu-latest` runner，并通过 service container 启动
 运行时配置：
 
 - 后端：`dev,no-redis,no-es` profile，禁用 Kafka/Redis/Redisson，连接 CI MySQL。
+- 启动方式：Gitea E2E 先通过 `scripts/ci-maven.sh -DskipTests package` 打包，再用 `java -jar target/aml-system-1.0.0-SNAPSHOT.jar` 启动后端，避免启动期再次访问 Maven Central。
 - 前端：Vite dev server，监听 `127.0.0.1:5173`。
 - 浏览器：Playwright Chromium，默认 headless。
 - 测试数据隔离：使用 `E2E_RUN_ID=ci-${{ github.run_id }}-${{ github.run_attempt }}`。
