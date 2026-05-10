@@ -176,6 +176,7 @@ jobs:
       E2E_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
       E2E_IP: 127.0.0.201
       E2E_LIMIT_IP: 127.0.0.202
+      RBAC_E2E_IP: 127.0.0.203
       HEADLESS: "true"
       AML_REDIS_ENABLED: "false"
       AML_NEO4J_ENABLED: "false"

@@ -10,7 +10,7 @@ API_URL="${API_URL:-http://localhost:8080/api}"
 PASSWORD="${PASSWORD:-admin123}"
 E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
 E2E_PREFIX="${E2E_PREFIX:-E2E}"
-E2E_IP="${E2E_IP:-127.0.0.104}"
+E2E_IP="${RBAC_E2E_IP:-${E2E_IP:-127.0.0.104}}"
 
 PASS=0
 FAIL=0
@@ -132,6 +132,7 @@ echo "  AML RBAC E2E 验收"
 echo "=========================================="
 echo "  API_URL: $API_URL"
 echo "  E2E_RUN_ID: $E2E_RUN_ID"
+echo "  E2E_IP: $E2E_IP"
 echo ""
 
 info "1. 登录四类角色账号"
