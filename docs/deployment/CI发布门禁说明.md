@@ -65,6 +65,7 @@ bash scripts/start-gitea-actions-runner.sh
 - 启动 `gitea/act_runner` Docker 容器。
 - 构建本机预热 job 镜像 `aml-gitea-job:latest`。
 - 注册 `ubuntu-latest` 标签，供 `.gitea/workflows/ci.yml` 使用。
+- 默认重置 runner 数据卷，确保标签或 job 镜像变更能重新注册生效。
 
 如果 Gitea 不是通过 `localhost` 暴露，或 Docker 容器无法访问宿主机 Gitea，可通过环境变量覆盖：
 
@@ -73,6 +74,8 @@ GITEA_RUNNER_INSTANCE_URL=http://host.docker.internal:3333/ \
 GITEA_RUNNER_LABELS='ubuntu-latest:docker://aml-gitea-job:latest' \
 bash scripts/start-gitea-actions-runner.sh
 ```
+
+如果仅想重启 runner 且确认标签未变化，可设置 `GITEA_RUNNER_RESET_VOLUME=false` 保留原注册数据。
 
 ## 失败排查
 

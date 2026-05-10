@@ -73,6 +73,7 @@ RUNNER_NAME="${GITEA_RUNNER_NAME:-aml-local-runner}"
 JOB_IMAGE="${GITEA_RUNNER_JOB_IMAGE:-aml-gitea-job:latest}"
 JOB_IMAGE_DOCKERFILE="${GITEA_RUNNER_JOB_IMAGE_DOCKERFILE:-docker/gitea-actions-runner/Dockerfile}"
 BUILD_JOB_IMAGE="${GITEA_RUNNER_BUILD_JOB_IMAGE:-true}"
+RESET_RUNNER_VOLUME="${GITEA_RUNNER_RESET_VOLUME:-true}"
 RUNNER_LABELS="${GITEA_RUNNER_LABELS:-ubuntu-latest:docker://${JOB_IMAGE}}"
 
 token_json="$(api_get "/repos/${OWNER}/${REPO}/actions/runners/registration-token")"
@@ -90,6 +91,7 @@ echo "  Repository: ${OWNER}/${REPO}"
 echo "  Instance:   ${INSTANCE_URL}"
 echo "  Container:  ${RUNNER_CONTAINER}"
 echo "  Labels:     ${RUNNER_LABELS}"
+echo "  Reset data: ${RESET_RUNNER_VOLUME}"
 echo ""
 
 if [ "$BUILD_JOB_IMAGE" = "true" ] && [ -f "$JOB_IMAGE_DOCKERFILE" ]; then
@@ -98,11 +100,16 @@ if [ "$BUILD_JOB_IMAGE" = "true" ] && [ -f "$JOB_IMAGE_DOCKERFILE" ]; then
 fi
 
 docker pull "$RUNNER_IMAGE"
-docker volume create "$RUNNER_VOLUME" >/dev/null
 
 if docker ps -a --format '{{.Names}}' | grep -Fxq "$RUNNER_CONTAINER"; then
     docker rm -f "$RUNNER_CONTAINER" >/dev/null
 fi
+
+if [ "$RESET_RUNNER_VOLUME" = "true" ]; then
+    docker volume rm "$RUNNER_VOLUME" >/dev/null 2>&1 || true
+fi
+
+docker volume create "$RUNNER_VOLUME" >/dev/null
 
 docker run -d \
     --name "$RUNNER_CONTAINER" \
