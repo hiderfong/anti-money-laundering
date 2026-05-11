@@ -11,38 +11,59 @@
 services:
   # ---- AML Application ----
   aml-app:
+    image: ${AML_IMAGE_NAME:-aml-system}:${AML_VERSION:-latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: aml-app
     ports:
-      - "8080:8080"
+      - "${AML_APP_BIND_ADDR:-127.0.0.1}:${AML_APP_PORT:-8080}:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
-      - AML_DB_HOST=mysql
-      - AML_DB_PORT=3306
+      - AML_DB_HOST=${AML_DB_HOST:-mysql}
+      - AML_DB_PORT=${AML_DB_PORT:-3306}
       - AML_DB_NAME=${AML_DB_NAME:-aml_system}
       - AML_DB_USER=${AML_DB_USER:-root}
       - AML_DB_PASSWORD=${AML_DB_PASSWORD:?Set AML_DB_PASSWORD in .env}
+      - AML_DB_POOL_MIN_IDLE=${AML_DB_POOL_MIN_IDLE:-10}
+      - AML_DB_POOL_MAX_SIZE=${AML_DB_POOL_MAX_SIZE:-50}
       - AML_REDIS_ENABLED=${AML_REDIS_ENABLED:-true}
-      - AML_REDIS_HOST=redis
-      - AML_REDIS_PORT=6379
+      - AML_REDIS_HOST=${AML_REDIS_HOST:-redis}
+      - AML_REDIS_PORT=${AML_REDIS_PORT:-6379}
       - AML_REDIS_PASSWORD=${AML_REDIS_PASSWORD:?Set AML_REDIS_PASSWORD in .env}
+      - AML_REDIS_DATABASE=${AML_REDIS_DATABASE:-0}
       - AML_KAFKA_ENABLED=${AML_KAFKA_ENABLED:-true}
       - AML_KAFKA_BROKERS=${AML_KAFKA_BROKERS:-kafka:9092}
+      - AML_KAFKA_TOPIC=${AML_KAFKA_TOPIC:-aml-transactions}
+      - AML_KAFKA_CONSUMER_GROUP=${AML_KAFKA_CONSUMER_GROUP:-aml-consumer-group-prod}
       - AML_ES_URIS=${AML_ES_URIS:-http://elasticsearch:9200}
+      - AML_ES_USERNAME=${AML_ES_USERNAME:-}
+      - AML_ES_PASSWORD=${AML_ES_PASSWORD:-}
       - AML_NEO4J_ENABLED=${AML_NEO4J_ENABLED:-false}
+      - AML_NEO4J_URI=${AML_NEO4J_URI:-bolt://neo4j:7687}
+      - AML_NEO4J_USERNAME=${AML_NEO4J_USERNAME:-neo4j}
       - AML_NEO4J_PASSWORD=${AML_NEO4J_PASSWORD:-}
       - AML_MINIO_ENDPOINT=${AML_MINIO_ENDPOINT:-http://minio:9000}
       - AML_MINIO_ACCESS_KEY=${AML_MINIO_ACCESS_KEY:?Set AML_MINIO_ACCESS_KEY in .env}
       - AML_MINIO_SECRET_KEY=${AML_MINIO_SECRET_KEY:?Set AML_MINIO_SECRET_KEY in .env}
       - AML_MINIO_BUCKET=${AML_MINIO_BUCKET:-aml-documents-prod}
       - AML_JWT_SECRET=${AML_JWT_SECRET:?Set AML_JWT_SECRET in .env}
+      - AML_JWT_ACCESS_TOKEN_EXPIRE_MS=${AML_JWT_ACCESS_TOKEN_EXPIRE_MS:-3600000}
+      - AML_JWT_REFRESH_TOKEN_EXPIRE_MS=${AML_JWT_REFRESH_TOKEN_EXPIRE_MS:-604800000}
       - AML_ENCRYPTION_KEY=${AML_ENCRYPTION_KEY:?Set AML_ENCRYPTION_KEY in .env}
       - AML_CORS_ORIGINS=${AML_CORS_ORIGINS:?Set AML_CORS_ORIGINS in .env}
       - AML_API_DOCS_ENABLED=${AML_API_DOCS_ENABLED:-false}
+      - AML_LOG_LEVEL_ROOT=${AML_LOG_LEVEL_ROOT:-WARN}
+      - AML_LOG_LEVEL_APP=${AML_LOG_LEVEL_APP:-INFO}
+      - AML_SLOW_QUERY_THRESHOLD_MS=${AML_SLOW_QUERY_THRESHOLD_MS:-500}
     volumes:
       - aml-logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/actuator/health >/dev/null || curl -fsS http://localhost:8080/api/system/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     depends_on:
       mysql:
         condition: service_healthy
@@ -63,7 +84,7 @@ services:
     image: mysql:8.0
     container_name: aml-mysql
     ports:
-      - "3306:3306"
+      - "${AML_MYSQL_BIND_ADDR:-127.0.0.1}:${AML_MYSQL_PUBLISHED_PORT:-3306}:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=${AML_DB_PASSWORD:?Set AML_DB_PASSWORD in .env}
       - MYSQL_DATABASE=${AML_DB_NAME:-aml_system}
@@ -76,7 +97,7 @@ services:
       --collation-server=utf8mb4_unicode_ci
       --max-connections=500
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${AML_DB_PASSWORD}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -90,7 +111,7 @@ services:
     image: redis:7-alpine
     container_name: aml-redis
     ports:
-      - "6379:6379"
+      - "${AML_REDIS_BIND_ADDR:-127.0.0.1}:${AML_REDIS_PUBLISHED_PORT:-6379}:6379"
     environment:
       - AML_REDIS_PASSWORD=${AML_REDIS_PASSWORD:?Set AML_REDIS_PASSWORD in .env}
     command: redis-server --appendonly yes --requirepass ${AML_REDIS_PASSWORD:?Set AML_REDIS_PASSWORD in .env} --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -110,7 +131,7 @@ services:
     image: bitnami/kafka:3.6
     container_name: aml-kafka
     ports:
-      - "9092:9092"
+      - "${AML_KAFKA_BIND_ADDR:-127.0.0.1}:${AML_KAFKA_PUBLISHED_PORT:-9092}:9092"
     environment:
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
@@ -133,7 +154,7 @@ services:
     image: elasticsearch:8.12.0
     container_name: aml-elasticsearch
     ports:
-      - "9200:9200"
+      - "${AML_ES_BIND_ADDR:-127.0.0.1}:${AML_ES_PUBLISHED_PORT:-9200}:9200"
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -160,8 +181,8 @@ services:
     image: minio/minio
     container_name: aml-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${AML_MINIO_BIND_ADDR:-127.0.0.1}:${AML_MINIO_API_PORT:-9000}:9000"
+      - "${AML_MINIO_BIND_ADDR:-127.0.0.1}:${AML_MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
       - MINIO_ROOT_USER=${AML_MINIO_ACCESS_KEY:?Set AML_MINIO_ACCESS_KEY in .env}
       - MINIO_ROOT_PASSWORD=${AML_MINIO_SECRET_KEY:?Set AML_MINIO_SECRET_KEY in .env}

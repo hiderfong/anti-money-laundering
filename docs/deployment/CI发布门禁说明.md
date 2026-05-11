@@ -31,7 +31,7 @@ Docker 镜像构建使用 BuildKit Maven cache，不再单独执行 `dependency:
 | --- | --- | --- |
 | `backend-test` | 校验后端单元测试和集成测试 | `scripts/ci-maven.sh test` |
 | `frontend-build` | 校验前端依赖锁定和生产构建 | `scripts/ci-npm.sh ci`, `npm run build` |
-| `prod-readiness` | 防止占位符配置进入生产发布 | `scripts/prod-readiness-check.sh` |
+| `prod-readiness` | 防止占位符配置进入生产发布，并校验部署预检脚本 | `scripts/prod-readiness-check.sh`, `scripts/deploy-preflight.sh --skip-compose` |
 | `container-build` | 校验 Dockerfile 可构建应用镜像 | `docker build` |
 | `e2e` | 启动 MySQL、后端、前端并执行全量端到端回归 | `scripts/e2e-test.sh`, `scripts/frontend-e2e.sh`, `scripts/frontend-browser-e2e.sh`, `scripts/rbac-e2e.sh` |
 
@@ -91,7 +91,7 @@ bash scripts/start-gitea-actions-runner.sh
 - 后端启动失败：查看 `Show service logs on failure` 中的 `/tmp/aml-backend.log`。
 - 前端启动失败：查看 `/tmp/aml-frontend.log`。
 - 浏览器 E2E 失败：在 `List E2E screenshots` 步骤日志中查看截图路径，结合失败步骤日志定位页面状态；GitHub 镜像流水线可下载 `frontend-browser-e2e-screenshots` artifact。
-- 生产配置门禁失败：确认 `.env.example` 仍保留占位符，并确认有效生产配置样例能通过 `scripts/prod-readiness-check.sh`。
+- 生产配置门禁失败：确认 `.env.example` 仍保留占位符，并确认有效生产配置样例能通过 `scripts/prod-readiness-check.sh` 与 `scripts/deploy-preflight.sh --skip-compose`。
 - 任务长期 `queued`：运行 `bash scripts/gitea-actions-status.sh`，确认 runner 数量不为 0 且包含 `ubuntu-latest` 标签。
 
 本地复现建议按 CI 顺序执行：
@@ -101,6 +101,7 @@ bash scripts/ci-maven.sh test
 (cd frontend && bash ../scripts/ci-npm.sh ci)
 npm --prefix frontend run build
 bash scripts/prod-readiness-check.sh /path/to/prod.env
+bash scripts/deploy-preflight.sh /path/to/prod.env
 bash scripts/e2e-test.sh
 bash scripts/frontend-e2e.sh
 bash scripts/frontend-browser-e2e.sh

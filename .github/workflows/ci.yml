@@ -118,11 +118,14 @@ jobs:
           AML_CORS_ORIGINS=https://aml.internal,https://admin.aml.internal
           AML_API_DOCS_ENABLED=false
           EOF
+          chmod 600 /tmp/aml-prod-valid.env
           bash scripts/prod-readiness-check.sh /tmp/aml-prod-valid.env
+          bash scripts/deploy-preflight.sh /tmp/aml-prod-valid.env --skip-compose
 
       - name: Validate scripts
         run: |
           bash -n scripts/deploy.sh
+          bash -n scripts/deploy-preflight.sh
           bash -n scripts/prod-readiness-check.sh
           bash -n scripts/e2e-test.sh
           bash -n scripts/frontend-e2e.sh
