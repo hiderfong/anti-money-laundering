@@ -63,6 +63,23 @@
 - `scripts/prepare-rbac-e2e-users.sh --execute`
 - `scripts/rbac-e2e.sh`
 
+`End-To-End Release Gate` 会上传 artifact：
+
+```text
+e2e-release-gate-artifacts
+```
+
+artifact 内容：
+
+| 路径 | 说明 |
+|------|------|
+| `e2e-summary.md` | E2E 汇总报告 |
+| `manifest.txt` | 文件清单 |
+| `logs/*.log` | API、前端 smoke、浏览器、RBAC、后端、前端服务日志 |
+| `status/*.env` | 每个 E2E 步骤的退出码和起止时间 |
+| `screenshots/*.png` | 浏览器 E2E 截图 |
+| `health.json` | 后端健康检查响应 |
+
 ---
 
 ## 3. 当前基线
@@ -83,6 +100,7 @@
 - GitHub `main` 已可通过标准 HTTPS Git 凭据推送。
 - GitHub `main` 已包含本地完整 Git 历史，不再只是 API 上传快照。
 - GitHub Actions run `#4` 五个 job 全部通过。
+- 后续 run 会自动上传 `e2e-release-gate-artifacts`，便于审计 E2E 结果。
 - 当前仓库保持私有，因此 GitHub 免费账户下暂不能启用分支保护。
 
 ---

@@ -190,7 +190,43 @@ scripts/cleanup-e2e-data.sh --include-legacy --execute
 
 ---
 
-## 8. 常用环境变量
+## 8. CI E2E 报告归档
+
+CI 中 E2E 步骤会通过 `scripts/ci-e2e-step.sh` 包装执行，并由 `scripts/collect-e2e-artifacts.sh` 汇总报告。
+
+默认归档目录：
+
+```bash
+/tmp/aml-e2e-artifacts
+```
+
+归档内容：
+
+| 文件/目录 | 说明 |
+|-----------|------|
+| `e2e-summary.md` | 本次 E2E 汇总报告，包含 run id、commit、各步骤结果 |
+| `manifest.txt` | artifact 文件清单 |
+| `logs/*.log` | 各 E2E 脚本独立日志、后端日志、前端日志 |
+| `status/*.env` | 每个 E2E 步骤的退出码和起止时间 |
+| `screenshots/*.png` | Playwright 浏览器 E2E 截图 |
+| `health.json` | 后端健康检查响应 |
+
+GitHub Actions 会上传 artifact：
+
+```text
+e2e-release-gate-artifacts
+```
+
+本地手动收集：
+
+```bash
+E2E_ARTIFACT_DIR=/tmp/aml-e2e-artifacts \
+bash scripts/collect-e2e-artifacts.sh
+```
+
+---
+
+## 9. 常用环境变量
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -198,6 +234,8 @@ scripts/cleanup-e2e-data.sh --include-legacy --execute
 | `API_URL` | `http://localhost:8080/api` | 前端 smoke 脚本使用的 API 地址 |
 | `E2E_RUN_ID` | 当前时间戳 | 本次测试数据唯一标识 |
 | `E2E_PREFIX` | `E2E` | 测试数据业务前缀 |
+| `E2E_ARTIFACT_DIR` | `/tmp/aml-e2e-artifacts` | CI E2E 归档目录 |
+| `SCREENSHOT_DIR` | `/tmp/aml-frontend-browser-e2e` | 浏览器 E2E 截图目录 |
 | `E2E_IP` | `127.0.0.101/102` | 登录请求 IP，避免限流互相污染 |
 | `E2E_LIMIT_IP` | `127.0.0.103` | 限流专项测试 IP |
 | `DB_HOST` | `127.0.0.1` | 清理/准备脚本数据库地址 |

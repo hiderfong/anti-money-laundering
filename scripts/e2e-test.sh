@@ -104,7 +104,7 @@ TOKEN=$(echo "$RESP" | jq -r '.data.accessToken // empty' 2>/dev/null)
 if [ -z "$TOKEN" ]; then
     echo "  WARNING: 无法获取Token，后续测试将跳过认证"
 else
-    echo "  Token: ${TOKEN:0:20}..."
+    echo "  Token acquired"
 fi
 
 RESP=$(curl -sS -X POST "$BASE_URL/auth/login" \

@@ -127,6 +127,8 @@ jobs:
           bash -n scripts/e2e-test.sh
           bash -n scripts/frontend-e2e.sh
           bash -n scripts/frontend-browser-e2e.sh
+          bash -n scripts/ci-e2e-step.sh
+          bash -n scripts/collect-e2e-artifacts.sh
           bash -n scripts/rbac-e2e.sh
           bash -n scripts/prepare-rbac-e2e-users.sh
 
@@ -179,6 +181,8 @@ jobs:
       E2E_IP: 127.0.0.201
       E2E_LIMIT_IP: 127.0.0.202
       RBAC_E2E_IP: 127.0.0.203
+      E2E_ARTIFACT_DIR: /tmp/aml-e2e-artifacts
+      SCREENSHOT_DIR: /tmp/aml-frontend-browser-e2e
       HEADLESS: "true"
       AML_REDIS_ENABLED: "false"
       AML_NEO4J_ENABLED: "false"
@@ -187,6 +191,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Initialize E2E artifact directory
+        run: mkdir -p "$E2E_ARTIFACT_DIR/logs" "$E2E_ARTIFACT_DIR/status" "$E2E_ARTIFACT_DIR/screenshots"
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -263,28 +270,32 @@ jobs:
           exit 1
 
       - name: Prepare RBAC E2E users
-        run: bash scripts/prepare-rbac-e2e-users.sh --execute
+        run: bash scripts/ci-e2e-step.sh "Prepare RBAC E2E users" bash scripts/prepare-rbac-e2e-users.sh --execute
 
       - name: Run API E2E
-        run: bash scripts/e2e-test.sh
+        run: bash scripts/ci-e2e-step.sh "API E2E" bash scripts/e2e-test.sh
 
       - name: Run frontend smoke E2E
-        run: bash scripts/frontend-e2e.sh
+        run: bash scripts/ci-e2e-step.sh "Frontend smoke E2E" bash scripts/frontend-e2e.sh
 
       - name: Run frontend browser E2E
-        run: bash scripts/frontend-browser-e2e.sh
+        run: bash scripts/ci-e2e-step.sh "Frontend browser E2E" bash scripts/frontend-browser-e2e.sh
 
       - name: Run RBAC E2E
-        run: bash scripts/rbac-e2e.sh
+        run: bash scripts/ci-e2e-step.sh "RBAC E2E" bash scripts/rbac-e2e.sh
 
-      - name: Upload E2E screenshots
+      - name: Collect E2E artifacts
+        if: always()
+        run: bash scripts/collect-e2e-artifacts.sh
+
+      - name: Upload E2E artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-browser-e2e-screenshots
-          path: /tmp/aml-frontend-browser-e2e
-          retention-days: 7
-          if-no-files-found: ignore
+          name: e2e-release-gate-artifacts
+          path: /tmp/aml-e2e-artifacts
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Show service logs on failure
         if: failure()
