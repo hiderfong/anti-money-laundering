@@ -107,6 +107,33 @@ WHERE LEFT(name, LENGTH(@prefix)) = @prefix
    OR LOCATE(LOWER(@prefix), LOWER(COALESCE(email, ''))) > 0
    OR ${LEGACY_FILTER};
 
+DROP TEMPORARY TABLE IF EXISTS e2e_watchlist_source_ids;
+CREATE TEMPORARY TABLE e2e_watchlist_source_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_watchlist_source_ids
+SELECT id
+FROM t_watchlist_source
+WHERE LEFT(source_code, LENGTH(@prefix)) = @prefix
+   OR LEFT(source_name, LENGTH(@prefix)) = @prefix
+   OR created_by = CONCAT(@prefix, '-business-seed');
+
+DROP TEMPORARY TABLE IF EXISTS e2e_watchlist_ids;
+CREATE TEMPORARY TABLE e2e_watchlist_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_watchlist_ids
+SELECT id
+FROM t_watchlist
+WHERE source_id IN (SELECT id FROM e2e_watchlist_source_ids)
+   OR LEFT(COALESCE(external_id, ''), LENGTH(@prefix)) = @prefix
+   OR LEFT(name, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(remarks, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_pep_ids;
+CREATE TEMPORARY TABLE e2e_pep_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_pep_ids
+SELECT id
+FROM t_pep_list
+WHERE LEFT(pep_name, LENGTH(@prefix)) = @prefix
+   OR data_source = CONCAT(@prefix, '-business-seed');
+
 DROP TEMPORARY TABLE IF EXISTS e2e_transaction_ids;
 CREATE TEMPORARY TABLE e2e_transaction_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
 INSERT IGNORE INTO e2e_transaction_ids
@@ -168,6 +195,40 @@ FROM t_product
 WHERE LEFT(product_code, LENGTH(@prefix)) = @prefix
    OR LEFT(product_name, LENGTH(@prefix)) = @prefix;
 
+DROP TEMPORARY TABLE IF EXISTS e2e_policy_ids;
+CREATE TEMPORARY TABLE e2e_policy_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_policy_ids
+SELECT id
+FROM t_policy
+WHERE customer_id IN (SELECT id FROM e2e_customer_ids)
+   OR product_id IN (SELECT id FROM e2e_product_ids)
+   OR LEFT(policy_no, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(remark, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_rule_ids;
+CREATE TEMPORARY TABLE e2e_rule_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_rule_ids
+SELECT id
+FROM t_rule_definition
+WHERE LEFT(rule_code, LENGTH(@prefix)) = @prefix
+   OR LEFT(rule_name, LENGTH(@prefix)) = @prefix
+   OR created_by = CONCAT(@prefix, '-business-seed');
+
+DROP TEMPORARY TABLE IF EXISTS e2e_self_assessment_ids;
+CREATE TEMPORARY TABLE e2e_self_assessment_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_self_assessment_ids
+SELECT id
+FROM t_self_assessment
+WHERE LOCATE(@prefix, COALESCE(conclusion, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_indicator_ids;
+CREATE TEMPORARY TABLE e2e_indicator_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_indicator_ids
+SELECT id
+FROM t_assessment_indicator
+WHERE LEFT(indicator_code, LENGTH(@prefix)) = @prefix
+   OR LEFT(indicator_name, LENGTH(@prefix)) = @prefix;
+
 DROP TEMPORARY TABLE IF EXISTS e2e_user_ids;
 CREATE TEMPORARY TABLE e2e_user_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
 INSERT IGNORE INTO e2e_user_ids
@@ -180,16 +241,31 @@ WHERE username LIKE 'e2e\\_%' ESCAPE '\\'
 SELECT 'customers' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_customer_ids;
 SELECT 'transactions' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_transaction_ids;
 SELECT 'screening_requests' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_screening_request_ids;
+SELECT 'watchlist_sources' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_watchlist_source_ids;
+SELECT 'watchlists' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_watchlist_ids;
+SELECT 'pep_entries' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_pep_ids;
 SELECT 'alerts' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_alert_ids;
 SELECT 'cases' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_case_ids;
 SELECT 'str_reports' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_str_report_ids;
 SELECT 'large_txn_reports' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_large_report_ids;
 SELECT 'products' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_product_ids;
+SELECT 'policies' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_policy_ids;
+SELECT 'rules' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_rule_ids;
+SELECT 'self_assessments' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_self_assessment_ids;
+SELECT 'assessment_indicators' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_indicator_ids;
 SELECT 'users' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_user_ids;
 SQL
 
 read -r -d '' DELETE_SQL <<'SQL' || true
 START TRANSACTION;
+
+DELETE FROM t_notification
+WHERE user_id IN (SELECT id FROM e2e_user_ids)
+   OR (related_type = 'ALERT' AND related_id IN (SELECT CAST(id AS CHAR) FROM e2e_alert_ids))
+   OR (related_type = 'CASE' AND related_id IN (SELECT CAST(id AS CHAR) FROM e2e_case_ids))
+   OR (related_type = 'STR' AND related_id IN (SELECT CAST(id AS CHAR) FROM e2e_str_report_ids))
+   OR LEFT(title, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(content, '')) > 0;
 
 DELETE FROM t_report_submit_log
 WHERE (report_type = 'LARGE_TXN' AND report_id IN (SELECT id FROM e2e_large_report_ids))
@@ -212,13 +288,28 @@ WHERE request_id IN (SELECT id FROM e2e_screening_request_ids)
    OR customer_id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_screening_request WHERE id IN (SELECT id FROM e2e_screening_request_ids);
 DELETE FROM t_whitelist WHERE customer_id IN (SELECT id FROM e2e_customer_ids);
+DELETE FROM t_whitelist WHERE watchlist_entry_id IN (SELECT id FROM e2e_watchlist_ids);
+
+DELETE FROM t_watchlist_address WHERE watchlist_id IN (SELECT id FROM e2e_watchlist_ids);
+DELETE FROM t_watchlist_identity WHERE watchlist_id IN (SELECT id FROM e2e_watchlist_ids);
+DELETE FROM t_watchlist_alias WHERE watchlist_id IN (SELECT id FROM e2e_watchlist_ids);
+DELETE FROM t_watchlist WHERE id IN (SELECT id FROM e2e_watchlist_ids);
+DELETE FROM t_watchlist_source WHERE id IN (SELECT id FROM e2e_watchlist_source_ids);
+
+DELETE FROM t_pep_relation
+WHERE pep_list_id IN (SELECT id FROM e2e_pep_ids)
+   OR related_customer_id IN (SELECT id FROM e2e_customer_ids);
+DELETE FROM t_pep_list WHERE id IN (SELECT id FROM e2e_pep_ids);
 
 DELETE FROM t_rule_execution_log
 WHERE transaction_id IN (SELECT id FROM e2e_transaction_ids)
-   OR customer_id IN (SELECT id FROM e2e_customer_ids);
+   OR customer_id IN (SELECT id FROM e2e_customer_ids)
+   OR rule_id IN (SELECT id FROM e2e_rule_ids);
+DELETE FROM t_rule_version WHERE rule_id IN (SELECT id FROM e2e_rule_ids);
+DELETE FROM t_rule_definition WHERE id IN (SELECT id FROM e2e_rule_ids);
 DELETE FROM t_transaction_daily_summary WHERE customer_id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_transaction WHERE id IN (SELECT id FROM e2e_transaction_ids);
-DELETE FROM t_policy WHERE customer_id IN (SELECT id FROM e2e_customer_ids);
+DELETE FROM t_policy WHERE id IN (SELECT id FROM e2e_policy_ids);
 
 DELETE FROM t_customer_beneficial_owner WHERE customer_id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_verification_record WHERE customer_id IN (SELECT id FROM e2e_customer_ids);
@@ -228,7 +319,13 @@ DELETE FROM t_customer WHERE id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_product_risk_assessment WHERE product_id IN (SELECT id FROM e2e_product_ids);
 DELETE FROM t_product WHERE id IN (SELECT id FROM e2e_product_ids);
 
-DELETE FROM t_notification WHERE user_id IN (SELECT id FROM e2e_user_ids);
+DELETE FROM t_rectification_task WHERE assessment_id IN (SELECT id FROM e2e_self_assessment_ids);
+DELETE FROM t_assessment_score
+WHERE assessment_id IN (SELECT id FROM e2e_self_assessment_ids)
+   OR indicator_id IN (SELECT id FROM e2e_indicator_ids);
+DELETE FROM t_self_assessment WHERE id IN (SELECT id FROM e2e_self_assessment_ids);
+DELETE FROM t_assessment_indicator WHERE id IN (SELECT id FROM e2e_indicator_ids);
+
 DELETE FROM t_user_role WHERE user_id IN (SELECT id FROM e2e_user_ids);
 DELETE FROM t_user WHERE id IN (SELECT id FROM e2e_user_ids);
 

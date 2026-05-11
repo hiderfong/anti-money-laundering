@@ -134,6 +134,10 @@ jobs:
           bash -n scripts/collect-e2e-artifacts.sh
           bash -n scripts/rbac-e2e.sh
           bash -n scripts/prepare-rbac-e2e-users.sh
+          bash -n scripts/cleanup-e2e-data.sh
+          bash -n scripts/seed-e2e-business-data.sh
+          bash scripts/seed-e2e-business-data.sh --sql-only --run-id ci-seed-smoke > /tmp/aml-seed.sql
+          grep -q "START TRANSACTION" /tmp/aml-seed.sql
 
   container-build:
     name: Container Build

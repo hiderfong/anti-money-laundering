@@ -77,6 +77,41 @@ bash scripts/e2e-test.sh
 - 交易流水：`E2E_TXN_${E2E_RUN_ID}_001`
 - 邮箱：`e2e_${E2E_RUN_ID}@test.local`
 
+## 3.1 准备业务闭环种子数据
+
+完整业务流、页面验收或外部 Agent 测试前，建议额外写入测试专用业务数据。该数据覆盖客户、名单筛查、交易监测、预警、案件、报送、自评估和整改通知，并可被清理脚本统一回收。
+
+先 dry-run 预览：
+
+```bash
+export E2E_RUN_ID=$(date +%Y%m%d%H%M%S)
+bash scripts/seed-e2e-business-data.sh --run-id "$E2E_RUN_ID"
+```
+
+确认无误后写入测试库：
+
+```bash
+DB_HOST=127.0.0.1 \
+DB_PORT=3306 \
+DB_NAME=aml_system \
+DB_USER=root \
+DB_PASSWORD=aml_dev_123 \
+bash scripts/seed-e2e-business-data.sh --execute --run-id "$E2E_RUN_ID"
+```
+
+写入后验证：
+
+```bash
+DB_HOST=127.0.0.1 \
+DB_PORT=3306 \
+DB_NAME=aml_system \
+DB_USER=root \
+DB_PASSWORD=aml_dev_123 \
+bash scripts/seed-e2e-business-data.sh --verify --run-id "$E2E_RUN_ID"
+```
+
+无法在沙箱内连接 MySQL 时，可使用 `--sql-only` 导出 SQL 后交给外部 Agent 执行。详细步骤见 [E2E业务数据种子脚本使用指南](./E2E业务数据种子脚本使用指南.md)。
+
 ---
 
 ## 4. 运行前端 smoke E2E
