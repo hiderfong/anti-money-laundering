@@ -1,0 +1,4 @@
+/* Reset only — theme is in theme-linear.css */
+*, *::before, *::after {
+  box-sizing: border-box;
+}

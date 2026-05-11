@@ -1,0 +1,209 @@
+package com.insurance.aml.rules;
+
+import com.insurance.aml.module.monitoring.model.entity.TransactionEvaluationContext;
+import com.insurance.aml.module.monitoring.model.entity.DroolsRuleResult;
+import java.math.BigDecimal;
+
+// ====================================================================
+// 反洗钱可疑交易规则 - Drools规则文件
+// 规则来源: 《金融机构大额交易和可疑交易报告管理办法》
+// ====================================================================
+
+// --------------------------------------------------------------------
+// 规则1: 大额现金交易规则
+// 触发条件: 现金交易金额 >= 5万元人民币
+// 法规依据: 人民币单笔现金交易5万元以上需报告
+// --------------------------------------------------------------------
+rule "DROOLS_LARGE_CASH_TRANSACTION"
+    salience 100
+    when
+        $ctx : TransactionEvaluationContext(
+            amount != null,
+            amount >= 50000,
+            paymentMethod == "CASH"
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_LARGE_CASH_TRANSACTION",
+            "大额现金交易",
+            BigDecimal.valueOf(80),
+            String.format("现金交易金额 %s 元 >= 50000元阈值, 交易流水: %s",
+                $ctx.getAmount().toPlainString(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则2: 大额转账交易规则
+// 触发条件: 非现金交易金额 >= 200万元人民币
+// 法规依据: 人民币单笔转账交易200万元以上需报告
+// --------------------------------------------------------------------
+rule "DROOLS_LARGE_TRANSFER_TRANSACTION"
+    salience 95
+    when
+        $ctx : TransactionEvaluationContext(
+            amount != null,
+            amount >= 2000000,
+            paymentMethod != "CASH"
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_LARGE_TRANSFER_TRANSACTION",
+            "大额转账交易",
+            BigDecimal.valueOf(70),
+            String.format("转账交易金额 %s 元 >= 2000000元阈值, 交易流水: %s",
+                $ctx.getAmount().toPlainString(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则3: 跨境大额交易规则
+// 触发条件: 跨境交易金额 >= 20万元人民币
+// 法规依据: 跨境交易20万元以上需报告
+// --------------------------------------------------------------------
+rule "DROOLS_CROSS_BORDER_TRANSACTION"
+    salience 90
+    when
+        $ctx : TransactionEvaluationContext(
+            amount != null,
+            amount >= 200000,
+            isCrossBorder == true
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_CROSS_BORDER_TRANSACTION",
+            "跨境大额交易",
+            BigDecimal.valueOf(90),
+            String.format("跨境交易金额 %s 元 >= 200000元阈值, 币种: %s, 交易流水: %s",
+                $ctx.getAmount().toPlainString(), $ctx.getCurrency(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则4: 高频交易规则
+// 触发条件: 120秒内同一客户交易 >= 10笔
+// 说明: recentTransactionCount由服务层从数据库统计后注入
+// --------------------------------------------------------------------
+rule "DROOLS_HIGH_FREQUENCY_TRANSACTION"
+    salience 85
+    when
+        $ctx : TransactionEvaluationContext(
+            recentTransactionCount >= 10
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_HIGH_FREQUENCY_TRANSACTION",
+            "高频交易",
+            BigDecimal.valueOf(85),
+            String.format("客户在 %d 秒内交易 %d 笔 >= 10笔阈值, 客户ID: %s, 交易流水: %s",
+                $ctx.getRecentTimeWindowSeconds(), $ctx.getRecentTransactionCount(),
+                $ctx.getCustomerId(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则5: 外币大额现金交易规则
+// 触发条件: 外币现金交易折合 >= 1万美元
+// 法规依据: 外币等值1万美元以上现金交易需报告
+// 简化处理: 按1:7汇率估算，即7万人民币以上外币现金
+// --------------------------------------------------------------------
+rule "DROOLS_LARGE_FOREX_CASH"
+    salience 88
+    when
+        $ctx : TransactionEvaluationContext(
+            amount != null,
+            amount >= 70000,
+            paymentMethod == "CASH",
+            currency != "CNY"
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_LARGE_FOREX_CASH",
+            "外币大额现金交易",
+            BigDecimal.valueOf(90),
+            String.format("外币现金交易金额 %s %s (折合 >= 1万美元), 交易流水: %s",
+                $ctx.getAmount().toPlainString(), $ctx.getCurrency(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则6: 大额退保交易规则
+// 触发条件: 退保金额 >= 50万元
+// 说明: 大额退保可能涉及洗钱，需重点监控
+// --------------------------------------------------------------------
+rule "DROOLS_LARGE_SURRENDER"
+    salience 82
+    when
+        $ctx : TransactionEvaluationContext(
+            amount != null,
+            amount >= 500000,
+            transactionType == "SURRENDER"
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_LARGE_SURRENDER",
+            "大额退保交易",
+            BigDecimal.valueOf(75),
+            String.format("退保金额 %s 元 >= 500000元阈值, 交易流水: %s",
+                $ctx.getAmount().toPlainString(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则7: 大额理赔交易规则
+// 触发条件: 理赔金额 >= 100万元
+// 说明: 大额理赔可能存在虚构保险事故洗钱
+// --------------------------------------------------------------------
+rule "DROOLS_LARGE_CLAIM"
+    salience 80
+    when
+        $ctx : TransactionEvaluationContext(
+            amount != null,
+            amount >= 1000000,
+            transactionType == "CLAIM"
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_LARGE_CLAIM",
+            "大额理赔交易",
+            BigDecimal.valueOf(70),
+            String.format("理赔金额 %s 元 >= 1000000元阈值, 交易流水: %s",
+                $ctx.getAmount().toPlainString(), $ctx.getTransactionNo())
+        );
+        update($result);
+end
+
+// --------------------------------------------------------------------
+// 规则8: 当日累计大额交易规则
+// 触发条件: 当日累计交易金额 >= 100万元
+// --------------------------------------------------------------------
+rule "DROOLS_DAILY_CUMULATIVE_LARGE"
+    salience 75
+    when
+        $ctx : TransactionEvaluationContext(
+            dailyCumulativeAmount >= 1000000
+        )
+        $result : DroolsRuleResult()
+    then
+        $result.addMatch(
+            "DROOLS_DAILY_CUMULATIVE_LARGE",
+            "当日累计大额交易",
+            BigDecimal.valueOf(65),
+            String.format("当日累计交易金额 %s 元 >= 1000000元阈值, 当日交易 %d 笔, 客户ID: %s",
+                $ctx.getDailyCumulativeAmount().toPlainString(),
+                $ctx.getDailyTransactionCount(), $ctx.getCustomerId())
+        );
+        update($result);
+end

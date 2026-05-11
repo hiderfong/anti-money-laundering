@@ -1,0 +1,74 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+  datasource:
+    url: jdbc:h2:mem:aml_test;DB_CLOSE_DELAY=-1;MODE=MYSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: false
+
+# 禁用外部服务
+spring.elasticsearch.enabled: false
+spring.data.elasticsearch.enabled: false
+spring.data.elasticsearch.repositories.enabled: false
+spring.data.neo4j.enabled: false
+spring.neo4j.enabled: false
+spring.data.neo4j.repositories.enabled: false
+spring.data.redis.enabled: false
+
+# 排除自动配置
+spring.autoconfigure.exclude: \
+  org.springframework.boot.autoconfigure.data.neo4j.Neo4jDataAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.neo4j.Neo4jRepositoriesAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.neo4j.Neo4jReactiveDataAutoConfiguration,\
+  org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration,\
+  org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration,\
+  org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration,\
+  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: ASSIGN_ID
+
+jwt:
+  secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMjAyNA==
+  access-token-expire: 7200000
+  refresh-token-expire: 604800000
+
+encryption:
+  key: TestEncryptKey2024DevEnv!
+
+aml:
+  neo4j:
+    enabled: false
+  kafka:
+    enabled: false
+  redis:
+    enabled: false
+  es:
+    enabled: false
+
+logging:
+  level:
+    com.insurance.aml: DEBUG

@@ -1,0 +1,80 @@
+# 集成测试配置 - 使用嵌入式数据库，Mock外部依赖
+server:
+  port: 8081
+
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:aml_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=FALSE;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  flyway:
+    enabled: false
+  # 禁用不需要的自动配置
+  data:
+    elasticsearch:
+      repositories:
+        enabled: false
+    neo4j:
+      repositories:
+        enabled: false
+    redis:
+      host: localhost
+      port: 6379
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ReactiveElasticsearchClientAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.springframework.boot.autoconfigure.data.neo4j.Neo4jAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.neo4j.Neo4jDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.neo4j.Neo4jReactiveDataAutoConfiguration
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# JWT配置
+jwt:
+  secret: QW1sU3lzdGVtMjAyNFRlc3RKd3RTZWNyZXRLZXlGb3JJbnRlZ3JhdGlvblRlc3Rpbmc=
+  access-token-expire: 7200000      # 2小时 (毫秒)
+  refresh-token-expire: 604800
+
+# 加密配置
+encryption:
+  key: test-aes-256-encryption-key-dev
+
+# AML配置
+aml:
+  neo4j:
+    enabled: false
+  screening:
+    match-threshold: 85
+  minio:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket-name: aml-test
+
+logging:
+  level:
+    root: INFO
+    com.insurance.aml: DEBUG
+    org.springframework.security: WARN
