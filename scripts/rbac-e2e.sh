@@ -11,6 +11,10 @@ PASSWORD="${PASSWORD:-admin123}"
 E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
 E2E_PREFIX="${E2E_PREFIX:-E2E}"
 E2E_IP="${RBAC_E2E_IP:-${E2E_IP:-127.0.0.104}}"
+E2E_CODE_ID="$(printf "%s" "$E2E_RUN_ID" | tr -cd '[:alnum:]' | cut -c1-14)"
+if [ -z "$E2E_CODE_ID" ]; then
+    E2E_CODE_ID="$(date +%m%d%H%M%S)"
+fi
 
 PASS=0
 FAIL=0
@@ -188,7 +192,7 @@ JSON
 
 PRODUCT_BODY=$(cat <<JSON
 {
-  "productCode": "${E2E_PREFIX}_RBAC_PRODUCT_${E2E_RUN_ID}",
+  "productCode": "${E2E_PREFIX}_RP_${E2E_CODE_ID}",
   "productName": "${E2E_PREFIX}RBAC产品_${E2E_RUN_ID}",
   "productType": "LIFE"
 }
