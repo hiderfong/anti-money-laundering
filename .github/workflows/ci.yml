@@ -159,6 +159,8 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: aml_dev_123
           MYSQL_DATABASE: aml_system
+        ports:
+          - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -paml_dev_123"
           --health-interval=10s
@@ -168,7 +170,7 @@ jobs:
       BASE_URL: http://127.0.0.1:8080/api
       API_URL: http://127.0.0.1:8080/api
       FRONTEND_URL: http://127.0.0.1:5173
-      DB_HOST: mysql
+      DB_HOST: 127.0.0.1
       DB_PORT: "3306"
       DB_NAME: aml_system
       DB_USER: root
@@ -181,7 +183,7 @@ jobs:
       AML_REDIS_ENABLED: "false"
       AML_NEO4J_ENABLED: "false"
       SPRING_AUTOCONFIGURE_EXCLUDE: org.redisson.spring.starter.RedissonAutoConfigurationV2,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration,org.springframework.boot.autoconfigure.data.neo4j.Neo4jDataAutoConfiguration,org.springframework.boot.autoconfigure.data.neo4j.Neo4jRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.neo4j.Neo4jReactiveDataAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchAutoConfiguration,org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration,org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration,org.springframework.boot.autoconfigure.elasticsearch.ReactiveElasticsearchClientAutoConfiguration
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
