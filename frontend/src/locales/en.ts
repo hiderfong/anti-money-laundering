@@ -1,6 +1,6 @@
 export default {
   common: {
-    appName: 'AML Management System',
+    appName: 'AstraNexus AML Platform',
     login: 'Login',
     logout: 'Logout',
     username: 'Username',
@@ -49,8 +49,8 @@ export default {
     notifications: 'Notifications',
   },
   login: {
-    title: 'AML Management System',
-    subtitle: 'Insurance Industry AML Compliance Platform',
+    title: 'AstraNexus AML Platform',
+    subtitle: 'Intelligent AML Risk Control for Insurance',
     usernamePlaceholder: 'Enter username',
     passwordPlaceholder: 'Enter password',
     loginButton: 'Login',

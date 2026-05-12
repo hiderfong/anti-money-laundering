@@ -3,8 +3,8 @@
     <!-- 侧边栏 -->
     <el-aside :width="effectiveCollapse ? '64px' : '220px'" class="aside">
       <div class="logo">
-        <div class="logo-icon">A</div>
-        <span v-show="!effectiveCollapse" class="logo-text">反洗钱系统</span>
+        <div class="logo-icon">盾</div>
+        <span v-show="!effectiveCollapse" class="logo-text">天枢智盾 AML</span>
       </div>
       <el-menu
         :default-active="currentRoute"

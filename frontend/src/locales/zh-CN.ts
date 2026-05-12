@@ -1,6 +1,6 @@
 export default {
   common: {
-    appName: '反洗钱管理系统',
+    appName: '天枢智盾 AML 风控平台',
     login: '登录',
     logout: '退出登录',
     username: '用户名',
@@ -49,8 +49,8 @@ export default {
     notifications: '通知管理',
   },
   login: {
-    title: '反洗钱管理系统',
-    subtitle: '保险行业反洗钱合规平台',
+    title: '天枢智盾 AML 风控平台',
+    subtitle: '保险行业智能反洗钱风控平台',
     usernamePlaceholder: '请输入用户名',
     passwordPlaceholder: '请输入密码',
     loginButton: '登 录',

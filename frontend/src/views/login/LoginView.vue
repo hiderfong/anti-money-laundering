@@ -6,10 +6,10 @@
     <div class="login-card">
       <div class="login-header">
         <div class="login-logo">
-          <div class="logo-icon">A</div>
+          <div class="logo-icon">盾</div>
         </div>
-        <h1>反洗钱管理系统</h1>
-        <p>Anti-Money Laundering System</p>
+        <h1>天枢智盾 AML 风控平台</h1>
+        <p>AstraNexus AML Platform</p>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleLogin">
         <el-form-item prop="username">
