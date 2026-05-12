@@ -133,6 +133,10 @@ function normalizePieData(data: any[]) {
   }))
 }
 
+function toNumber(value: unknown) {
+  return Number(value ?? 0)
+}
+
 function cssVar(name: string, fallback: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 }
@@ -173,11 +177,12 @@ onMounted(async () => {
   try {
     const res: any = await request.get('/dashboard/overview')
     const data = res.data || {}
+    const activeAlerts = toNumber(data.activeAlerts ?? (toNumber(data.newAlerts) + toNumber(data.processingAlerts)))
     const valuesByTitle: Record<string, number> = {
-      客户总数: data.totalCustomers || 0,
-      活跃预警: data.activeAlerts || 0,
-      进行中案件: data.openCases || 0,
-      待报送报告: data.pendingReports || 0
+      客户总数: toNumber(data.totalCustomers),
+      活跃预警: activeAlerts,
+      进行中案件: toNumber(data.openCases),
+      待报送报告: toNumber(data.pendingReports)
     }
     statCards.forEach((card) => {
       card.value = valuesByTitle[card.title] ?? 0

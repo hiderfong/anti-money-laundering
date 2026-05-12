@@ -10,18 +10,27 @@ const request: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-function normalizePageTotal(payload: any) {
-  const total = payload?.data?.total
+function normalizeNumericTotal(container: any) {
+  const total = container?.total
   if (typeof total === 'string' && /^\d+$/.test(total)) {
     return {
-      ...payload,
-      data: {
-        ...payload.data,
-        total: Number(total)
-      }
+      ...container,
+      total: Number(total)
     }
   }
-  return payload
+  return container
+}
+
+function normalizePageTotal(payload: any) {
+  const normalizedPayload = normalizeNumericTotal(payload)
+  const normalizedData = normalizeNumericTotal(normalizedPayload?.data)
+  if (normalizedData !== normalizedPayload?.data) {
+    return {
+      ...normalizedPayload,
+      data: normalizedData
+    }
+  }
+  return normalizedPayload
 }
 
 // ========== Token 刷新机制 ==========

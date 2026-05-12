@@ -309,11 +309,9 @@ export interface BatchProcessParams {
 }
 
 export interface AlertStatistics {
-  total: number
-  byLevel: Record<string, number>
-  byStatus: Record<string, number>
-  byType: Record<string, number>
-  avgProcessingTime: number
+  countByStatus: Record<string, number | string>
+  countByRiskLevel: Record<string, number | string>
+  totalCount: number | string
 }
 
 // ===================== 案件管理模块 =====================

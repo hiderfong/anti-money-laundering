@@ -4,6 +4,32 @@
 -- 描述：补齐 t_watchlist 与 BaseEntity 对齐所需的审计字段
 -- ============================================================================
 
-ALTER TABLE `t_watchlist`
-  ADD COLUMN `created_by` VARCHAR(64) DEFAULT NULL COMMENT '创建人' AFTER `status`,
-  ADD COLUMN `updated_by` VARCHAR(64) DEFAULT NULL COMMENT '更新人' AFTER `created_time`;
+SET @ddl := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `t_watchlist` ADD COLUMN `created_by` VARCHAR(64) DEFAULT NULL COMMENT ''创建人'' AFTER `status`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 't_watchlist'
+    AND COLUMN_NAME = 'created_by'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl := (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE `t_watchlist` ADD COLUMN `updated_by` VARCHAR(64) DEFAULT NULL COMMENT ''更新人'' AFTER `created_time`',
+    'SELECT 1'
+  )
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 't_watchlist'
+    AND COLUMN_NAME = 'updated_by'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

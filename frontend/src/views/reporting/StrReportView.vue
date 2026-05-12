@@ -20,19 +20,19 @@
 
       <!-- 报告列表 -->
       <el-table :data="reports" stripe v-loading="loading" border>
-        <el-table-column prop="reportNo" label="报告编号" width="180" />
-        <el-table-column prop="caseId" label="关联案件ID" width="120" />
-        <el-table-column prop="reportType" label="报告类型" width="120" />
-        <el-table-column prop="reportContent" label="报告内容" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="reportStatus" label="状态" width="120">
+        <el-table-column prop="reportNo" label="报告编号" width="155" show-overflow-tooltip />
+        <el-table-column prop="caseId" label="关联案件ID" width="95" />
+        <el-table-column prop="reportType" label="报告类型" width="95" />
+        <el-table-column prop="reportContent" label="报告内容" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="reportStatus" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.reportStatus)" size="small">
               {{ statusLabel(row.reportStatus) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="170" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column prop="createdTime" label="创建时间" width="155" show-overflow-tooltip />
+        <el-table-column label="操作" width="170">
           <template #default="{ row }">
             <el-button size="small" @click="openDetail(row)">详情</el-button>
             <el-button v-if="row.reportStatus === 'DRAFT'" type="primary" size="small" @click="submitReview(row)">提交审核</el-button>

@@ -374,6 +374,10 @@ function alertRiskScore(alert: Partial<AlertItem>) {
   return alert.riskScore ?? 0
 }
 
+function countFrom(map: Record<string, unknown> | undefined, key: string) {
+  return Number(map?.[key] ?? 0)
+}
+
 function riskLevelTagType(level: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
   const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
     LOW: 'success',
@@ -421,11 +425,15 @@ async function loadStatistics() {
   try {
     const res: any = await request.get('/alerts/statistics')
     if (res.data) {
+      const status = res.data.countByStatus || {}
+      const riskLevel = res.data.countByRiskLevel || {}
       statistics.value = {
-        total: res.data.total ?? 0,
-        highRisk: res.data.highRisk ?? 0,
-        processing: res.data.processing ?? 0,
-        completed: res.data.completed ?? 0
+        total: Number(res.data.total ?? res.data.totalCount ?? 0),
+        highRisk: Number(res.data.highRisk ?? (countFrom(riskLevel, 'HIGH') + countFrom(riskLevel, 'CRITICAL'))),
+        processing: Number(res.data.processing ?? (
+          countFrom(status, 'ASSIGNED') + countFrom(status, 'PROCESSING') + countFrom(status, 'ESCALATED')
+        )),
+        completed: Number(res.data.completed ?? (countFrom(status, 'CONFIRMED') + countFrom(status, 'EXCLUDED')))
       }
     }
   } catch (e) {
