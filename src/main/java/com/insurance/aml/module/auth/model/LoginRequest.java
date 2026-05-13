@@ -16,6 +16,6 @@ public class LoginRequest {
     private String username;
 
     @NotBlank(message = "密码不能为空")
-    @Schema(description = "密码", example = "admin123", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "密码", example = "Aml@Admin#2026!", requiredMode = Schema.RequiredMode.REQUIRED)
     private String password;
 }

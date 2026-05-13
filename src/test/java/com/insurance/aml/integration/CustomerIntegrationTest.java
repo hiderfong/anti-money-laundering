@@ -30,7 +30,7 @@ public class CustomerIntegrationTest extends BaseIntegrationTest {
      * 辅助方法：登录获取token
      */
     private String getAuthToken() throws Exception {
-        String loginJson = "{\"username\":\"admin\",\"password\":\"admin123\"}";
+        String loginJson = "{\"username\":\"admin\",\"password\":\"Aml@Admin#2026!\"}";
         MvcResult loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson))

@@ -13,7 +13,7 @@ DB_USER="${DB_USER:-root}"
 DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
 E2E_PREFIX="${E2E_PREFIX:-E2E}"
 E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
-E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-admin123}"
+E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-Aml@Admin#2026!}"
 E2E_PASSWORD_HASH="${E2E_PASSWORD_HASH:-\$2a\$10\$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq}"
 EXECUTE=false
 VERIFY=false
@@ -47,7 +47,7 @@ Environment:
   DB_NAME            Default aml_system
   DB_USER            Default root
   DB_PASSWORD        Default aml_dev_123
-  E2E_PASSWORD_HASH  BCrypt hash for E2E users, default is admin123
+  E2E_PASSWORD_HASH  BCrypt hash for E2E users, default is Aml@Admin#2026!
 
 Cleanup:
   scripts/cleanup-e2e-data.sh --prefix E2E --execute

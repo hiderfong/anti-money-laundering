@@ -332,8 +332,8 @@ CREATE TABLE IF NOT EXISTS t_transaction_daily_summary (
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 插入测试数据，admin 密码为 admin123
-INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$gB.iIRe7eBfofg3Rr0WEueBAXTfb15soivme81yo97qIRd/Ekn.oC', '系统管理员', 'ENABLED');
+-- 插入测试数据，admin 密码为 Aml@Admin#2026!
+INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$hkuD3dv56eEnxliOSY7T9eBDl.wvaFZATZEkd4h/MU50LAjoXu80a', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
 INSERT INTO t_user_role (user_id, role_id) VALUES (1, 1);
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (1, 'system:view', '系统管理查看', 'API', '/system', 1, 'ENABLED');

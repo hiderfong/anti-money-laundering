@@ -53,7 +53,7 @@ class UserServiceImplTest {
 
         UserCreateRequest request = new UserCreateRequest();
         request.setUsername("e2e_created_user");
-        request.setPassword("admin123");
+        request.setPassword("Aml@Admin#2026!");
         request.setRealName("E2E创建用户");
         request.setEmail("e2e_created_user@test.local");
 
@@ -66,6 +66,6 @@ class UserServiceImplTest {
         assertEquals("ENABLED", inserted.getStatus());
         assertEquals("ENABLED", result.getStatus());
         assertEquals("e2e_created_user", result.getUsername());
-        assertNotEquals("admin123", inserted.getPasswordHash(), "密码必须以 BCrypt 哈希存储");
+        assertNotEquals("Aml@Admin#2026!", inserted.getPasswordHash(), "密码必须以 BCrypt 哈希存储");
     }
 }

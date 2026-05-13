@@ -87,7 +87,7 @@ LOGIN_RESP=$(curl -s -X POST "$API_URL/auth/login" \
     -H "Content-Type: application/json" \
     -H "X-Forwarded-For: $E2E_IP" \
     -H "X-E2E-Run-Id: $E2E_RUN_ID" \
-    -d '{"username":"admin","password":"admin123"}' 2>/dev/null || echo "")
+    -d '{"username":"admin","password":"Aml@Admin#2026!"}' 2>/dev/null || echo "")
 if echo "$LOGIN_RESP" | grep -q '"accessToken"'; then
     pass "登录 API 返回 accessToken"
     TOKEN=$(echo "$LOGIN_RESP" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)

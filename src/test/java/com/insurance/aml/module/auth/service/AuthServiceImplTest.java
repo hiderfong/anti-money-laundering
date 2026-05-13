@@ -78,7 +78,7 @@ class AuthServiceImplTest {
 
         loginRequest = new LoginRequest();
         loginRequest.setUsername("admin");
-        loginRequest.setPassword("admin123");
+        loginRequest.setPassword("Aml@Admin#2026!");
 
         authentication = mock(Authentication.class);
         when(authentication.getPrincipal()).thenReturn(testUserDetails);

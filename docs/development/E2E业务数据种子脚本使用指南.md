@@ -146,7 +146,7 @@ bash scripts/seed-e2e-business-data.sh --verify --run-id "$E2E_RUN_ID"
 
 ```text
 用户名：admin
-密码：admin123
+密码：Aml@Admin#2026!
 ```
 
 重点检查页面：
@@ -166,7 +166,7 @@ bash scripts/seed-e2e-business-data.sh --verify --run-id "$E2E_RUN_ID"
 ```bash
 TOKEN=$(curl -sS -X POST http://127.0.0.1:8080/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}' | jq -r '.data.accessToken')
+  -d '{"username":"admin","password":"Aml@Admin#2026!"}' | jq -r '.data.accessToken')
 
 curl -sS "http://127.0.0.1:8080/api/kyc/customers/page?page=1&size=10&keyword=E2E" \
   -H "Authorization: Bearer $TOKEN" | jq .

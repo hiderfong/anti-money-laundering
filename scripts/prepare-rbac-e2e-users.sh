@@ -11,7 +11,7 @@ DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-aml_system}"
 DB_USER="${DB_USER:-root}"
 DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
-E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-admin123}"
+E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-Aml@Admin#2026!}"
 E2E_PASSWORD_HASH="${E2E_PASSWORD_HASH:-\$2a\$10\$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq}"
 EXECUTE=false
 
@@ -27,7 +27,7 @@ Creates or updates these local E2E users:
   e2e_viewer        -> ROLE_VIEWER
 
 Default password:
-  admin123
+  Aml@Admin#2026!
 
 Options:
   --execute          实际写入数据库；不传时只输出 dry-run 检查。
@@ -39,7 +39,7 @@ Environment:
   DB_NAME            默认 aml_system
   DB_USER            默认 root
   DB_PASSWORD        默认 aml_dev_123
-  E2E_PASSWORD_HASH  默认 admin123 的 BCrypt hash；若改密码需同步传入 hash。
+  E2E_PASSWORD_HASH  默认 Aml@Admin#2026! 的 BCrypt hash；若改密码需同步传入 hash。
 EOF
 }
 

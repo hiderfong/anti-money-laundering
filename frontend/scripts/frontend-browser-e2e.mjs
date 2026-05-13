@@ -4,7 +4,7 @@ import path from 'node:path'
 
 const frontendUrl = process.env.FRONTEND_URL || process.env.BASE_URL || 'http://127.0.0.1:5173'
 const username = process.env.E2E_USERNAME || 'admin'
-const password = process.env.E2E_PASSWORD || 'admin123'
+const password = process.env.E2E_PASSWORD || 'Aml@Admin#2026!'
 const runId = process.env.E2E_RUN_ID || new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
 const screenshotDir = process.env.SCREENSHOT_DIR || path.join('/tmp', 'aml-frontend-browser-e2e')
 const headless = process.env.HEADLESS !== 'false'

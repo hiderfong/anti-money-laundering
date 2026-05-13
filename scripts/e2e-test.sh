@@ -97,7 +97,7 @@ RESP=$(curl -sS -X POST "$BASE_URL/auth/login" \
     -H "Content-Type: application/json" \
     -H "X-Forwarded-For: $E2E_IP" \
     -H "X-E2E-Run-Id: $E2E_RUN_ID" \
-    -d '{"username":"admin","password":"admin123"}')
+    -d '{"username":"admin","password":"Aml@Admin#2026!"}')
 check "登录成功" '"code":200' "$RESP"
 TOKEN=$(echo "$RESP" | jq -r '.data.accessToken // empty' 2>/dev/null)
 
