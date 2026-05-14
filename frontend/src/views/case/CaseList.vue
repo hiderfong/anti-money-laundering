@@ -542,17 +542,20 @@ onMounted(loadData)
   padding-bottom: 2px;
 }
 
-/* 操作按钮文字颜色统一为详情按钮的primary蓝色 */
+/* 操作按钮文字颜色统一为白色 */
+:deep(.el-table .el-button--primary.is-link) {
+  color: #fff !important;
+}
 :deep(.el-table .el-button--warning.is-link) {
-  color: var(--el-color-primary) !important;
+  color: #fff !important;
 }
 :deep(.el-table .el-button--danger.is-link) {
-  color: var(--el-color-primary) !important;
+  color: #fff !important;
 }
 :deep(.el-table .el-button--success.is-link) {
-  color: var(--el-color-primary) !important;
+  color: #fff !important;
 }
 :deep(.el-table .el-button--info.is-link) {
-  color: var(--el-color-primary) !important;
+  color: #fff !important;
 }
 </style>
