@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
-    <el-aside :width="effectiveCollapse ? '64px' : '220px'" class="aside">
+    <el-aside :width="effectiveCollapse ? '81px' : '220px'" class="aside">
       <div class="logo">
         <div class="logo-icon">盾</div>
         <span v-show="!effectiveCollapse" class="logo-text">天枢智盾 AML</span>
@@ -152,7 +152,10 @@ onBeforeUnmount(() => {
   background: var(--sidebar-bg);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   transition: width 0.2s ease;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
 }
 
 .logo {
@@ -188,12 +191,36 @@ onBeforeUnmount(() => {
 }
 
 .aside :deep(.el-menu) {
-  padding-top: 8px;
+  --el-menu-item-height: 53px;
+  --el-menu-item-font-size: 18px;
+  --el-menu-icon-width: 31px;
+  padding-top: 10px;
 }
 
 .aside :deep(.el-menu-item) {
-  height: 42px;
-  line-height: 42px;
+  height: 53px;
+  line-height: 53px;
+  margin: 3px 9px;
+  padding: 0 16px !important;
+  font-size: 18px !important;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.aside :deep(.el-menu-item .el-icon) {
+  width: 23px !important;
+  margin-right: 6px !important;
+  font-size: 23px !important;
+}
+
+.aside :deep(.el-menu--collapse .el-menu-item) {
+  justify-content: center;
+  padding: 0 !important;
+  margin: 3px 11px;
+}
+
+.aside :deep(.el-menu--collapse .el-menu-item .el-icon) {
+  margin-right: 0 !important;
 }
 
 .header {
