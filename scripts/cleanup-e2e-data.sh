@@ -95,6 +95,8 @@ if [ -n "$DB_PASSWORD" ]; then
 fi
 
 read -r -d '' COMMON_SQL <<SQL || true
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET collation_connection = 'utf8mb4_unicode_ci';
 SET @prefix := '${PREFIX_SQL}';
 
 DROP TEMPORARY TABLE IF EXISTS e2e_customer_ids;
@@ -221,6 +223,75 @@ SELECT id
 FROM t_self_assessment
 WHERE LOCATE(@prefix, COALESCE(conclusion, '')) > 0;
 
+DROP TEMPORARY TABLE IF EXISTS e2e_special_measure_ids;
+CREATE TEMPORARY TABLE e2e_special_measure_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_special_measure_ids
+SELECT id
+FROM t_special_measure
+WHERE customer_id IN (SELECT id FROM e2e_customer_ids)
+   OR LEFT(measure_no, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(measure_content, '')) > 0
+   OR LOCATE(@prefix, COALESCE(decision_reason, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_freeze_record_ids;
+CREATE TEMPORARY TABLE e2e_freeze_record_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_freeze_record_ids
+SELECT id
+FROM t_freeze_seizure_deduction
+WHERE customer_id IN (SELECT id FROM e2e_customer_ids)
+   OR LEFT(record_no, LENGTH(@prefix)) = @prefix
+   OR LEFT(document_no, LENGTH(@prefix)) = @prefix
+   OR LEFT(authority_name, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(remark, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_retrospective_job_ids;
+CREATE TEMPORARY TABLE e2e_retrospective_job_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_retrospective_job_ids
+SELECT id
+FROM t_retrospective_screening_job
+WHERE LEFT(job_name, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(remark, '')) > 0
+   OR customer_ids IN (SELECT CAST(id AS CHAR) FROM e2e_customer_ids);
+
+DROP TEMPORARY TABLE IF EXISTS e2e_watchlist_update_job_ids;
+CREATE TEMPORARY TABLE e2e_watchlist_update_job_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_watchlist_update_job_ids
+SELECT id
+FROM t_watchlist_update_job
+WHERE source_id IN (SELECT id FROM e2e_watchlist_source_ids)
+   OR LEFT(COALESCE(source_name, ''), LENGTH(@prefix)) = @prefix;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_rectification_ids;
+CREATE TEMPORARY TABLE e2e_rectification_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_rectification_ids
+SELECT id
+FROM t_rectification_task
+WHERE assessment_id IN (SELECT id FROM e2e_self_assessment_ids)
+   OR LEFT(COALESCE(issue_description, ''), LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(completion_evidence, '')) > 0
+   OR LOCATE(@prefix, COALESCE(verify_result, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_investigation_request_ids;
+CREATE TEMPORARY TABLE e2e_investigation_request_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_investigation_request_ids
+SELECT id
+FROM t_investigation_request
+WHERE customer_id IN (SELECT id FROM e2e_customer_ids)
+   OR LEFT(document_no, LENGTH(@prefix)) = @prefix
+   OR LEFT(authority_name, LENGTH(@prefix)) = @prefix
+   OR LOCATE(@prefix, COALESCE(summary, '')) > 0
+   OR LOCATE(@prefix, COALESCE(response_summary, '')) > 0;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_investigation_action_ids;
+CREATE TEMPORARY TABLE e2e_investigation_action_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_investigation_action_ids
+SELECT id
+FROM t_investigation_action
+WHERE request_id IN (SELECT id FROM e2e_investigation_request_ids)
+   OR LOCATE(@prefix, COALESCE(action_content, '')) > 0
+   OR LOCATE(@prefix, COALESCE(action_result, '')) > 0
+   OR LOCATE(@prefix, COALESCE(attachment_ref, '')) > 0;
+
 DROP TEMPORARY TABLE IF EXISTS e2e_indicator_ids;
 CREATE TEMPORARY TABLE e2e_indicator_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
 INSERT IGNORE INTO e2e_indicator_ids
@@ -234,7 +305,7 @@ CREATE TEMPORARY TABLE e2e_user_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
 INSERT IGNORE INTO e2e_user_ids
 SELECT id
 FROM t_user
-WHERE username LIKE 'e2e\\_%' ESCAPE '\\'
+WHERE username LIKE 'e2e!_%' ESCAPE '!'
    OR LEFT(real_name, LENGTH(@prefix)) = @prefix
    OR LOCATE(LOWER(@prefix), LOWER(COALESCE(email, ''))) > 0;
 
@@ -252,6 +323,13 @@ SELECT 'products' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_product_ids;
 SELECT 'policies' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_policy_ids;
 SELECT 'rules' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_rule_ids;
 SELECT 'self_assessments' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_self_assessment_ids;
+SELECT 'special_measures' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_special_measure_ids;
+SELECT 'freeze_records' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_freeze_record_ids;
+SELECT 'retrospective_jobs' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_retrospective_job_ids;
+SELECT 'watchlist_update_jobs' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_watchlist_update_job_ids;
+SELECT 'rectifications' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_rectification_ids;
+SELECT 'investigation_requests' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_investigation_request_ids;
+SELECT 'investigation_actions' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_investigation_action_ids;
 SELECT 'assessment_indicators' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_indicator_ids;
 SELECT 'users' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_user_ids;
 SQL
@@ -287,6 +365,12 @@ DELETE FROM t_screening_result
 WHERE request_id IN (SELECT id FROM e2e_screening_request_ids)
    OR customer_id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_screening_request WHERE id IN (SELECT id FROM e2e_screening_request_ids);
+DELETE FROM t_special_measure WHERE id IN (SELECT id FROM e2e_special_measure_ids);
+DELETE FROM t_freeze_seizure_deduction WHERE id IN (SELECT id FROM e2e_freeze_record_ids);
+DELETE FROM t_retrospective_screening_job WHERE id IN (SELECT id FROM e2e_retrospective_job_ids);
+DELETE FROM t_watchlist_update_job WHERE id IN (SELECT id FROM e2e_watchlist_update_job_ids);
+DELETE FROM t_investigation_action WHERE id IN (SELECT id FROM e2e_investigation_action_ids);
+DELETE FROM t_investigation_request WHERE id IN (SELECT id FROM e2e_investigation_request_ids);
 DELETE FROM t_whitelist WHERE customer_id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_whitelist WHERE watchlist_entry_id IN (SELECT id FROM e2e_watchlist_ids);
 
@@ -319,7 +403,7 @@ DELETE FROM t_customer WHERE id IN (SELECT id FROM e2e_customer_ids);
 DELETE FROM t_product_risk_assessment WHERE product_id IN (SELECT id FROM e2e_product_ids);
 DELETE FROM t_product WHERE id IN (SELECT id FROM e2e_product_ids);
 
-DELETE FROM t_rectification_task WHERE assessment_id IN (SELECT id FROM e2e_self_assessment_ids);
+DELETE FROM t_rectification_task WHERE id IN (SELECT id FROM e2e_rectification_ids);
 DELETE FROM t_assessment_score
 WHERE assessment_id IN (SELECT id FROM e2e_self_assessment_ids)
    OR indicator_id IN (SELECT id FROM e2e_indicator_ids);
@@ -330,7 +414,7 @@ DELETE FROM t_user_role WHERE user_id IN (SELECT id FROM e2e_user_ids);
 DELETE FROM t_user WHERE id IN (SELECT id FROM e2e_user_ids);
 
 DELETE FROM t_audit_log
-WHERE username LIKE 'e2e\\_%' ESCAPE '\\'
+WHERE username LIKE 'e2e!_%' ESCAPE '!'
    OR LOCATE(@prefix, COALESCE(detail, '')) > 0;
 
 COMMIT;

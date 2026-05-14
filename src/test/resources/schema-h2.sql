@@ -332,9 +332,188 @@ CREATE TABLE IF NOT EXISTS t_transaction_daily_summary (
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_watchlist_source (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  source_code VARCHAR(32) NOT NULL,
+  source_name VARCHAR(128) NOT NULL,
+  source_type VARCHAR(16) NOT NULL,
+  update_frequency VARCHAR(16) NOT NULL,
+  file_format VARCHAR(16),
+  file_url VARCHAR(512),
+  last_update_time TIMESTAMP,
+  next_update_time TIMESTAMP,
+  total_entries INT DEFAULT 0,
+  status VARCHAR(16) DEFAULT 'ENABLED',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_watchlist_update_job (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  job_no VARCHAR(32) NOT NULL,
+  source_id BIGINT,
+  source_name VARCHAR(128),
+  update_mode VARCHAR(16) NOT NULL,
+  status VARCHAR(16) DEFAULT 'PENDING',
+  total_entries INT DEFAULT 0,
+  added_count INT DEFAULT 0,
+  updated_count INT DEFAULT 0,
+  expired_count INT DEFAULT 0,
+  started_time TIMESTAMP,
+  completed_time TIMESTAMP,
+  error_message VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_retrospective_screening_job (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  job_no VARCHAR(32) NOT NULL,
+  job_name VARCHAR(128) NOT NULL,
+  scope_type VARCHAR(32) NOT NULL,
+  customer_ids CLOB,
+  watchlist_source_id BIGINT,
+  status VARCHAR(16) DEFAULT 'PENDING',
+  total_customers INT DEFAULT 0,
+  processed_customers INT DEFAULT 0,
+  total_hits INT DEFAULT 0,
+  started_time TIMESTAMP,
+  completed_time TIMESTAMP,
+  remark VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_special_measure (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  measure_no VARCHAR(32) NOT NULL,
+  customer_id BIGINT NOT NULL,
+  customer_name VARCHAR(128),
+  measure_type VARCHAR(32) NOT NULL,
+  trigger_type VARCHAR(32) NOT NULL,
+  related_result_id BIGINT,
+  related_alert_id BIGINT,
+  control_level VARCHAR(16) DEFAULT 'MEDIUM',
+  measure_content CLOB NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE,
+  status VARCHAR(16) DEFAULT 'ACTIVE',
+  decision_reason CLOB,
+  closed_reason VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_freeze_seizure_deduction (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  record_no VARCHAR(32) NOT NULL,
+  customer_id BIGINT NOT NULL,
+  customer_name VARCHAR(128),
+  authority_name VARCHAR(256) NOT NULL,
+  document_no VARCHAR(128) NOT NULL,
+  action_type VARCHAR(16) NOT NULL,
+  amount DECIMAL(18,2),
+  currency VARCHAR(8) DEFAULT 'CNY',
+  effective_date DATE NOT NULL,
+  expiry_date DATE,
+  status VARCHAR(16) DEFAULT 'ACTIVE',
+  handler VARCHAR(64),
+  remark VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_rectification_task (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  assessment_id BIGINT,
+  source_type VARCHAR(32) DEFAULT 'SELF_ASSESSMENT',
+  source_id BIGINT,
+  issue_description CLOB NOT NULL,
+  issue_category VARCHAR(64),
+  severity VARCHAR(16) NOT NULL,
+  responsible_dept VARCHAR(128),
+  responsible_person VARCHAR(64),
+  deadline DATE NOT NULL,
+  status VARCHAR(16) DEFAULT 'OPEN',
+  progress_percent INT DEFAULT 0,
+  completion_evidence CLOB,
+  completed_time TIMESTAMP,
+  verification_status VARCHAR(16) DEFAULT 'PENDING',
+  verified_by VARCHAR(64),
+  verified_time TIMESTAMP,
+  verify_result CLOB,
+  closed_time TIMESTAMP,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_investigation_request (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  request_no VARCHAR(32) NOT NULL,
+  authority_name VARCHAR(256) NOT NULL,
+  request_type VARCHAR(32) NOT NULL,
+  document_no VARCHAR(128) NOT NULL,
+  customer_id BIGINT,
+  customer_name VARCHAR(128),
+  related_case_id BIGINT,
+  priority VARCHAR(16) DEFAULT 'MEDIUM',
+  received_date DATE NOT NULL,
+  due_date DATE NOT NULL,
+  status VARCHAR(24) DEFAULT 'RECEIVED',
+  handler VARCHAR(64),
+  summary CLOB NOT NULL,
+  response_summary CLOB,
+  completed_time TIMESTAMP,
+  closed_time TIMESTAMP,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_investigation_action (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  request_id BIGINT NOT NULL,
+  action_no VARCHAR(32) NOT NULL,
+  action_type VARCHAR(32) NOT NULL,
+  action_content CLOB NOT NULL,
+  action_result CLOB,
+  operator VARCHAR(64),
+  action_time TIMESTAMP NOT NULL,
+  attachment_ref VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 插入测试数据，admin 密码为 Aml@Admin#2026!
 INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$hkuD3dv56eEnxliOSY7T9eBDl.wvaFZATZEkd4h/MU50LAjoXu80a', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
 INSERT INTO t_user_role (user_id, role_id) VALUES (1, 1);
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (1, 'system:view', '系统管理查看', 'API', '/system', 1, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (2, 'special:view', '特别预防查看', 'API', '/special-prevention', 2, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (3, 'special:manage', '特别预防管理', 'API', '/special-prevention', 3, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (4, 'rectification:view', '整改查看', 'API', '/rectifications', 4, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (5, 'rectification:manage', '整改管理', 'API', '/rectifications', 5, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (6, 'investigation:view', '调查协查查看', 'API', '/investigations', 6, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (7, 'investigation:manage', '调查协查管理', 'API', '/investigations', 7, 'ENABLED');
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 1);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 2);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 3);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 4);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 5);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 6);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 7);

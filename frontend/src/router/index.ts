@@ -31,6 +31,9 @@ const router = createRouter({
         { path: 'str-reports', name: 'StrReports', component: () => import('@/views/reporting/StrReportView.vue'), meta: { title: 'STR报告', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:str'] } },
         { path: 'products', name: 'Products', component: () => import('@/views/product/ProductList.vue'), meta: { title: '产品管理', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_VIEWER'], permissions: ['product:view'] } },
         { path: 'assessment', name: 'Assessment', component: () => import('@/views/assessment/AssessmentView.vue'), meta: { title: '自评估', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['assessment:view'] } },
+        { path: 'special-prevention', name: 'SpecialPrevention', component: () => import('@/views/prevention/SpecialPreventionView.vue'), meta: { title: '特别预防', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] } },
+        { path: 'rectifications', name: 'Rectifications', component: () => import('@/views/rectification/RectificationCenterView.vue'), meta: { title: '整改中心', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] } },
+        { path: 'investigations', name: 'Investigations', component: () => import('@/views/investigation/InvestigationCenterView.vue'), meta: { title: '调查协查', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] } },
         { path: 'notifications', name: 'Notifications', component: () => import('@/views/system/NotificationView.vue'), meta: { title: '通知中心' } },
         { path: 'system', name: 'System', component: () => import('@/views/system/SystemView.vue'), meta: { title: '系统管理', roles: ['ROLE_ADMIN'], permissions: ['system:view'] } }
       ]

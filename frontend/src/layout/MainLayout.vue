@@ -93,6 +93,9 @@ const menuItems: MenuItem[] = [
   { path: '/reporting', title: '监管报送', icon: 'Document', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:view'] },
   { path: '/products', title: '产品管理', icon: 'Goods', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_VIEWER'], permissions: ['product:view'] },
   { path: '/assessment', title: '自评估', icon: 'DataAnalysis', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['assessment:view'] },
+  { path: '/special-prevention', title: '特别预防', icon: 'Operation', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] },
+  { path: '/rectifications', title: '整改中心', icon: 'Check', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] },
+  { path: '/investigations', title: '调查协查', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] },
   { path: '/notifications', title: '通知中心', icon: 'Notification' },
   { path: '/system', title: '系统管理', icon: 'Setting', roles: ['ROLE_ADMIN'], permissions: ['system:view'] }
 ]

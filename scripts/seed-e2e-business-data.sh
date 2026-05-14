@@ -35,7 +35,9 @@ Creates a test-only AML business data bundle:
 
 Options:
   --execute          Actually write seed data. Without this flag the script only prints the plan.
+                     Combine with --verify to make the intended execute+verify mode explicit.
   --verify           Verify seeded row counts for the selected prefix/run-id.
+                     With --execute, verification runs after the seed transaction completes.
   --sql-only         Print generated SQL to stdout without requiring mysql connectivity.
   --prefix VALUE     Data prefix, default E2E. Keep this aligned with cleanup-e2e-data.sh.
   --run-id VALUE     Seed run id, default current timestamp.
@@ -130,8 +132,20 @@ if [ -n "$DB_PASSWORD" ]; then
     export MYSQL_PWD="$DB_PASSWORD"
 fi
 
+MODE="dry-run"
+if [ "$EXECUTE" = true ] && [ "$VERIFY" = true ]; then
+    MODE="execute+verify"
+elif [ "$EXECUTE" = true ]; then
+    MODE="execute"
+elif [ "$VERIFY" = true ]; then
+    MODE="verify"
+elif [ "$SQL_ONLY" = true ]; then
+    MODE="sql-only"
+fi
+
 read -r -d '' SEED_SQL <<SQL || true
-SET NAMES utf8mb4;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET collation_connection = 'utf8mb4_unicode_ci';
 SET @prefix := '${PREFIX_SQL}';
 SET @run_id := '${RUN_ID_SQL}';
 SET @run_key := '${RUN_KEY_SQL}';
@@ -589,7 +603,8 @@ COMMIT;
 SQL
 
 read -r -d '' VERIFY_SQL <<SQL || true
-SET NAMES utf8mb4;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET collation_connection = 'utf8mb4_unicode_ci';
 SET @prefix := '${PREFIX_SQL}';
 SET @run_id := '${RUN_ID_SQL}';
 SET @run_key := '${RUN_KEY_SQL}';
@@ -645,7 +660,7 @@ echo "  DB: ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 echo "  Prefix: ${E2E_PREFIX}"
 echo "  Run ID: ${E2E_RUN_ID}"
 echo "  Run Key: ${RUN_KEY}"
-echo "  Mode: $([ "$EXECUTE" = true ] && echo execute || { [ "$VERIFY" = true ] && echo verify || { [ "$SQL_ONLY" = true ] && echo sql-only || echo dry-run; }; })"
+echo "  Mode: ${MODE}"
 echo ""
 
 if ! command -v mysql >/dev/null 2>&1; then
@@ -653,16 +668,17 @@ if ! command -v mysql >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ "$VERIFY" = true ]; then
-    printf "%s\n" "$VERIFY_SQL" | mysql "${MYSQL_ARGS[@]}"
-    exit 0
-fi
-
 if [ "$EXECUTE" = true ]; then
     printf "%s\n" "$SEED_SQL" | mysql "${MYSQL_ARGS[@]}"
     echo ""
     echo "Seed completed. Verification:"
     printf "%s\n" "$VERIFY_SQL" | mysql "${MYSQL_ARGS[@]}"
+    exit 0
+fi
+
+if [ "$VERIFY" = true ]; then
+    printf "%s\n" "$VERIFY_SQL" | mysql "${MYSQL_ARGS[@]}"
+    exit 0
 else
     echo "Dry-run only. No data was written."
     echo ""
@@ -673,5 +689,5 @@ else
     echo "  Case: ${E2E_PREFIX}CASE${RUN_KEY}"
     echo "  Reports: ${E2E_PREFIX}STR${RUN_KEY}, ${E2E_PREFIX}LTR${RUN_KEY}"
     echo ""
-    echo "Run with --execute to write data, or --sql-only to export SQL."
+    echo "Run with --execute --verify to write and verify data, or --sql-only to export SQL."
 fi

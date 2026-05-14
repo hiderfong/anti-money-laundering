@@ -1,8 +1,14 @@
 package com.insurance.aml.module.assessment.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.insurance.aml.common.result.PageQuery;
+import com.insurance.aml.common.result.PageResult;
+import com.insurance.aml.common.util.SecurityUtils;
+import com.insurance.aml.module.assessment.model.dto.RectificationProgressRequest;
 import com.insurance.aml.module.assessment.mapper.RectificationTaskMapper;
 import com.insurance.aml.module.assessment.model.dto.RectificationTaskRequest;
+import com.insurance.aml.module.assessment.model.dto.RectificationVerifyRequest;
 import com.insurance.aml.module.assessment.model.entity.RectificationTask;
 import com.insurance.aml.common.enums.RectificationStatus;
 import com.insurance.aml.module.assessment.service.RectificationService;
@@ -33,12 +39,17 @@ public class RectificationServiceImpl implements RectificationService {
 
         RectificationTask task = new RectificationTask();
         task.setAssessmentId(req.getAssessmentId());
+        task.setSourceType(StringUtils.hasText(req.getSourceType()) ? req.getSourceType() : "SELF_ASSESSMENT");
+        task.setSourceId(req.getSourceId());
         task.setIssueDescription(req.getIssueDescription());
+        task.setIssueCategory(req.getIssueCategory());
         task.setSeverity(req.getSeverity());
         task.setResponsibleDept(req.getResponsibleDept());
         task.setResponsiblePerson(req.getResponsiblePerson());
         task.setDeadline(req.getDeadline());
         task.setStatus(RectificationStatus.OPEN.getCode());
+        task.setProgressPercent(0);
+        task.setVerificationStatus("PENDING");
         taskMapper.insert(task);
 
         log.info("整改任务创建成功，id={}", task.getId());
@@ -58,6 +69,11 @@ public class RectificationServiceImpl implements RectificationService {
         task.setStatus(status);
         if (RectificationStatus.COMPLETED.getCode().equals(status)) {
             task.setCompletedTime(LocalDateTime.now());
+            task.setProgressPercent(100);
+        }
+        if (RectificationStatus.VERIFIED.getCode().equals(status)) {
+            task.setClosedTime(LocalDateTime.now());
+            task.setVerificationStatus("PASSED");
         }
         taskMapper.updateById(task);
 
@@ -90,6 +106,50 @@ public class RectificationServiceImpl implements RectificationService {
     }
 
     @Override
+    public PageResult<RectificationTask> pageTasks(PageQuery pageQuery, String sourceType, String status, String responsiblePerson) {
+        LambdaQueryWrapper<RectificationTask> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(sourceType)) {
+            wrapper.eq(RectificationTask::getSourceType, sourceType);
+        }
+        if (StringUtils.hasText(status)) {
+            wrapper.eq(RectificationTask::getStatus, status);
+        }
+        if (StringUtils.hasText(responsiblePerson)) {
+            wrapper.like(RectificationTask::getResponsiblePerson, responsiblePerson);
+        }
+        wrapper.orderByDesc(RectificationTask::getCreatedTime);
+
+        IPage<RectificationTask> page = taskMapper.selectPage(pageQuery.toPage(), wrapper);
+        refreshOverdueStatus(page.getRecords());
+        return PageResult.from(page);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProgress(Long taskId, RectificationProgressRequest req) {
+        RectificationTask task = taskMapper.selectById(taskId);
+        if (task == null) {
+            throw new RuntimeException("整改任务不存在，id=" + taskId);
+        }
+
+        task.setProgressPercent(req.getProgressPercent());
+        if (StringUtils.hasText(req.getCompletionEvidence())) {
+            task.setCompletionEvidence(req.getCompletionEvidence());
+        }
+        if (StringUtils.hasText(req.getStatus())) {
+            task.setStatus(req.getStatus());
+        } else if (req.getProgressPercent() >= 100) {
+            task.setStatus(RectificationStatus.COMPLETED.getCode());
+        } else if (req.getProgressPercent() > 0) {
+            task.setStatus(RectificationStatus.IN_PROGRESS.getCode());
+        }
+        if (RectificationStatus.COMPLETED.getCode().equals(task.getStatus())) {
+            task.setCompletedTime(LocalDateTime.now());
+        }
+        taskMapper.updateById(task);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void verifyTask(Long taskId, String verifiedBy) {
         log.info("验证整改任务，taskId={}, verifiedBy={}", taskId, verifiedBy);
@@ -104,8 +164,49 @@ public class RectificationServiceImpl implements RectificationService {
 
         task.setVerifiedBy(verifiedBy);
         task.setVerifiedTime(LocalDateTime.now());
+        task.setVerificationStatus("PASSED");
+        task.setStatus(RectificationStatus.VERIFIED.getCode());
+        task.setClosedTime(LocalDateTime.now());
         taskMapper.updateById(task);
 
         log.info("整改任务验证完成，taskId={}", taskId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void verifyTask(Long taskId, RectificationVerifyRequest req) {
+        RectificationTask task = taskMapper.selectById(taskId);
+        if (task == null) {
+            throw new RuntimeException("整改任务不存在，id=" + taskId);
+        }
+        if (!RectificationStatus.COMPLETED.getCode().equals(task.getStatus())
+                && !RectificationStatus.VERIFIED.getCode().equals(task.getStatus())) {
+            throw new RuntimeException("只有已完成的任务才能验证，当前状态=" + task.getStatus());
+        }
+
+        task.setVerificationStatus(req.getVerificationStatus());
+        task.setVerifyResult(req.getVerifyResult());
+        task.setVerifiedBy(SecurityUtils.getCurrentUsername());
+        task.setVerifiedTime(LocalDateTime.now());
+        if ("PASSED".equals(req.getVerificationStatus())) {
+            task.setStatus(RectificationStatus.VERIFIED.getCode());
+            task.setClosedTime(LocalDateTime.now());
+        } else if ("RETURNED".equals(req.getVerificationStatus())) {
+            task.setStatus(RectificationStatus.IN_PROGRESS.getCode());
+            task.setClosedTime(null);
+        }
+        taskMapper.updateById(task);
+    }
+
+    private void refreshOverdueStatus(List<RectificationTask> tasks) {
+        LocalDate today = LocalDate.now();
+        for (RectificationTask task : tasks) {
+            if ((RectificationStatus.OPEN.getCode().equals(task.getStatus()) || RectificationStatus.IN_PROGRESS.getCode().equals(task.getStatus()))
+                    && task.getDeadline() != null
+                    && task.getDeadline().isBefore(today)) {
+                task.setStatus(RectificationStatus.OVERDUE.getCode());
+                taskMapper.updateById(task);
+            }
+        }
     }
 }

@@ -18,7 +18,10 @@ const routes = [
   { path: '/kyc', signal: '客户列表' },
   { path: '/monitoring', signal: '交易编号' },
   { path: '/alerts', signal: '预警列表' },
-  { path: '/products', signal: '产品名称' }
+  { path: '/products', signal: '产品名称' },
+  { path: '/special-prevention', signal: '特别预防' },
+  { path: '/rectifications', signal: '整改中心' },
+  { path: '/investigations', signal: '调查协查' }
 ]
 
 const frameworkOverlayPatterns = [
@@ -234,6 +237,12 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, `dashboard-${runId}.png`), fullPage: false })
     await page.goto(`${frontendUrl}/products`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
     await page.screenshot({ path: path.join(screenshotDir, `products-${runId}.png`), fullPage: false })
+    await page.goto(`${frontendUrl}/special-prevention`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
+    await page.screenshot({ path: path.join(screenshotDir, `special-prevention-${runId}.png`), fullPage: false })
+    await page.goto(`${frontendUrl}/rectifications`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
+    await page.screenshot({ path: path.join(screenshotDir, `rectifications-${runId}.png`), fullPage: false })
+    await page.goto(`${frontendUrl}/investigations`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
+    await page.screenshot({ path: path.join(screenshotDir, `investigations-${runId}.png`), fullPage: false })
     pass(`截图已输出到 ${screenshotDir}`)
   } finally {
     await browser.close()

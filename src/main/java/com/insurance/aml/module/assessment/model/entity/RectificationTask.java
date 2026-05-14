@@ -16,14 +16,29 @@ import java.time.LocalDateTime;
 public class RectificationTask extends BaseEntity {
 
     /**
-     * 关联评估ID
+     * 关联评估ID，独立整改任务可为空
      */
     private Long assessmentId;
+
+    /**
+     * 问题来源：SELF_ASSESSMENT/INTERNAL_CHECK/EXTERNAL_CHECK/REGULATOR/AUDIT
+     */
+    private String sourceType;
+
+    /**
+     * 来源业务ID
+     */
+    private Long sourceId;
 
     /**
      * 问题描述
      */
     private String issueDescription;
+
+    /**
+     * 问题分类
+     */
+    private String issueCategory;
 
     /**
      * 严重程度：HIGH-高、MEDIUM-中、LOW-低
@@ -51,6 +66,11 @@ public class RectificationTask extends BaseEntity {
     private String status;
 
     /**
+     * 整改进度百分比
+     */
+    private Integer progressPercent;
+
+    /**
      * 完成证据
      */
     private String completionEvidence;
@@ -61,6 +81,11 @@ public class RectificationTask extends BaseEntity {
     private LocalDateTime completedTime;
 
     /**
+     * 验证状态：PENDING/PASSED/RETURNED
+     */
+    private String verificationStatus;
+
+    /**
      * 验证人
      */
     private String verifiedBy;
@@ -69,4 +94,14 @@ public class RectificationTask extends BaseEntity {
      * 验证时间
      */
     private LocalDateTime verifiedTime;
+
+    /**
+     * 验证意见
+     */
+    private String verifyResult;
+
+    /**
+     * 销号时间
+     */
+    private LocalDateTime closedTime;
 }

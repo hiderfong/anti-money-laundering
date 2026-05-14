@@ -80,6 +80,19 @@ DB_PASSWORD=aml_dev_123 \
 bash scripts/seed-e2e-business-data.sh --verify --run-id "$E2E_RUN_ID"
 ```
 
+也可以显式使用一次性写入并验证模式：
+
+```bash
+DB_HOST=127.0.0.1 \
+DB_PORT=3306 \
+DB_NAME=aml_system \
+DB_USER=root \
+DB_PASSWORD=aml_dev_123 \
+bash scripts/seed-e2e-business-data.sh --execute --verify --run-id "$E2E_RUN_ID"
+```
+
+注意：`--verify` 统计的是当前 `--run-id` 对应的数据，不是所有 `E2E` 前缀历史数据。
+
 ---
 
 ## 4. 沙箱外 Agent 执行方式

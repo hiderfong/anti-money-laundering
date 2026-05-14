@@ -126,6 +126,9 @@ PAGES=(
     "/str-reports"
     "/products"
     "/assessment"
+    "/special-prevention"
+    "/rectifications"
+    "/investigations"
     "/notifications"
     "/system"
 )
@@ -165,6 +168,12 @@ if [ -n "$TOKEN" ]; then
         "/system/users/page?page=1&size=5"
         "/alerts/page?page=1&size=5"
         "/cases/page?page=1&size=5"
+        "/special-prevention/overview"
+        "/special-prevention/measures?page=1&size=5"
+        "/special-prevention/freeze-records?page=1&size=5"
+        "/rectifications?page=1&size=5"
+        "/investigations/overview"
+        "/investigations?page=1&size=5"
         "/system/notifications/my?page=1&size=5"
         "/reporting/large-txn/page?page=1&size=5"
     )

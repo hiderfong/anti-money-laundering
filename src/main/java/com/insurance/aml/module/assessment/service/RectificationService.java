@@ -1,6 +1,10 @@
 package com.insurance.aml.module.assessment.service;
 
+import com.insurance.aml.common.result.PageQuery;
+import com.insurance.aml.common.result.PageResult;
+import com.insurance.aml.module.assessment.model.dto.RectificationProgressRequest;
 import com.insurance.aml.module.assessment.model.dto.RectificationTaskRequest;
+import com.insurance.aml.module.assessment.model.dto.RectificationVerifyRequest;
 import com.insurance.aml.module.assessment.model.entity.RectificationTask;
 
 import java.util.List;
@@ -32,9 +36,24 @@ public interface RectificationService {
     List<RectificationTask> listTasks(Long assessmentId);
 
     /**
+     * 分页查询整改中心任务。
+     */
+    PageResult<RectificationTask> pageTasks(PageQuery pageQuery, String sourceType, String status, String responsiblePerson);
+
+    /**
+     * 更新整改进度。
+     */
+    void updateProgress(Long taskId, RectificationProgressRequest req);
+
+    /**
      * 验证整改任务完成情况
      * @param taskId 任务ID
      * @param verifiedBy 验证人
      */
     void verifyTask(Long taskId, String verifiedBy);
+
+    /**
+     * 验证整改任务并记录验证意见。
+     */
+    void verifyTask(Long taskId, RectificationVerifyRequest req);
 }
