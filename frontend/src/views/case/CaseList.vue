@@ -558,4 +558,18 @@ onMounted(loadData)
 :deep(.el-table .el-button--info.is-link) {
   color: #fff !important;
 }
+
+/* 操作按钮悬浮效果 - 与详情按钮悬浮效果一致 */
+:deep(.el-table .el-button--warning.is-link:hover) {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+:deep(.el-table .el-button--danger.is-link:hover) {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+:deep(.el-table .el-button--success.is-link:hover) {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+:deep(.el-table .el-button--info.is-link:hover) {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
 </style>
