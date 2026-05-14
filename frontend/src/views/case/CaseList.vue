@@ -80,7 +80,7 @@
             <el-button
               v-for="action in getAvailableActions(row.caseStatus)"
               :key="action.target"
-              type="primary"
+              :type="action.btnType"
               link size="small"
               @click="handleStatusAction(row, action)"
             >
@@ -88,14 +88,14 @@
             </el-button>
             <el-button
               v-if="row.caseStatus !== 'CLOSED'"
-              type="primary" link size="small"
+              type="warning" link size="small"
               @click="showInvestigationDialog(row)"
             >
               调查记录
             </el-button>
             <el-button
               v-if="row.caseStatus !== 'CLOSED'"
-              type="primary" link size="small"
+              type="danger" link size="small"
               @click="handleCloseCaseAction(row)"
             >
               关闭案件
@@ -540,5 +540,19 @@ onMounted(loadData)
 }
 .filter-card :deep(.el-card__body) {
   padding-bottom: 2px;
+}
+
+/* 操作按钮文字颜色统一为详情按钮的primary蓝色 */
+:deep(.el-table .el-button--warning.is-link) {
+  color: var(--el-color-primary) !important;
+}
+:deep(.el-table .el-button--danger.is-link) {
+  color: var(--el-color-primary) !important;
+}
+:deep(.el-table .el-button--success.is-link) {
+  color: var(--el-color-primary) !important;
+}
+:deep(.el-table .el-button--info.is-link) {
+  color: var(--el-color-primary) !important;
 }
 </style>
