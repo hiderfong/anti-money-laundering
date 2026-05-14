@@ -80,7 +80,7 @@
             <el-button
               v-for="action in getAvailableActions(row.caseStatus)"
               :key="action.target"
-              :type="action.btnType"
+              type="primary"
               link size="small"
               @click="handleStatusAction(row, action)"
             >
@@ -88,14 +88,14 @@
             </el-button>
             <el-button
               v-if="row.caseStatus !== 'CLOSED'"
-              type="warning" link size="small"
+              type="primary" link size="small"
               @click="showInvestigationDialog(row)"
             >
               调查记录
             </el-button>
             <el-button
               v-if="row.caseStatus !== 'CLOSED'"
-              type="danger" link size="small"
+              type="primary" link size="small"
               @click="handleCloseCaseAction(row)"
             >
               关闭案件
