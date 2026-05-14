@@ -541,39 +541,4 @@ onMounted(loadData)
 .filter-card :deep(.el-card__body) {
   padding-bottom: 2px;
 }
-
-/* 操作按钮文字颜色统一为白色 */
-:deep(.el-table .el-button--primary.is-link) {
-  color: #fff !important;
-}
-:deep(.el-table .el-button--warning.is-link) {
-  color: #fff !important;
-}
-:deep(.el-table .el-button--danger.is-link) {
-  color: #fff !important;
-}
-:deep(.el-table .el-button--success.is-link) {
-  color: #fff !important;
-}
-:deep(.el-table .el-button--info.is-link) {
-  color: #fff !important;
-}
-
-/* 操作按钮悬浮效果 - 与详情按钮悬浮效果一致（背景变浅） */
-:deep(.el-table .el-button--warning.is-link:hover) {
-  background: rgba(245, 158, 11, 0.7) !important;
-  border-color: rgba(245, 158, 11, 0.7) !important;
-}
-:deep(.el-table .el-button--danger.is-link:hover) {
-  background: rgba(239, 68, 68, 0.7) !important;
-  border-color: rgba(239, 68, 68, 0.7) !important;
-}
-:deep(.el-table .el-button--success.is-link:hover) {
-  background: rgba(16, 185, 129, 0.7) !important;
-  border-color: rgba(16, 185, 129, 0.7) !important;
-}
-:deep(.el-table .el-button--info.is-link:hover) {
-  background: rgba(156, 163, 175, 0.7) !important;
-  border-color: rgba(156, 163, 175, 0.7) !important;
-}
 </style>

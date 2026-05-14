@@ -71,6 +71,55 @@
   --sidebar-active: rgba(255, 255, 255, 0.12);
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.16);
 
+  /* Buttons */
+  --button-default-bg: #ffffff;
+  --button-default-text: #1e293b;
+  --button-default-border: #cbd5e1;
+  --button-default-hover-bg: #f1f5f9;
+  --button-default-active-bg: #e2e8f0;
+  --button-primary-bg: #2563eb;
+  --button-primary-hover-bg: #1d4ed8;
+  --button-primary-active-bg: #1e40af;
+  --button-success-bg: #047857;
+  --button-success-hover-bg: #065f46;
+  --button-success-active-bg: #064e3b;
+  --button-warning-bg: #b45309;
+  --button-warning-hover-bg: #92400e;
+  --button-warning-active-bg: #78350f;
+  --button-danger-bg: #dc2626;
+  --button-danger-hover-bg: #b91c1c;
+  --button-danger-active-bg: #991b1b;
+  --button-info-bg: #475569;
+  --button-info-hover-bg: #334155;
+  --button-info-active-bg: #1f2937;
+  --button-soft-default-bg: #f8fafc;
+  --button-soft-default-text: #334155;
+  --button-soft-default-border: #e2e8f0;
+  --button-soft-default-hover-bg: #edf2f7;
+  --button-soft-primary-bg: #eff6ff;
+  --button-soft-primary-text: #1d4ed8;
+  --button-soft-primary-border: #bfdbfe;
+  --button-soft-primary-hover-bg: #dbeafe;
+  --button-soft-success-bg: #ecfdf5;
+  --button-soft-success-text: #047857;
+  --button-soft-success-border: #a7f3d0;
+  --button-soft-success-hover-bg: #d1fae5;
+  --button-soft-warning-bg: #fffbeb;
+  --button-soft-warning-text: #92400e;
+  --button-soft-warning-border: #fde68a;
+  --button-soft-warning-hover-bg: #fef3c7;
+  --button-soft-danger-bg: #fef2f2;
+  --button-soft-danger-text: #b91c1c;
+  --button-soft-danger-border: #fecaca;
+  --button-soft-danger-hover-bg: #fee2e2;
+  --button-soft-info-bg: #f1f5f9;
+  --button-soft-info-text: #334155;
+  --button-soft-info-border: #cbd5e1;
+  --button-soft-info-hover-bg: #e2e8f0;
+  --button-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --button-hover-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+  --button-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.2);
+
   --el-color-primary: var(--accent-primary);
   --el-color-success: var(--color-success);
   --el-color-warning: var(--color-warning);
@@ -116,6 +165,54 @@ html.dark {
   --sidebar-bg: #08090a;
   --sidebar-text: rgba(255, 255, 255, 0.62);
   --sidebar-active: rgba(96, 165, 250, 0.2);
+
+  --button-default-bg: #111827;
+  --button-default-text: #e5e7eb;
+  --button-default-border: #374151;
+  --button-default-hover-bg: #1f2937;
+  --button-default-active-bg: #273449;
+  --button-primary-bg: #2563eb;
+  --button-primary-hover-bg: #3b82f6;
+  --button-primary-active-bg: #1d4ed8;
+  --button-success-bg: #047857;
+  --button-success-hover-bg: #059669;
+  --button-success-active-bg: #065f46;
+  --button-warning-bg: #b45309;
+  --button-warning-hover-bg: #d97706;
+  --button-warning-active-bg: #92400e;
+  --button-danger-bg: #dc2626;
+  --button-danger-hover-bg: #ef4444;
+  --button-danger-active-bg: #b91c1c;
+  --button-info-bg: #475569;
+  --button-info-hover-bg: #64748b;
+  --button-info-active-bg: #334155;
+  --button-soft-default-bg: rgba(148, 163, 184, 0.12);
+  --button-soft-default-text: #d1d5db;
+  --button-soft-default-border: rgba(148, 163, 184, 0.24);
+  --button-soft-default-hover-bg: rgba(148, 163, 184, 0.2);
+  --button-soft-primary-bg: rgba(59, 130, 246, 0.16);
+  --button-soft-primary-text: #93c5fd;
+  --button-soft-primary-border: rgba(96, 165, 250, 0.32);
+  --button-soft-primary-hover-bg: rgba(59, 130, 246, 0.26);
+  --button-soft-success-bg: rgba(16, 185, 129, 0.16);
+  --button-soft-success-text: #6ee7b7;
+  --button-soft-success-border: rgba(52, 211, 153, 0.3);
+  --button-soft-success-hover-bg: rgba(16, 185, 129, 0.25);
+  --button-soft-warning-bg: rgba(245, 158, 11, 0.16);
+  --button-soft-warning-text: #fcd34d;
+  --button-soft-warning-border: rgba(251, 191, 36, 0.32);
+  --button-soft-warning-hover-bg: rgba(245, 158, 11, 0.25);
+  --button-soft-danger-bg: rgba(239, 68, 68, 0.16);
+  --button-soft-danger-text: #fca5a5;
+  --button-soft-danger-border: rgba(248, 113, 113, 0.32);
+  --button-soft-danger-hover-bg: rgba(239, 68, 68, 0.25);
+  --button-soft-info-bg: rgba(148, 163, 184, 0.14);
+  --button-soft-info-text: #cbd5e1;
+  --button-soft-info-border: rgba(148, 163, 184, 0.26);
+  --button-soft-info-hover-bg: rgba(148, 163, 184, 0.22);
+  --button-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --button-hover-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --button-focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.28);
 }
 
 /* =============================================================
@@ -266,47 +363,272 @@ select {
 /* Buttons */
 .el-button {
   font-family: var(--font-primary) !important;
-  font-weight: 510 !important;
+  font-weight: 620 !important;
   font-size: 13px !important;
   border-radius: var(--radius-md) !important;
+  min-height: 32px;
+  padding: 7px 14px !important;
+  line-height: 1.2 !important;
   letter-spacing: 0;
-  transition: all 0.15s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px;
+  white-space: nowrap;
+  box-shadow: var(--button-shadow) !important;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease !important;
 }
 
-.el-button--primary {
-  background: var(--accent-primary) !important;
-  border-color: var(--accent-primary) !important;
-  color: #fff !important;
+.el-button .el-icon {
+  color: currentColor;
 }
 
-.el-button--primary:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent-hover) !important;
+.el-button:not(.is-link):not(.is-disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--button-hover-shadow) !important;
 }
 
-.el-button--default {
-  background: var(--bg-surface) !important;
-  border: 1px solid var(--border-default) !important;
-  color: var(--text-secondary) !important;
+.el-button:not(.is-link):not(.is-disabled):active {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.18) !important;
 }
 
-.el-button--default:hover {
-  background: var(--bg-hover) !important;
+.el-button:focus-visible {
+  outline: none !important;
+  box-shadow: var(--button-focus-ring) !important;
+}
+
+.el-button.is-disabled,
+.el-button.is-disabled:hover,
+.el-button.is-disabled:focus {
+  opacity: 0.54;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.el-button--large {
+  min-height: 40px;
+  padding: 10px 18px !important;
+  font-size: 14px !important;
+}
+
+.el-button--small {
+  min-height: 28px;
+  padding: 5px 10px !important;
+  font-size: 12px !important;
+}
+
+.el-button.is-circle {
+  width: 32px;
+  min-width: 32px;
+  padding: 0 !important;
+}
+
+.el-button.is-circle.el-button--small {
+  width: 28px;
+  min-width: 28px;
+}
+
+.el-button:not(.is-link).el-button--default,
+.el-button:not(.is-link):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info) {
+  background: var(--button-default-bg) !important;
+  border: 1px solid var(--button-default-border) !important;
+  color: var(--button-default-text) !important;
+}
+
+.el-button:not(.is-link).el-button--default:hover,
+.el-button:not(.is-link):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):hover {
+  background: var(--button-default-hover-bg) !important;
   border-color: var(--border-strong) !important;
   color: var(--text-primary) !important;
 }
 
-.el-button--success { background: var(--color-success) !important; border-color: var(--color-success) !important; }
-.el-button--danger { background: var(--color-danger) !important; border-color: var(--color-danger) !important; }
-.el-button--warning { background: var(--color-warning) !important; border-color: var(--color-warning) !important; }
-
-.el-button--info {
-  background: var(--bg-hover) !important;
-  border: 1px solid var(--border-default) !important;
-  color: var(--text-secondary) !important;
+.el-button:not(.is-link).el-button--default:active,
+.el-button:not(.is-link):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):active {
+  background: var(--button-default-active-bg) !important;
 }
 
-.el-button--small { font-size: 12px !important; padding: 5px 12px !important; }
+.el-button:not(.is-link).el-button--primary {
+  background: var(--button-primary-bg) !important;
+  border-color: var(--button-primary-bg) !important;
+  color: #fff !important;
+}
+
+.el-button:not(.is-link).el-button--primary:hover {
+  background: var(--button-primary-hover-bg) !important;
+  border-color: var(--button-primary-hover-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--primary:active {
+  background: var(--button-primary-active-bg) !important;
+  border-color: var(--button-primary-active-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--success {
+  background: var(--button-success-bg) !important;
+  border-color: var(--button-success-bg) !important;
+  color: #fff !important;
+}
+
+.el-button:not(.is-link).el-button--success:hover {
+  background: var(--button-success-hover-bg) !important;
+  border-color: var(--button-success-hover-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--success:active {
+  background: var(--button-success-active-bg) !important;
+  border-color: var(--button-success-active-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--warning {
+  background: var(--button-warning-bg) !important;
+  border-color: var(--button-warning-bg) !important;
+  color: #fff !important;
+}
+
+.el-button:not(.is-link).el-button--warning:hover {
+  background: var(--button-warning-hover-bg) !important;
+  border-color: var(--button-warning-hover-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--warning:active {
+  background: var(--button-warning-active-bg) !important;
+  border-color: var(--button-warning-active-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--danger {
+  background: var(--button-danger-bg) !important;
+  border-color: var(--button-danger-bg) !important;
+  color: #fff !important;
+}
+
+.el-button:not(.is-link).el-button--danger:hover {
+  background: var(--button-danger-hover-bg) !important;
+  border-color: var(--button-danger-hover-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--danger:active {
+  background: var(--button-danger-active-bg) !important;
+  border-color: var(--button-danger-active-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--info {
+  background: var(--button-info-bg) !important;
+  border: 1px solid var(--button-info-bg) !important;
+  color: #fff !important;
+}
+
+.el-button:not(.is-link).el-button--info:hover {
+  background: var(--button-info-hover-bg) !important;
+  border-color: var(--button-info-hover-bg) !important;
+}
+
+.el-button:not(.is-link).el-button--info:active {
+  background: var(--button-info-active-bg) !important;
+  border-color: var(--button-info-active-bg) !important;
+}
+
+.el-button.is-plain:not(.is-link) {
+  box-shadow: none !important;
+}
+
+.el-button.is-link {
+  min-height: 28px;
+  padding: 4px 10px !important;
+  border: 1px solid var(--button-soft-default-border) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--button-soft-default-bg) !important;
+  color: var(--button-soft-default-text) !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+
+.el-button.is-link:not(.is-disabled):hover {
+  transform: translateY(-1px);
+  background: var(--button-soft-default-hover-bg) !important;
+  border-color: var(--button-default-border) !important;
+  color: var(--button-default-text) !important;
+  box-shadow: var(--button-shadow) !important;
+}
+
+.el-button.is-link:not(.is-disabled):active {
+  transform: translateY(0);
+}
+
+.el-button.is-link.el-button--primary {
+  background: var(--button-soft-primary-bg) !important;
+  border-color: var(--button-soft-primary-border) !important;
+  color: var(--button-soft-primary-text) !important;
+}
+
+.el-button.is-link.el-button--primary:hover {
+  background: var(--button-soft-primary-hover-bg) !important;
+  border-color: var(--button-soft-primary-border) !important;
+  color: var(--button-soft-primary-text) !important;
+}
+
+.el-button.is-link.el-button--success {
+  background: var(--button-soft-success-bg) !important;
+  border-color: var(--button-soft-success-border) !important;
+  color: var(--button-soft-success-text) !important;
+}
+
+.el-button.is-link.el-button--success:hover {
+  background: var(--button-soft-success-hover-bg) !important;
+  border-color: var(--button-soft-success-border) !important;
+  color: var(--button-soft-success-text) !important;
+}
+
+.el-button.is-link.el-button--warning {
+  background: var(--button-soft-warning-bg) !important;
+  border-color: var(--button-soft-warning-border) !important;
+  color: var(--button-soft-warning-text) !important;
+}
+
+.el-button.is-link.el-button--warning:hover {
+  background: var(--button-soft-warning-hover-bg) !important;
+  border-color: var(--button-soft-warning-border) !important;
+  color: var(--button-soft-warning-text) !important;
+}
+
+.el-button.is-link.el-button--danger {
+  background: var(--button-soft-danger-bg) !important;
+  border-color: var(--button-soft-danger-border) !important;
+  color: var(--button-soft-danger-text) !important;
+}
+
+.el-button.is-link.el-button--danger:hover {
+  background: var(--button-soft-danger-hover-bg) !important;
+  border-color: var(--button-soft-danger-border) !important;
+  color: var(--button-soft-danger-text) !important;
+}
+
+.el-button.is-link.el-button--info {
+  background: var(--button-soft-info-bg) !important;
+  border-color: var(--button-soft-info-border) !important;
+  color: var(--button-soft-info-text) !important;
+}
+
+.el-button.is-link.el-button--info:hover {
+  background: var(--button-soft-info-hover-bg) !important;
+  border-color: var(--button-soft-info-border) !important;
+  color: var(--button-soft-info-text) !important;
+}
+
+.el-table .cell .el-button {
+  margin-left: 0 !important;
+  vertical-align: middle;
+}
+
+.el-table .cell .el-button + .el-button {
+  margin-left: 6px !important;
+}
 
 /* Inputs */
 .el-input__wrapper {
