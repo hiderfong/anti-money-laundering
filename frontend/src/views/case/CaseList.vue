@@ -559,17 +559,21 @@ onMounted(loadData)
   color: #fff !important;
 }
 
-/* 操作按钮悬浮效果 - 与详情按钮悬浮效果一致 */
+/* 操作按钮悬浮效果 - 与详情按钮悬浮效果一致（背景变浅） */
 :deep(.el-table .el-button--warning.is-link:hover) {
-  color: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(245, 158, 11, 0.7) !important;
+  border-color: rgba(245, 158, 11, 0.7) !important;
 }
 :deep(.el-table .el-button--danger.is-link:hover) {
-  color: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(239, 68, 68, 0.7) !important;
+  border-color: rgba(239, 68, 68, 0.7) !important;
 }
 :deep(.el-table .el-button--success.is-link:hover) {
-  color: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(16, 185, 129, 0.7) !important;
+  border-color: rgba(16, 185, 129, 0.7) !important;
 }
 :deep(.el-table .el-button--info.is-link:hover) {
-  color: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(156, 163, 175, 0.7) !important;
+  border-color: rgba(156, 163, 175, 0.7) !important;
 }
 </style>
