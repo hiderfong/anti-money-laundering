@@ -163,7 +163,7 @@ root 使用默认开发密码：
 DB_PASSWORD=aml_dev_123 bash scripts/prepare-rbac-e2e-users.sh --execute
 ```
 
-准备的账号密码均为 `Aml@Admin#2026!`：
+准备的账号密码均为 `admin123`：
 
 | 用户名 | 角色 |
 |--------|------|
@@ -233,7 +233,7 @@ bash scripts/frontend-browser-e2e.sh
 
 期望：
 
-- 真实浏览器可登录 `admin/Aml@Admin#2026!` 并进入 `/dashboard`。
+- 真实浏览器可登录 `admin/admin123` 并进入 `/dashboard`。
 - 刷新后登录态仍保留。
 - `/api/auth/me` 返回 `roles`、`permissions`，管理员包含 `ROLE_ADMIN` 与 `system:user`。
 - `/dashboard`、`/system`、`/kyc`、`/monitoring`、`/alerts`、`/products` 页面渲染非空。
@@ -278,7 +278,7 @@ http://127.0.0.1:5173/login
 
 ```text
 用户名：admin
-密码：Aml@Admin#2026!
+密码：admin123
 ```
 
 至少检查：
@@ -394,7 +394,7 @@ DB_PASSWORD=aml_dev_123 bash scripts/cleanup-e2e-data.sh --execute
 4. 启动 frontend Vite 服务。
 5. 准备 RBAC E2E 账号。
 6. 依次运行 mvn -q test、scripts/e2e-test.sh、scripts/frontend-e2e.sh、scripts/frontend-browser-e2e.sh、scripts/rbac-e2e.sh。
-7. 用浏览器登录 admin/Aml@Admin#2026!，复核 dashboard/system/kyc/monitoring 等页面。
+7. 用浏览器登录 admin/admin123，复核 dashboard/system/kyc/monitoring 等页面。
 8. 记录每条命令、退出码、失败响应、关键截图路径。
 9. 不要修改业务代码；如发现问题，只提交测试报告和最小复现信息。
 

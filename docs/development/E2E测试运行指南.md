@@ -52,7 +52,7 @@ scripts/prepare-rbac-e2e-users.sh
 scripts/prepare-rbac-e2e-users.sh --execute
 ```
 
-默认会准备以下账号，密码均为 `Aml@Admin#2026!`：
+默认会准备以下账号，密码均为 `admin123`：
 
 | 用户名 | 角色 |
 |--------|------|
@@ -152,7 +152,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:browser
 
 该脚本覆盖：
 
-- 使用真实浏览器登录 `admin/Aml@Admin#2026!`，并进入 `/dashboard`。
+- 使用真实浏览器登录 `admin/admin123`，并进入 `/dashboard`。
 - 刷新页面后仍保持登录态。
 - `/api/auth/me` 返回 `roles`、`permissions`，且管理员包含 `ROLE_ADMIN` 与 `system:user`。
 - `/dashboard`、`/system`、`/kyc`、`/monitoring`、`/alerts`、`/products` 核心页面渲染非空。
@@ -165,7 +165,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:browser
 |------|--------|------|
 | `FRONTEND_URL` | `http://127.0.0.1:5173` | 前端地址 |
 | `E2E_USERNAME` | `admin` | 登录用户名 |
-| `E2E_PASSWORD` | `Aml@Admin#2026!` | 登录密码 |
+| `E2E_PASSWORD` | `admin123` | 登录密码 |
 | `HEADLESS` | `true` | 设置为 `false` 可显示浏览器 |
 | `PLAYWRIGHT_CHANNEL` | `chrome` | 浏览器 channel，常用 `chrome`/`msedge` |
 | `PLAYWRIGHT_EXECUTABLE_PATH` | 空 | 指定浏览器可执行文件 |

@@ -21,7 +21,7 @@ E2E 测试账号由脚本准备：
 scripts/prepare-rbac-e2e-users.sh --execute
 ```
 
-默认密码为 `Aml@Admin#2026!`，仅用于本地/dev 测试库。
+默认密码为 `admin123`，仅用于本地/dev 测试库。
 
 ---
 
