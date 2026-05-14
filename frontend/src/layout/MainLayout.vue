@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
-    <el-aside :width="effectiveCollapse ? '81px' : '220px'" class="aside">
+    <el-aside :width="effectiveCollapse ? '77px' : '220px'" class="aside">
       <div class="logo">
         <div class="logo-icon">盾</div>
         <span v-show="!effectiveCollapse" class="logo-text">天枢智盾 AML</span>
@@ -191,32 +191,32 @@ onBeforeUnmount(() => {
 }
 
 .aside :deep(.el-menu) {
-  --el-menu-item-height: 53px;
-  --el-menu-item-font-size: 18px;
-  --el-menu-icon-width: 31px;
+  --el-menu-item-height: 50px;
+  --el-menu-item-font-size: 17px;
+  --el-menu-icon-width: 29px;
   padding-top: 10px;
 }
 
 .aside :deep(.el-menu-item) {
-  height: 53px;
-  line-height: 53px;
+  height: 50px;
+  line-height: 50px;
   margin: 3px 9px;
-  padding: 0 16px !important;
-  font-size: 18px !important;
+  padding: 0 15px !important;
+  font-size: 17px !important;
   font-weight: 600;
   border-radius: 8px;
 }
 
 .aside :deep(.el-menu-item .el-icon) {
-  width: 23px !important;
-  margin-right: 6px !important;
-  font-size: 23px !important;
+  width: 22px !important;
+  margin-right: 8px !important;
+  font-size: 22px !important;
 }
 
 .aside :deep(.el-menu--collapse .el-menu-item) {
   justify-content: center;
   padding: 0 !important;
-  margin: 3px 11px;
+  margin: 3px 10px;
 }
 
 .aside :deep(.el-menu--collapse .el-menu-item .el-icon) {

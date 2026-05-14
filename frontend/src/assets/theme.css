@@ -71,6 +71,12 @@
   --sidebar-active: rgba(255, 255, 255, 0.12);
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.16);
 
+  --table-fixed-bg: #ffffff;
+  --table-fixed-header-bg: #f8fafc;
+  --table-fixed-striped-bg: #f8fafc;
+  --table-fixed-hover-bg: #f1f5f9;
+  --table-fixed-shadow: rgba(15, 23, 42, 0.16);
+
   /* Buttons */
   --button-default-bg: #ffffff;
   --button-default-text: #1e293b;
@@ -165,6 +171,12 @@ html.dark {
   --sidebar-bg: #08090a;
   --sidebar-text: rgba(255, 255, 255, 0.62);
   --sidebar-active: rgba(96, 165, 250, 0.2);
+
+  --table-fixed-bg: #191a1b;
+  --table-fixed-header-bg: #121416;
+  --table-fixed-striped-bg: #1f2124;
+  --table-fixed-hover-bg: #24272b;
+  --table-fixed-shadow: rgba(0, 0, 0, 0.48);
 
   --button-default-bg: #111827;
   --button-default-text: #e5e7eb;
@@ -358,6 +370,43 @@ select {
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
   background: var(--bg-hover) !important;
+}
+
+.el-table .el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-right-patch {
+  background: var(--table-fixed-bg) !important;
+  background-clip: padding-box;
+  z-index: 3 !important;
+}
+
+.el-table .el-table__header-wrapper .el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__header-wrapper .el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__header-wrapper .el-table__fixed-right-patch {
+  background: var(--table-fixed-header-bg) !important;
+  z-index: 4 !important;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell.el-table-fixed-column--left,
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell.el-table-fixed-column--right {
+  background: var(--table-fixed-striped-bg) !important;
+}
+
+.el-table .el-table__body tr:hover > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body tr:hover > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__body tr.hover-row > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body tr.hover-row > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__body tr.current-row > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body tr.current-row > td.el-table__cell.el-table-fixed-column--right {
+  background: var(--table-fixed-hover-bg) !important;
+}
+
+.el-table .el-table__cell.el-table-fixed-column--left.is-last-column::before {
+  box-shadow: 8px 0 10px -10px var(--table-fixed-shadow) !important;
+}
+
+.el-table .el-table__cell.el-table-fixed-column--right.is-first-column::before {
+  box-shadow: -8px 0 10px -10px var(--table-fixed-shadow) !important;
 }
 
 /* Buttons */
