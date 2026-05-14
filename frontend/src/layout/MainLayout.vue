@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <el-aside :width="effectiveCollapse ? '77px' : '220px'" class="aside">
       <div class="logo">
-        <div class="logo-icon">盾</div>
+        <img src="@/assets/shield.svg" alt="盾" class="logo-icon" />
         <span v-show="!effectiveCollapse" class="logo-text">天枢智盾 AML</span>
       </div>
       <el-menu
@@ -171,14 +171,6 @@ onBeforeUnmount(() => {
 .logo-icon {
   width: 28px;
   height: 28px;
-  background: var(--accent-primary);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
   flex-shrink: 0;
 }
 
