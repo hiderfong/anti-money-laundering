@@ -558,26 +558,4 @@ onMounted(loadData)
 :deep(.el-table .el-button--info.is-link) {
   color: #fff !important;
 }
-
-/* 操作按钮悬浮高亮效果 - 与详情按钮一致 */
-:deep(.el-table .el-button--primary.is-link:hover) {
-  color: var(--el-color-primary-light-3) !important;
-  opacity: 0.85;
-}
-:deep(.el-table .el-button--warning.is-link:hover) {
-  color: var(--el-color-primary-light-3) !important;
-  opacity: 0.85;
-}
-:deep(.el-table .el-button--danger.is-link:hover) {
-  color: var(--el-color-primary-light-3) !important;
-  opacity: 0.85;
-}
-:deep(.el-table .el-button--success.is-link:hover) {
-  color: var(--el-color-primary-light-3) !important;
-  opacity: 0.85;
-}
-:deep(.el-table .el-button--info.is-link:hover) {
-  color: var(--el-color-primary-light-3) !important;
-  opacity: 0.85;
-}
 </style>
