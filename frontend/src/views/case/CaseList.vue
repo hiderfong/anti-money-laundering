@@ -80,22 +80,24 @@
             <el-button
               v-for="action in getAvailableActions(row.caseStatus)"
               :key="action.target"
-              :type="action.btnType"
-              link size="small"
+              type="primary" link size="small"
+              :class="'action-btn-' + action.btnType"
               @click="handleStatusAction(row, action)"
             >
               {{ action.label }}
             </el-button>
             <el-button
               v-if="row.caseStatus !== 'CLOSED'"
-              type="warning" link size="small"
+              type="primary" link size="small"
+              class="action-btn-warning"
               @click="showInvestigationDialog(row)"
             >
               调查记录
             </el-button>
             <el-button
               v-if="row.caseStatus !== 'CLOSED'"
-              type="danger" link size="small"
+              type="primary" link size="small"
+              class="action-btn-danger"
               @click="handleCloseCaseAction(row)"
             >
               关闭案件
@@ -540,5 +542,37 @@ onMounted(loadData)
 }
 .filter-card :deep(.el-card__body) {
   padding-bottom: 2px;
+}
+
+/* 操作按钮颜色样式 - 保持与详情按钮一致的基础样式，仅修改颜色 */
+.action-btn-warning {
+  color: var(--color-warning) !important;
+}
+.action-btn-warning:hover {
+  color: var(--color-warning) !important;
+  opacity: 0.8;
+}
+
+.action-btn-danger {
+  color: var(--color-danger) !important;
+}
+.action-btn-danger:hover {
+  color: var(--color-danger) !important;
+  opacity: 0.8;
+}
+
+.action-btn-success {
+  color: var(--color-success) !important;
+}
+.action-btn-success:hover {
+  color: var(--color-success) !important;
+  opacity: 0.8;
+}
+
+.action-btn-info {
+  color: var(--text-secondary) !important;
+}
+.action-btn-info:hover {
+  color: var(--text-primary) !important;
 }
 </style>
