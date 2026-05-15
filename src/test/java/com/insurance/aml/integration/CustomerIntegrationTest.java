@@ -155,7 +155,7 @@ public class CustomerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nameEn").value("Wang Wu"))
                 .andExpect(jsonPath("$.data.phone").value("139****9000"))
-                .andExpect(jsonPath("$.data.email").value("wangwu@example.com"));
+                .andExpect(jsonPath("$.data.email").value("wa****@example.com"));
     }
 
     @Test
@@ -206,14 +206,16 @@ public class CustomerIntegrationTest extends BaseIntegrationTest {
         JsonNode data = objectMapper.readTree(body).path("data");
         assertTrue(data.path("total").asLong() >= 1, "按姓名搜索应返回至少1条记录");
 
-        // 验证搜索结果中包含目标客户
+        // 验证搜索结果中包含目标客户，默认返回值应已脱敏
         boolean found = false;
         for (JsonNode item : data.path("list")) {
-            if ("搜索测试赵六".equals(item.path("name").asText())) {
+            String maskedName = item.path("name").asText();
+            if (maskedName.startsWith("搜") && maskedName.contains("*")) {
+                assertNotEquals("搜索测试赵六", maskedName, "客户姓名默认不应明文返回");
                 found = true;
                 break;
             }
         }
-        assertTrue(found, "搜索结果应包含目标客户'搜索测试赵六'");
+        assertTrue(found, "搜索结果应包含目标客户的脱敏姓名");
     }
 }

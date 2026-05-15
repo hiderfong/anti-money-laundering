@@ -133,6 +133,7 @@ jobs:
           bash -n scripts/frontend-browser-e2e.sh
           bash -n scripts/ci-e2e-step.sh
           bash -n scripts/collect-e2e-artifacts.sh
+          bash -n scripts/performance-baseline.sh
           bash -n scripts/rbac-e2e.sh
           bash -n scripts/prepare-rbac-e2e-users.sh
           bash -n scripts/cleanup-e2e-data.sh

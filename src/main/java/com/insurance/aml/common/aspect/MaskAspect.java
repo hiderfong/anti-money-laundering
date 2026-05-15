@@ -8,8 +8,17 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.temporal.Temporal;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 字段脱敏切面
@@ -40,31 +49,56 @@ public class MaskAspect {
      * 对对象进行脱敏处理
      */
     private void applyMask(Object obj) throws IllegalAccessException {
-        if (obj == null) {
+        applyMask(obj, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    /**
+     * 递归处理 Result、PageResult、集合、数组、Map 等包装结构中的敏感字段。
+     */
+    private void applyMask(Object obj, Set<Object> visited) throws IllegalAccessException {
+        if (obj == null || isSimpleValueType(obj.getClass()) || visited.contains(obj)) {
+            return;
+        }
+
+        visited.add(obj);
+
+        if (obj instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                applyMask(item, visited);
+            }
+            return;
+        }
+
+        if (obj instanceof Map<?, ?> map) {
+            for (Object item : map.values()) {
+                applyMask(item, visited);
+            }
             return;
         }
 
         Class<?> clazz = obj.getClass();
 
-        // 处理包装类（如ResponseEntity、Result等）中的data字段
-        Field[] fields = clazz.getDeclaredFields();
-        for (Field field : fields) {
-            field.setAccessible(true);
-            Object value = field.get(obj);
-            if (value != null) {
-                // 如果是集合类型，遍历每个元素进行脱敏
-                if (value instanceof Collection<?> collection) {
-                    for (Object item : collection) {
-                        applyMaskToObject(item);
-                    }
-                } else {
-                    applyMaskToObject(value);
-                }
+        if (clazz.isArray()) {
+            int length = Array.getLength(obj);
+            for (int i = 0; i < length; i++) {
+                applyMask(Array.get(obj, i), visited);
             }
+            return;
         }
 
-        // 如果返回值本身就是需要脱敏的对象
         applyMaskToObject(obj);
+
+        while (clazz != null && clazz != Object.class) {
+            Field[] fields = clazz.getDeclaredFields();
+            for (Field field : fields) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                applyMask(field.get(obj), visited);
+            }
+            clazz = clazz.getSuperclass();
+        }
     }
 
     /**
@@ -105,5 +139,18 @@ public class MaskAspect {
             }
             clazz = clazz.getSuperclass();
         }
+    }
+
+    private boolean isSimpleValueType(Class<?> clazz) {
+        return clazz.isPrimitive()
+                || clazz.isEnum()
+                || CharSequence.class.isAssignableFrom(clazz)
+                || Number.class.isAssignableFrom(clazz)
+                || Boolean.class == clazz
+                || Character.class == clazz
+                || BigDecimal.class == clazz
+                || BigInteger.class == clazz
+                || Temporal.class.isAssignableFrom(clazz)
+                || clazz.getPackageName().startsWith("java.time");
     }
 }

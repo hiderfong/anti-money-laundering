@@ -1,5 +1,6 @@
 package com.insurance.aml.module.monitoring.model.dto;
 
+import com.insurance.aml.common.annotation.MaskField;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -43,6 +44,7 @@ public class TransactionVO {
     @Schema(description = "交易对手名称")
     private String counterpartyName;
 
+    @MaskField(MaskField.MaskType.BANK_ACCOUNT)
     @Schema(description = "交易对手账号")
     private String counterpartyAccount;
 

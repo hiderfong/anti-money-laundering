@@ -67,6 +67,7 @@ public class CustomerVO {
     @Schema(description = "手机号码")
     private String phone;
 
+    @MaskField(MaskField.MaskType.EMAIL)
     @Schema(description = "邮箱")
     private String email;
 

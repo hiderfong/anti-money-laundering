@@ -1,5 +1,6 @@
 package com.insurance.aml.module.system.model.dto;
 
+import com.insurance.aml.common.annotation.MaskField;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -37,12 +38,14 @@ public class UserVO implements Serializable {
     /**
      * 邮箱
      */
+    @MaskField(MaskField.MaskType.EMAIL)
     @Schema(description = "邮箱")
     private String email;
 
     /**
      * 手机号码
      */
+    @MaskField(MaskField.MaskType.PHONE)
     @Schema(description = "手机号码")
     private String phone;
 
