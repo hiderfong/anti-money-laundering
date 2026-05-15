@@ -15,6 +15,7 @@ import com.insurance.aml.module.alert.model.entity.AlertRuleDetail;
 import com.insurance.aml.module.alert.service.impl.AlertServiceImpl;
 import com.insurance.aml.module.case_.model.dto.CaseCreateRequest;
 import com.insurance.aml.module.case_.service.CaseService;
+import com.insurance.aml.module.system.mapper.SysUserMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +56,9 @@ class AlertServiceImplTest {
 
     @Mock
     private CaseService caseService;
+
+    @Mock
+    private SysUserMapper sysUserMapper;
 
     @InjectMocks
     private AlertServiceImpl alertService;
@@ -279,6 +283,8 @@ class AlertServiceImplTest {
         when(alertMapper.updateById(any(Alert.class))).thenReturn(1);
         // mock：插入分配日志
         when(assignmentLogMapper.insert(any())).thenReturn(1);
+        // mock：查询升级管理员
+        when(sysUserMapper.findEnabledUserIdsByRoleCodes(anyList())).thenReturn(List.of(9001L));
 
         // 执行超期预警升级
         alertService.escalateOverdueAlerts();

@@ -96,7 +96,10 @@ import type {
   FlowTraceParams,
   SharedAccountParams,
   HighDensityParams,
-  GraphResult,
+  RingTransactionResult,
+  MultiLayerTransferResult,
+  SharedAccountResult,
+  NetworkDensityResult,
   // 反馈
   FeedbackSummary,
   RuleFeedbackParams,
@@ -534,22 +537,22 @@ export const auditLogApi = {
 export const graphApi = {
   /** 检测循环交易 */
   detectCircular(params: CircularDetectionParams) {
-    return request.get<ApiResponse<GraphResult>>('/monitoring/graph/ring-detection', { params })
+    return request.get<ApiResponse<RingTransactionResult>>('/monitoring/graph/ring-detection', { params })
   },
   /** 资金流向追踪 */
   traceFlow(params: FlowTraceParams) {
     const customerId = params.customerId || params.transactionId
-    return request.get<ApiResponse<GraphResult>>('/monitoring/graph/multi-layer-transfer', {
+    return request.get<ApiResponse<MultiLayerTransferResult>>('/monitoring/graph/multi-layer-transfer', {
       params: { customerId, maxDepth: params.depth },
     })
   },
   /** 检测共用账户 */
   detectSharedAccounts(params: SharedAccountParams) {
-    return request.get<ApiResponse<GraphResult>>('/monitoring/graph/shared-accounts', { params })
+    return request.get<ApiResponse<SharedAccountResult>>('/monitoring/graph/shared-accounts', { params })
   },
   /** 检测高密度交易 */
   detectHighDensity(params: HighDensityParams) {
-    return request.get<ApiResponse<GraphResult>>('/monitoring/graph/network-density', {
+    return request.get<ApiResponse<NetworkDensityResult>>('/monitoring/graph/network-density', {
       params: {
         customerId: params.customerId,
         densityThreshold: params.minTransactions,
@@ -559,18 +562,23 @@ export const graphApi = {
 }
 
 // ====== 反馈模块 ======
+const RULE_FEEDBACK_BASE = '/monitoring/rules/feedback'
+
 export const feedbackApi = {
   /** 获取反馈汇总 */
   getSummary(params?: { startDate?: string; endDate?: string }) {
-    return request.get<ApiResponse<FeedbackSummary>>('/feedback/summary', { params })
+    return request.get<ApiResponse<FeedbackSummary>>(`${RULE_FEEDBACK_BASE}/summary`, { params })
   },
-  /** 获取规则反馈列表 */
+  /** 获取单条规则反馈详情 */
   getRuleFeedback(params: RuleFeedbackParams) {
-    return request.get<ApiResponse<PageResult<RuleFeedback>>>('/feedback/rule-feedback', { params })
+    if (params.ruleCode) {
+      return request.get<ApiResponse<RuleFeedback>>(`${RULE_FEEDBACK_BASE}/rule/code/${params.ruleCode}`)
+    }
+    return request.get<ApiResponse<RuleFeedback>>(`${RULE_FEEDBACK_BASE}/rule/${params.ruleId}`)
   },
   /** 获取需关注事项 */
   getAttention() {
-    return request.get<ApiResponse<AttentionItem[]>>('/feedback/attention')
+    return request.get<ApiResponse<AttentionItem[]>>(`${RULE_FEEDBACK_BASE}/attention`)
   },
 }
 

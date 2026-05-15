@@ -15,8 +15,7 @@ export default defineConfig({
     port: 5173,
     // 修复 WebSocket 断连导致页面重载问题
     hmr: {
-      overlay: false,
-      clientPort: 5173
+      overlay: false
     },
     // 保持连接稳定
     watch: {

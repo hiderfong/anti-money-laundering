@@ -31,7 +31,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
     @Order(1)
     @DisplayName("登录接口可访问 - 返回响应")
     void loginEndpointAccessible() throws Exception {
-        String loginJson = "{\"username\":\"admin\",\"password\":\"Aml@Admin#2026!\"}";
+        String loginJson = "{\"username\":\"admin\",\"password\":\"admin123\"}";
 
         MvcResult result = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -41,7 +41,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
         int status = result.getResponse().getStatus();
         String body = result.getResponse().getContentAsString();
 
-        assertEquals(200, status, "admin/Aml@Admin#2026! 应登录成功，实际 body: " + body);
+        assertEquals(200, status, "admin/admin123 应登录成功，实际 body: " + body);
         assertTrue(body.contains("accessToken"), "成功登录应返回accessToken");
 
         JsonNode data = objectMapper.readTree(body).path("data");
@@ -61,7 +61,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
     @DisplayName("登录后访问受保护资源")
     void accessProtectedWithToken() throws Exception {
         // 先登录获取token
-        String loginJson = "{\"username\":\"admin\",\"password\":\"Aml@Admin#2026!\"}";
+        String loginJson = "{\"username\":\"admin\",\"password\":\"admin123\"}";
         MvcResult loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson))
@@ -70,7 +70,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
         String response = loginResult.getResponse().getContentAsString();
         int loginStatus = loginResult.getResponse().getStatus();
 
-        assertEquals(200, loginStatus, "admin/Aml@Admin#2026! 应登录成功，实际 body: " + response);
+        assertEquals(200, loginStatus, "admin/admin123 应登录成功，实际 body: " + response);
 
         // 提取token
         assertTrue(response.contains("accessToken"), "应包含accessToken");
@@ -89,7 +89,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
     void refreshTokenReturnsRolesAndPermissions() throws Exception {
         MvcResult loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Aml@Admin#2026!\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -115,7 +115,7 @@ public class AuthIntegrationTest extends BaseIntegrationTest {
     void currentUserReturnsFrontendPermissionContract() throws Exception {
         MvcResult loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Aml@Admin#2026!\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
 

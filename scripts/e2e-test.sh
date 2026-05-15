@@ -168,6 +168,23 @@ echo "  E2E交易流水: $E2E_TXN_NO"
 RESP=$(auth_get "$BASE_URL/monitoring/transactions/page?page=1&size=10")
 check "查询交易列表" '"code":200' "$RESP"
 
+if [ "${RUN_GRAPH_E2E:-false}" = "true" ] && [ -n "$CUSTOMER_ID" ]; then
+    echo ""
+    echo "[4.1] 图分析（Neo4j 可选）"
+
+    RESP=$(auth_get "$BASE_URL/monitoring/graph/ring-detection?customerId=$CUSTOMER_ID")
+    check "环形交易检测" '"code":200' "$RESP"
+
+    RESP=$(auth_get "$BASE_URL/monitoring/graph/multi-layer-transfer?customerId=$CUSTOMER_ID&maxDepth=3")
+    check "多层转账追踪" '"code":200' "$RESP"
+
+    RESP=$(auth_get "$BASE_URL/monitoring/graph/shared-accounts?customerId=$CUSTOMER_ID")
+    check "共同账户检测" '"code":200' "$RESP"
+
+    RESP=$(auth_get "$BASE_URL/monitoring/graph/network-density?customerId=$CUSTOMER_ID&densityThreshold=10")
+    check "异常网络密度检测" '"code":200' "$RESP"
+fi
+
 # ==================== 名单筛查模块 ====================
 echo ""
 echo "[5] 名单筛查"

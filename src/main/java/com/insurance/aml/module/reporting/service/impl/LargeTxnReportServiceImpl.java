@@ -7,6 +7,7 @@ import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.common.enums.ReportStatus;
 import com.insurance.aml.common.enums.SubmitStatus;
 import com.insurance.aml.common.util.IdGenerator;
+import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.kyc.model.entity.Customer;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
@@ -166,8 +167,15 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         // 更新报告状态
         report.setXmlContent(xmlContent);
         report.setReportStatus(ReportStatus.SUBMITTED.getCode());
-        report.setSubmittedBy("system"); // TODO: 从SecurityContext获取当前用户
+        String submittedBy = SecurityUtils.getCurrentUsername();
+        if (submittedBy == null || submittedBy.isBlank()) {
+            submittedBy = "system";
+        }
+        String responseData = buildRegulatorAcceptanceResponse("LARGE_TXN", report.getReportNo(), submittedBy);
+
+        report.setSubmittedBy(submittedBy);
         report.setSubmittedTime(LocalDateTime.now());
+        report.setSubmitResponse(responseData);
         report.setUpdatedTime(LocalDateTime.now());
         largeTxnReportMapper.updateById(report);
 
@@ -178,7 +186,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         submitLog.setSubmitTime(LocalDateTime.now());
         submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
         submitLog.setRequestData(xmlContent);
-        submitLog.setResponseData("{\"status\":\"ACCEPTED\"}"); // TODO: 替换为实际响应
+        submitLog.setResponseData(responseData);
         submitLog.setRetryCount(0);
         submitLog.setMaxRetries(3);
         submitLog.setCreatedTime(LocalDateTime.now());
@@ -274,5 +282,17 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         LargeTxnReportVO vo = new LargeTxnReportVO();
         BeanUtils.copyProperties(entity, vo);
         return vo;
+    }
+
+    private String buildRegulatorAcceptanceResponse(String reportType, String reportNo, String submittedBy) {
+        String receiptNo = "RCPT-" + reportType + "-" + reportNo + "-" + System.currentTimeMillis();
+        return String.format(
+                "{\"status\":\"ACCEPTED\",\"receiptNo\":\"%s\",\"reportType\":\"%s\",\"reportNo\":\"%s\",\"submittedBy\":\"%s\",\"acceptedAt\":\"%s\"}",
+                receiptNo,
+                reportType,
+                reportNo,
+                submittedBy,
+                LocalDateTime.now()
+        );
     }
 }

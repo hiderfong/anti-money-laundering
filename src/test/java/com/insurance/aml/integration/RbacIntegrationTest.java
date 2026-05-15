@@ -69,7 +69,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
                         .content("""
                                 {
                                   "username": "rbac_blocked_user",
-                                  "password": "Aml@Admin#2026!",
+                                  "password": "admin123",
                                   "realName": "RBAC拒绝用户"
                                 }
                                 """))

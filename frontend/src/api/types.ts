@@ -734,40 +734,101 @@ export interface GraphResult {
   summary: Record<string, unknown>
 }
 
+export interface RingTransactionResult {
+  detected: boolean
+  pathNodes: Array<{
+    type: string
+    id: string
+    name: string
+    amount?: number
+    bank?: string
+  }>
+}
+
+export interface MultiLayerTransferResult {
+  startCustomerId: string
+  startCustomerName: string
+  chains: Array<{
+    depth: number
+    fromCustomerId: string
+    fromCustomerName: string
+    toCustomerId: string
+    toCustomerName: string
+    amount?: number
+    viaAccount?: string
+  }>
+  maxDepth: number
+  suspicious: boolean
+}
+
+export interface SharedAccountResult {
+  customerId: string
+  detected: boolean
+  sharedAccounts: Array<{
+    accountNo: string
+    bank?: string
+    relatedCustomerId: string
+    relatedCustomerName: string
+  }>
+}
+
+export interface NetworkDensityResult {
+  customerId: string
+  customerName: string
+  relatedCustomerCount: number
+  transactionCount: number
+  totalAmount: number
+  densityAlert: boolean
+  counterparties: Array<{
+    counterpartyId: string
+    counterpartyName: string
+    transactionCount: number
+    totalAmount: number
+  }>
+}
+
 // ===================== 反馈模块 =====================
 
 export interface FeedbackSummary {
-  totalFeedbacks: number
-  accuracyRate: number
-  falsePositiveRate: number
-  byRule: { ruleId: string; ruleName: string; feedbackCount: number; accuracy: number }[]
+  totalRules: number
+  avgConfirmationRate: number
+  avgFalsePositiveRate: number
+  tightenCount: number
+  relaxCount: number
+  insufficientDataCount: number
+  ruleDetails: RuleFeedback[]
 }
 
 export interface RuleFeedbackParams extends PageParams {
   ruleId?: string
+  ruleCode?: string
   feedbackType?: string
   startDate?: string
   endDate?: string
 }
 
 export interface RuleFeedback {
-  id: string
   ruleId: string
+  ruleCode: string
   ruleName: string
-  alertId: string
-  feedbackType: string
-  comment: string
-  operatorId: string
-  operatorName: string
-  createdAt: string
+  ruleCategory: string
+  status: string
+  configJson?: string
+  totalHits: number
+  alertCount: number
+  confirmedCount: number
+  excludedCount: number
+  escalatedCount: number
+  pendingCount: number
+  confirmationRate: number
+  falsePositiveRate: number
+  escalationRate: number
+  processingRate: number
+  adjustmentDirection: string
+  adjustmentReason: string
+  adjustmentDetail?: string
+  statsPeriod: string
+  calculatedAt: string
 }
 
-export interface AttentionItem {
-  id: string
-  type: string
-  title: string
-  description: string
-  severity: string
-  relatedId: string
-  createdAt: string
-}
+export type AttentionItem = RuleFeedback

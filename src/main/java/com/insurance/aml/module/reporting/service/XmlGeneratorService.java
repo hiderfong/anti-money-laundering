@@ -1,6 +1,7 @@
 package com.insurance.aml.module.reporting.service;
 
 import com.insurance.aml.module.reporting.model.entity.LargeTxnReport;
+import com.insurance.aml.module.case_.model.entity.StrReport;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.kyc.model.entity.Customer;
 import lombok.extern.slf4j.Slf4j;
@@ -83,15 +84,69 @@ public class XmlGeneratorService {
     }
 
     /**
-     * 生成可疑交易报告XML报文（占位方法）
-     * TODO: 待可疑交易报告实体定义完成后实现
+     * 生成可疑交易报告XML报文。
      *
-     * @param reportData 报告数据（JSON格式）
+     * @param report 可疑交易报告
+     * @return XML字符串
+     */
+    public String generateSuspiciousTxnXml(StrReport report) {
+        log.info("开始生成可疑交易报告XML，报告编号：{}", report.getReportNo());
+
+        StringBuilder xml = new StringBuilder();
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xml.append("<SuspiciousTransactionReport>\n");
+        xml.append("  <Header>\n");
+        xml.append("    <ReportNo>").append(escapeXml(report.getReportNo())).append("</ReportNo>\n");
+        xml.append("    <ReportType>").append(escapeXml(report.getReportType())).append("</ReportType>\n");
+        xml.append("    <ReportStatus>").append(escapeXml(report.getReportStatus())).append("</ReportStatus>\n");
+        xml.append("    <InstitutionCode>INS001</InstitutionCode>\n");
+        xml.append("    <InstitutionName>保险机构</InstitutionName>\n");
+        xml.append("    <GeneratedAt>").append(java.time.LocalDateTime.now().format(DATETIME_FMT)).append("</GeneratedAt>\n");
+        xml.append("  </Header>\n");
+        xml.append("  <CaseInfo>\n");
+        xml.append("    <CaseId>").append(report.getCaseId() == null ? "" : report.getCaseId()).append("</CaseId>\n");
+        xml.append("    <CustomerId>").append(report.getCustomerId() == null ? "" : report.getCustomerId()).append("</CustomerId>\n");
+        xml.append("  </CaseInfo>\n");
+        xml.append("  <ReportBody>\n");
+        xml.append("    <Content>").append(escapeXml(report.getReportContent())).append("</Content>\n");
+        xml.append("    <AnalysisOpinion>").append(escapeXml(report.getAnalysisOpinion())).append("</AnalysisOpinion>\n");
+        xml.append("    <MeasuresTaken>").append(escapeXml(report.getMeasuresTaken())).append("</MeasuresTaken>\n");
+        xml.append("  </ReportBody>\n");
+        xml.append("  <Workflow>\n");
+        xml.append("    <WriterId>").append(report.getWriterId() == null ? "" : report.getWriterId()).append("</WriterId>\n");
+        xml.append("    <WriterTime>").append(report.getWriterTime() == null ? "" : report.getWriterTime().format(DATETIME_FMT)).append("</WriterTime>\n");
+        xml.append("    <ReviewerId>").append(report.getReviewerId() == null ? "" : report.getReviewerId()).append("</ReviewerId>\n");
+        xml.append("    <ReviewerOpinion>").append(escapeXml(report.getReviewerOpinion())).append("</ReviewerOpinion>\n");
+        xml.append("    <ReviewerTime>").append(report.getReviewerTime() == null ? "" : report.getReviewerTime().format(DATETIME_FMT)).append("</ReviewerTime>\n");
+        xml.append("    <ApproverId>").append(report.getApproverId() == null ? "" : report.getApproverId()).append("</ApproverId>\n");
+        xml.append("    <ApproverOpinion>").append(escapeXml(report.getApproverOpinion())).append("</ApproverOpinion>\n");
+        xml.append("    <ApproverTime>").append(report.getApproverTime() == null ? "" : report.getApproverTime().format(DATETIME_FMT)).append("</ApproverTime>\n");
+        xml.append("  </Workflow>\n");
+        xml.append("</SuspiciousTransactionReport>");
+
+        log.info("可疑交易报告XML生成完成，报告编号：{}", report.getReportNo());
+        return xml.toString();
+    }
+
+    /**
+     * 根据原始报告数据生成可疑交易报告XML报文。
+     *
+     * @param reportData 报告数据
      * @return XML字符串
      */
     public String generateSuspiciousTxnXml(String reportData) {
-        log.warn("可疑交易报告XML生成功能暂未实现");
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SuspiciousTransactionReport>\n  <!-- TODO: 待实现 -->\n</SuspiciousTransactionReport>";
+        StringBuilder xml = new StringBuilder();
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xml.append("<SuspiciousTransactionReport>\n");
+        xml.append("  <Header>\n");
+        xml.append("    <ReportType>SUSPICIOUS</ReportType>\n");
+        xml.append("    <InstitutionCode>INS001</InstitutionCode>\n");
+        xml.append("    <InstitutionName>保险机构</InstitutionName>\n");
+        xml.append("    <GeneratedAt>").append(java.time.LocalDateTime.now().format(DATETIME_FMT)).append("</GeneratedAt>\n");
+        xml.append("  </Header>\n");
+        xml.append("  <ReportPayload>").append(escapeXml(reportData)).append("</ReportPayload>\n");
+        xml.append("</SuspiciousTransactionReport>");
+        return xml.toString();
     }
 
     /**

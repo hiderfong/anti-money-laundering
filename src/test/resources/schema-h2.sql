@@ -499,8 +499,183 @@ CREATE TABLE IF NOT EXISTS t_investigation_action (
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 插入测试数据，admin 密码为 Aml@Admin#2026!
-INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$hkuD3dv56eEnxliOSY7T9eBDl.wvaFZATZEkd4h/MU50LAjoXu80a', '系统管理员', 'ENABLED');
+CREATE TABLE IF NOT EXISTS t_case (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  case_no VARCHAR(32) NOT NULL,
+  alert_id BIGINT,
+  customer_id BIGINT NOT NULL,
+  customer_name VARCHAR(128),
+  case_status VARCHAR(32) DEFAULT 'DRAFT',
+  case_type VARCHAR(32),
+  priority INT DEFAULT 0,
+  summary VARCHAR(2048),
+  investigator_id BIGINT,
+  reviewer_id BIGINT,
+  approver_id BIGINT,
+  submit_time TIMESTAMP,
+  close_time TIMESTAMP,
+  close_reason VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_case_status_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  case_id BIGINT NOT NULL,
+  from_status VARCHAR(32),
+  to_status VARCHAR(32) NOT NULL,
+  remark VARCHAR(2048),
+  changed_by VARCHAR(64),
+  changed_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_case_investigation (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  case_id BIGINT NOT NULL,
+  content VARCHAR(4096) NOT NULL,
+  conclusion VARCHAR(32),
+  investigator_id BIGINT NOT NULL,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_case_attachment (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  case_id BIGINT NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(512) NOT NULL,
+  file_size BIGINT,
+  file_type VARCHAR(32),
+  upload_by BIGINT NOT NULL,
+  upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_large_txn_report (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  report_no VARCHAR(32) NOT NULL,
+  customer_id BIGINT NOT NULL,
+  customer_name VARCHAR(128),
+  transaction_id BIGINT,
+  report_date DATE NOT NULL,
+  transaction_time TIMESTAMP NOT NULL,
+  transaction_type VARCHAR(32) NOT NULL,
+  amount DECIMAL(18,2) NOT NULL,
+  currency VARCHAR(8) DEFAULT 'CNY',
+  payment_method VARCHAR(16),
+  counterparty_info VARCHAR(2048),
+  report_status VARCHAR(16) DEFAULT 'DRAFT',
+  reviewed_by VARCHAR(64),
+  reviewed_time TIMESTAMP,
+  submitted_by VARCHAR(64),
+  submitted_time TIMESTAMP,
+  xml_content CLOB,
+  submit_response VARCHAR(2048),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_report_submit_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  report_type VARCHAR(32) NOT NULL,
+  report_id BIGINT NOT NULL,
+  submit_time TIMESTAMP NOT NULL,
+  submit_status VARCHAR(16) NOT NULL,
+  request_data CLOB,
+  response_data VARCHAR(2048),
+  error_message VARCHAR(512),
+  retry_count INT DEFAULT 0,
+  max_retries INT DEFAULT 3,
+  next_retry_time TIMESTAMP,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_product (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  product_code VARCHAR(32) NOT NULL,
+  product_name VARCHAR(256) NOT NULL,
+  product_type VARCHAR(32) NOT NULL,
+  product_sub_type VARCHAR(64),
+  payment_mode VARCHAR(16),
+  has_cash_value BOOLEAN DEFAULT FALSE,
+  has_investment_feature BOOLEAN DEFAULT FALSE,
+  surrender_flexibility VARCHAR(16),
+  beneficiary_changeable BOOLEAN DEFAULT TRUE,
+  risk_level VARCHAR(16) DEFAULT 'LOW',
+  risk_score INT DEFAULT 0,
+  risk_factors VARCHAR(2048),
+  status VARCHAR(16) DEFAULT 'ACTIVE',
+  effective_date DATE,
+  expiry_date DATE,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_product_risk_assessment (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  product_id BIGINT NOT NULL,
+  assessment_date DATE NOT NULL,
+  assessor VARCHAR(64) NOT NULL,
+  client_group_score INT,
+  payment_mode_score INT,
+  product_structure_score INT,
+  surrender_score INT,
+  beneficiary_score INT,
+  channel_score INT,
+  total_score INT NOT NULL,
+  risk_level VARCHAR(16) NOT NULL,
+  assessment_result VARCHAR(2048),
+  approved_by VARCHAR(64),
+  approved_time TIMESTAMP,
+  status VARCHAR(16) DEFAULT 'DRAFT',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_sys_dict (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  dict_code VARCHAR(64) NOT NULL,
+  dict_name VARCHAR(128) NOT NULL,
+  description VARCHAR(512),
+  status VARCHAR(16) DEFAULT 'ACTIVE',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_sys_dict_item (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  dict_id BIGINT NOT NULL,
+  item_code VARCHAR(64) NOT NULL,
+  item_label VARCHAR(255) NOT NULL,
+  item_value VARCHAR(255) NOT NULL,
+  sort_order INT DEFAULT 0,
+  status VARCHAR(16) DEFAULT 'ACTIVE',
+  remark VARCHAR(512),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_notification (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content VARCHAR(2048),
+  related_type VARCHAR(64),
+  related_id VARCHAR(64),
+  is_read BOOLEAN DEFAULT FALSE,
+  read_time TIMESTAMP,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 插入测试数据，admin 密码为 admin123
+INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
 INSERT INTO t_user_role (user_id, role_id) VALUES (1, 1);
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (1, 'system:view', '系统管理查看', 'API', '/system', 1, 'ENABLED');
@@ -510,6 +685,7 @@ INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (5, 'rectification:manage', '整改管理', 'API', '/rectifications', 5, 'ENABLED');
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (6, 'investigation:view', '调查协查查看', 'API', '/investigations', 6, 'ENABLED');
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (7, 'investigation:manage', '调查协查管理', 'API', '/investigations', 7, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (8, 'system:user', '系统用户管理', 'API', '/system/users', 8, 'ENABLED');
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 1);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 2);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 3);
@@ -517,3 +693,4 @@ INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 4);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 5);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 6);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 7);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 8);

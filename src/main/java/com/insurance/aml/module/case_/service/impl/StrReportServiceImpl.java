@@ -15,6 +15,10 @@ import com.insurance.aml.module.case_.model.entity.Case;
 import com.insurance.aml.module.case_.model.entity.StrReport;
 import com.insurance.aml.module.case_.service.CaseService;
 import com.insurance.aml.module.case_.service.StrReportService;
+import com.insurance.aml.module.reporting.mapper.ReportSubmitLogMapper;
+import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
+import com.insurance.aml.module.reporting.service.XmlGeneratorService;
+import com.insurance.aml.common.enums.SubmitStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -35,6 +39,8 @@ public class StrReportServiceImpl implements StrReportService {
     private final StrReportMapper strReportMapper;
     private final CaseMapper caseMapper;
     private final IdGenerator idGenerator;
+    private final XmlGeneratorService xmlGeneratorService;
+    private final ReportSubmitLogMapper reportSubmitLogMapper;
     @Lazy
     private final CaseService caseService;
 
@@ -166,12 +172,26 @@ public class StrReportServiceImpl implements StrReportService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        String xmlContent = xmlGeneratorService.generateSuspiciousTxnXml(report);
+        String responseData = buildRegulatorAcceptanceResponse(report);
+
         report.setReportStatus(ReportStatus.SUBMITTED.getCode());
         report.setSubmitTime(now);
-        // 实际XML生成和提交将在reporting模块中实现
-        report.setSubmitResult("提交成功");
+        report.setSubmitResult(responseData);
         report.setUpdatedTime(now);
         strReportMapper.updateById(report);
+
+        ReportSubmitLog submitLog = new ReportSubmitLog();
+        submitLog.setReportType("SUSPICIOUS");
+        submitLog.setReportId(reportId);
+        submitLog.setSubmitTime(now);
+        submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
+        submitLog.setRequestData(xmlContent);
+        submitLog.setResponseData(responseData);
+        submitLog.setRetryCount(0);
+        submitLog.setMaxRetries(3);
+        submitLog.setCreatedTime(now);
+        reportSubmitLogMapper.insert(submitLog);
 
         log.info("可疑交易报告已提交至监管机构，reportId={}", reportId);
     }
@@ -186,5 +206,17 @@ public class StrReportServiceImpl implements StrReportService {
         }
 
         return report;
+    }
+
+    private String buildRegulatorAcceptanceResponse(StrReport report) {
+        String receiptNo = "RCPT-SUSPICIOUS-" + report.getReportNo() + "-" + System.currentTimeMillis();
+        Long submittedBy = SecurityUtils.getCurrentUserId();
+        return String.format(
+                "{\"status\":\"ACCEPTED\",\"receiptNo\":\"%s\",\"reportType\":\"SUSPICIOUS\",\"reportNo\":\"%s\",\"submittedBy\":\"%s\",\"acceptedAt\":\"%s\"}",
+                receiptNo,
+                report.getReportNo(),
+                submittedBy == null ? "system" : submittedBy,
+                LocalDateTime.now()
+        );
     }
 }

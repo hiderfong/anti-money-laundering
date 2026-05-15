@@ -21,6 +21,7 @@ import com.insurance.aml.module.alert.controller.AlertController;
 import com.insurance.aml.module.alert.service.AlertService;
 import com.insurance.aml.module.case_.model.dto.CaseCreateRequest;
 import com.insurance.aml.module.case_.service.CaseService;
+import com.insurance.aml.module.system.mapper.SysUserMapper;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
@@ -31,7 +32,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +55,7 @@ public class AlertServiceImpl implements AlertService {
     private final IdGenerator idGenerator;
     private final CaseService caseService;
     private final Executor amlTaskExecutor;
+    private final SysUserMapper sysUserMapper;
 
     /**
      * 创建预警
@@ -342,7 +343,6 @@ public class AlertServiceImpl implements AlertService {
     /**
      * 自动分配预警
      * 查询状态为NEW的预警，轮询分配给可用的AML专员
-     * TODO: 需要依赖用户模块提供AML专员查询能力
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -362,8 +362,6 @@ public class AlertServiceImpl implements AlertService {
 
         log.info("待分配预警数量：{}", newAlerts.size());
 
-        // 查询可用的AML专员（具有ROLE_AML_OFFICER角色的用户）
-        // TODO: 需要用户模块提供查询AML专员的能力，当前使用占位逻辑
         List<Long> amlOfficerIds = getAvailableAmlOfficers();
 
         if (CollectionUtils.isEmpty(amlOfficerIds)) {
@@ -406,8 +404,6 @@ public class AlertServiceImpl implements AlertService {
 
         log.info("超期预警数量：{}", overdueAlerts.size());
 
-        // 获取管理员ID用于升级分配
-        // TODO: 需要用户模块提供查询管理员的能力
         Long managerId = getEscalationManager();
 
         for (Alert alert : overdueAlerts) {
@@ -554,26 +550,34 @@ public class AlertServiceImpl implements AlertService {
     }
 
     /**
-     * 获取可用的AML专员ID列表
-     * TODO: 需要用户模块提供查询AML专员的能力，当前返回测试数据
+     * 获取可用的AML专员ID列表。
      */
     private List<Long> getAvailableAmlOfficers() {
-        // TODO: 替换为实际的用户查询逻辑
-        // 例如：查询 sys_user 表中具有 ROLE_AML_OFFICER 角色的启用用户
-        // return userMapper.selectUserIdsByRole("ROLE_AML_OFFICER");
-        log.debug("查询可用AML专员（当前使用占位逻辑）");
-        return new ArrayList<>();
+        List<Long> officerIds = sysUserMapper.findEnabledUserIdsByRoleCodes(List.of(
+                "ROLE_AML_OFFICER",
+                "ROLE_COMPLIANCE",
+                "ROLE_INVESTIGATOR"
+        ));
+        if (CollectionUtils.isEmpty(officerIds)) {
+            officerIds = sysUserMapper.findEnabledUserIdsByRoleCodes(List.of("ROLE_ADMIN"));
+        }
+        log.debug("查询可用AML专员，数量={}", officerIds == null ? 0 : officerIds.size());
+        return officerIds == null ? Collections.emptyList() : officerIds;
     }
 
     /**
-     * 获取升级处理的管理员ID
-     * TODO: 需要用户模块提供查询管理员的能力，当前返回默认值
+     * 获取升级处理管理员ID。
      */
     private Long getEscalationManager() {
-        // TODO: 替换为实际的管理员查询逻辑
-        // 例如：查询 sys_user 表中具有 ROLE_MANAGER 角色的第一个用户
-        // return userMapper.selectFirstUserIdByRole("ROLE_MANAGER");
-        log.debug("查询升级管理员（当前使用占位逻辑）");
-        return 1L; // 默认管理员ID
+        List<Long> managerIds = sysUserMapper.findEnabledUserIdsByRoleCodes(List.of(
+                "ROLE_AML_MANAGER",
+                "ROLE_ADMIN",
+                "ROLE_COMPLIANCE"
+        ));
+        if (CollectionUtils.isEmpty(managerIds)) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "没有可用的预警升级管理员");
+        }
+        log.debug("查询升级管理员，userId={}", managerIds.get(0));
+        return managerIds.get(0);
     }
 }
