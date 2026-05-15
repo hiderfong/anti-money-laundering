@@ -7,7 +7,7 @@
 set -e
 
 API_URL="${API_URL:-http://localhost:8080/api}"
-PASSWORD="${PASSWORD:-Aml@Admin#2026!}"
+PASSWORD="${PASSWORD:-admin123}"
 E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
 E2E_PREFIX="${E2E_PREFIX:-E2E}"
 E2E_IP="${RBAC_E2E_IP:-${E2E_IP:-127.0.0.104}}"
@@ -202,7 +202,7 @@ JSON
 USER_BODY=$(cat <<JSON
 {
   "username": "e2e_rbac_temp_${E2E_RUN_ID}",
-  "password": "Aml@Admin#2026!",
+  "password": "admin123",
   "realName": "E2E RBAC 临时用户 ${E2E_RUN_ID}",
   "email": "e2e_rbac_temp_${E2E_RUN_ID}@test.local"
 }
