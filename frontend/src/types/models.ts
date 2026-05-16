@@ -20,7 +20,6 @@ import type {
   ReportStatus,
   AssessmentStatus,
   RectificationStatus,
-  LargeTxnReportType,
   NotificationType,
   AuditOperationType,
 } from './common'
@@ -237,16 +236,26 @@ export interface ScreeningResult {
   id: number
   /** 被筛查客户姓名 */
   customerName: string
+  /** 客户证件号码 */
+  customerIdNumber?: string
+  /** 命中名单条目ID */
+  watchlistEntryId?: number | string
   /** 命中名单姓名 */
-  matchName: string
+  watchlistName: string
   /** 匹配分数 (0-100) */
   matchScore: number
   /** 匹配类型 */
   matchType: MatchType
-  /** 来源名单/制裁清单 */
-  sourceList: string
+  /** 匹配字段 */
+  matchField?: string
+  /** 匹配详情 */
+  matchDetail?: string
   /** 审核状态 */
   reviewStatus: ScreeningReviewStatus
+  /** 审核人 */
+  reviewedBy?: string
+  /** 审核时间 */
+  reviewedTime?: string
   /** 创建时间 */
   createdTime: string
 }
@@ -366,20 +375,36 @@ export interface LargeTxnReport {
   id: number
   /** 报告编号 */
   reportNo: string
-  /** 报告类型：大额/可疑 */
-  reportType: LargeTxnReportType
-  /** 报告期间 */
-  reportPeriod: string
-  /** 交易笔数 */
-  transactionCount: number
-  /** 交易总额 */
-  totalAmount: number
+  /** 客户ID */
+  customerId?: number | string
+  /** 客户名称 */
+  customerName?: string
+  /** 交易ID */
+  transactionId?: number | string
+  /** 报告日期 */
+  reportDate: string
+  /** 交易时间 */
+  transactionTime: string
+  /** 交易类型 */
+  transactionType: string
+  /** 交易金额 */
+  amount: number
+  /** 币种 */
+  currency: string
+  /** 支付方式 */
+  paymentMethod?: string
+  /** 交易对手信息 */
+  counterpartyInfo?: string
   /** 报告状态 */
-  reportStatus: ReportStatus
-  /** 审核人 ID */
-  reviewerId: number | null
+  reportStatus: ReportStatus | 'DRAFT' | 'REVIEWED' | 'FAILED' | 'RESUBMITTED'
+  /** 审核人 */
+  reviewedBy?: string
+  /** 审核时间 */
+  reviewedTime?: string
+  /** 提交人 */
+  submittedBy?: string
   /** 提交时间 */
-  submitTime: string | null
+  submittedTime?: string
   /** 创建时间 */
   createdTime: string
 }

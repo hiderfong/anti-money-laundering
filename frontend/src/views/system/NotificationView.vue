@@ -52,6 +52,11 @@
             <span class="notification-time">{{ item.createdTime }}</span>
           </div>
           <div class="notification-body">{{ item.content }}</div>
+          <div v-if="item.type === 'CASE'" class="notification-actions">
+            <el-button type="primary" plain size="small" @click.stop="openDetail(item)">
+              <el-icon><View /></el-icon>查看详情
+            </el-button>
+          </div>
         </div>
       </el-card>
     </div>
@@ -68,12 +73,46 @@
         @current-change="fetchNotifications"
       />
     </div>
+
+    <el-dialog v-model="detailVisible" title="通知详情" width="640px" destroy-on-close>
+      <div v-if="selectedNotification" class="detail-panel">
+        <div class="detail-heading">
+          <el-tag :type="typeTagMap[selectedNotification.type]" disable-transitions>
+            {{ typeLabelMap[selectedNotification.type] || selectedNotification.type }}
+          </el-tag>
+          <h3>{{ selectedNotification.title }}</h3>
+        </div>
+
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="通知状态">
+            <el-tag :type="selectedNotification.isRead ? 'info' : 'warning'" size="small">
+              {{ selectedNotification.isRead ? '已读' : '未读' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="通知时间">{{ selectedNotification.createdTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="阅读时间">{{ selectedNotification.readTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="关联对象">{{ relatedBusinessLabel(selectedNotification) }}</el-descriptions-item>
+          <el-descriptions-item label="案件编号" :span="2">
+            {{ caseReference(selectedNotification) || '未关联案件编号' }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <section class="detail-section">
+          <h4>通知内容</h4>
+          <p>{{ selectedNotification.content || '-' }}</p>
+        </section>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { View } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
 interface Notification {
@@ -82,6 +121,9 @@ interface Notification {
   content: string
   type: string
   isRead: boolean
+  readTime?: string
+  relatedType?: string
+  relatedId?: string
   createdTime: string
 }
 
@@ -91,6 +133,8 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const unreadCount = ref(0)
+const detailVisible = ref(false)
+const selectedNotification = ref<Notification | null>(null)
 
 const filterReadStatus = ref('')
 const filterType = ref('')
@@ -123,7 +167,9 @@ async function fetchNotifications() {
       params.type = filterType.value
     }
     const res = await request.get('/system/notifications/my', { params })
-    notifications.value = res.data?.records ?? res.data?.list ?? res.data ?? []
+    const rawList = res.data?.records ?? res.data?.list ?? res.data ?? []
+    const list = Array.isArray(rawList) ? rawList : []
+    notifications.value = list.map(normalizeNotification)
     total.value = res.data?.total ?? 0
   } catch {
     ElMessage.error('获取通知列表失败')
@@ -146,9 +192,18 @@ async function handleRead(item: Notification) {
   try {
     await request.post(`/system/notifications/${item.id}/read`)
     item.isRead = true
+    item.readTime = item.readTime || '刚刚'
     unreadCount.value = Math.max(0, unreadCount.value - 1)
   } catch {
     ElMessage.error('标记已读失败')
+  }
+}
+
+async function openDetail(item: Notification) {
+  selectedNotification.value = item
+  detailVisible.value = true
+  if (!item.isRead) {
+    await handleRead(item)
   }
 }
 
@@ -167,6 +222,40 @@ async function handleReadAll() {
 function handleFilterChange() {
   currentPage.value = 1
   fetchNotifications()
+}
+
+function normalizeNotification(raw: any): Notification {
+  const readTime = raw.readTime || raw.read_at || ''
+  return {
+    id: Number(raw.id),
+    title: raw.title || '',
+    content: raw.content || '',
+    type: raw.type || 'SYSTEM',
+    isRead: Boolean(readTime) || Boolean(raw.isRead ?? raw.read),
+    readTime,
+    relatedType: raw.relatedType || '',
+    relatedId: raw.relatedId || '',
+    createdTime: raw.createdTime || raw.createdAt || ''
+  }
+}
+
+function caseReference(item: Notification) {
+  if (item.relatedType === 'CASE' && item.relatedId) {
+    return item.relatedId
+  }
+  const match = String(item.content || '').match(/案件\s*([A-Za-z0-9_-]+)/)
+  return match?.[1] || ''
+}
+
+function relatedBusinessLabel(item: Notification) {
+  if (!item.relatedType && !item.relatedId) return '未关联'
+  const typeLabel: Record<string, string> = {
+    ALERT: '预警',
+    CASE: '案件',
+    STR: '可疑交易报告',
+    REPORT: '报告'
+  }
+  return `${typeLabel[item.relatedType || ''] || item.relatedType}${item.relatedId ? ` #${item.relatedId}` : ''}`
 }
 
 onMounted(() => {
@@ -194,5 +283,18 @@ onMounted(() => {
 .title-bold { font-weight: 600; }
 .notification-time { font-size: 12px; color: #909399; white-space: nowrap; }
 .notification-body { font-size: 13px; color: #606266; padding-left: 16px; line-height: 1.6; }
+.notification-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 .pagination-wrap { display: flex; justify-content: flex-end; padding: 12px 0; }
+.detail-panel { display: flex; flex-direction: column; gap: 16px; }
+.detail-heading { display: flex; align-items: center; gap: 10px; }
+.detail-heading h3 { margin: 0; color: #303133; font-size: 18px; }
+.detail-section h4 { margin: 0 0 8px; color: #303133; font-size: 14px; }
+.detail-section p {
+  margin: 0;
+  color: #606266;
+  line-height: 1.7;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
 </style>

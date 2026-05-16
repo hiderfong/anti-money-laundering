@@ -52,6 +52,17 @@ public class AlertController {
     }
 
     /**
+     * 获取预警处置链路
+     */
+    @GetMapping("/{id}/disposition-chain")
+    @Operation(summary = "预警处置链路", description = "聚合预警关联交易、案件、STR报告和报送状态")
+    public Result<AlertDispositionChainVO> getDispositionChain(
+            @Parameter(description = "预警ID", required = true) @PathVariable Long id) {
+        log.debug("接收到获取预警处置链路请求，预警ID：{}", id);
+        return Result.success(alertService.getDispositionChain(id));
+    }
+
+    /**
      * 分配预警
      */
     @PostMapping("/assign")

@@ -24,6 +24,15 @@ public interface GraphAnalysisService {
     void syncTransactionToGraph(Transaction transaction);
 
     /**
+     * 批量同步已有交易到Neo4j图数据库。
+     *
+     * @param limit 最大同步笔数
+     * @param sourceSystem 来源系统过滤；为空时同步全部交易
+     * @return 成功同步笔数
+     */
+    long syncTransactionsToGraph(int limit, String sourceSystem);
+
+    /**
      * 检测环形交易
      */
     RingTransactionResult detectRingTransactions(Long customerId);

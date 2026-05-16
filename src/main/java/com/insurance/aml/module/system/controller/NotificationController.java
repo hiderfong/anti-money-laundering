@@ -31,11 +31,12 @@ public class NotificationController {
     @GetMapping("/my")
     @Operation(summary = "我的通知", description = "分页查询当前登录用户的通知，支持按已读状态筛选")
     public Result<PageResult<NotificationVO>> getMyNotifications(
+            @Parameter(description = "通知类型") @RequestParam(required = false) String type,
             @Parameter(description = "是否已读") @RequestParam(required = false) Boolean isRead,
             PageQuery pageQuery) {
         Long userId = SecurityUtils.getCurrentUserId();
         log.debug("查询我的通知，userId={}", userId);
-        PageResult<NotificationVO> result = notificationService.getMyNotifications(userId, isRead, pageQuery);
+        PageResult<NotificationVO> result = notificationService.getMyNotifications(userId, type, isRead, pageQuery);
         return Result.success(result);
     }
 

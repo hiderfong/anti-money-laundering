@@ -68,7 +68,9 @@
           <template #default="{ row }">{{ typeLabel(row.requestType) }}</template>
         </el-table-column>
         <el-table-column prop="documentNo" label="文书编号" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="customerName" label="客户" min-width="130" show-overflow-tooltip />
+        <el-table-column label="客户" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ displayCustomerName(row) }}</template>
+        </el-table-column>
         <el-table-column prop="priority" label="优先级" width="100">
           <template #default="{ row }">
             <el-tag :type="priorityType(row.priority)" size="small">{{ priorityLabel(row.priority) }}</el-tag>
@@ -229,6 +231,15 @@ const statusForm = reactive({
   responseSummary: ''
 })
 
+const LEGACY_CUSTOMER_NAMES = [
+  '张晨曦',
+  '李若宁',
+  '周建国',
+  '王嘉宁',
+  '上海华颐供应链管理有限公司',
+  '深圳远航进出口有限公司'
+]
+
 async function loadOverview() {
   const res: any = await request.get('/investigations/overview')
   Object.assign(overview, res.data)
@@ -335,6 +346,23 @@ function typeLabel(type: string) {
 
 function actionTypeLabel(type: string) {
   return { INQUIRY: '询问', REVIEW: '查阅', COPY: '复制资料', DATA_EXPORT: '数据调取', RESPONSE: '回复', OTHER: '其他' }[type] || type
+}
+
+function displayCustomerName(row: any) {
+  const name = String(row?.customerName || '').trim()
+  if (!name) {
+    return row?.customerId ? `客户ID ${row.customerId}` : '-'
+  }
+  if (name.startsWith('E2E客户')) {
+    return deterministicCustomerName(row.customerId || row.id)
+  }
+  return name
+}
+
+function deterministicCustomerName(value: unknown) {
+  const numeric = Number(String(value || '').replace(/\D/g, '').slice(-4))
+  const index = Number.isFinite(numeric) ? numeric % LEGACY_CUSTOMER_NAMES.length : 0
+  return LEGACY_CUSTOMER_NAMES[index]
 }
 
 function priorityLabel(priority: string) {

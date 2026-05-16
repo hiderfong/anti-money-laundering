@@ -13,6 +13,8 @@ import com.insurance.aml.module.case_.model.entity.CaseInvestigation;
 import com.insurance.aml.module.case_.model.entity.CaseStatusLog;
 import com.insurance.aml.module.case_.model.entity.StrReport;
 import com.insurance.aml.module.case_.service.impl.CaseServiceImpl;
+import com.insurance.aml.module.kyc.mapper.CustomerMapper;
+import com.insurance.aml.module.system.mapper.SysUserMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,12 @@ class CaseServiceImplTest {
 
     @Mock
     private StrReportMapper strReportMapper;
+
+    @Mock
+    private CustomerMapper customerMapper;
+
+    @Mock
+    private SysUserMapper sysUserMapper;
 
     @Mock
     private AlertMapper alertMapper;

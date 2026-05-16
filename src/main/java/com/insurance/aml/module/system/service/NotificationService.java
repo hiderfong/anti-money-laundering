@@ -26,11 +26,12 @@ public interface NotificationService {
      * 分页查询当前用户的通知
      *
      * @param userId    用户ID
+     * @param type      通知类型（可选，null表示查询全部）
      * @param isRead    是否已读（可选，null表示查询全部）
      * @param pageQuery 分页参数
      * @return 分页结果
      */
-    PageResult<NotificationVO> getMyNotifications(Long userId, Boolean isRead, PageQuery pageQuery);
+    PageResult<NotificationVO> getMyNotifications(Long userId, String type, Boolean isRead, PageQuery pageQuery);
 
     /**
      * 标记单条通知为已读

@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,10 +54,13 @@ public class NotificationServiceImpl implements NotificationService {
      * 分页查询当前用户的通知，支持按已读状态筛选
      */
     @Override
-    public PageResult<NotificationVO> getMyNotifications(Long userId, Boolean isRead, PageQuery pageQuery) {
+    public PageResult<NotificationVO> getMyNotifications(Long userId, String type, Boolean isRead, PageQuery pageQuery) {
         LambdaQueryWrapper<SysNotification> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysNotification::getUserId, userId);
 
+        if (StringUtils.hasText(type)) {
+            wrapper.eq(SysNotification::getType, type);
+        }
         if (isRead != null) {
             wrapper.eq(SysNotification::getIsRead, isRead);
         }

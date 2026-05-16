@@ -674,6 +674,99 @@ CREATE TABLE IF NOT EXISTS t_notification (
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_aml_model (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  model_code VARCHAR(64) NOT NULL,
+  model_name VARCHAR(256) NOT NULL,
+  model_type VARCHAR(32) NOT NULL,
+  scenario VARCHAR(64) NOT NULL,
+  algorithm_type VARCHAR(64),
+  version VARCHAR(32) DEFAULT '1.0.0',
+  lifecycle_status VARCHAR(32) DEFAULT 'DRAFT',
+  owner VARCHAR(64),
+  governance_level VARCHAR(16) DEFAULT 'L2',
+  risk_level VARCHAR(16) DEFAULT 'MEDIUM',
+  training_dataset VARCHAR(256),
+  validation_dataset VARCHAR(256),
+  test_result VARCHAR(32),
+  last_test_time TIMESTAMP,
+  deployment_env VARCHAR(32),
+  deployed_time TIMESTAMP,
+  monitor_status VARCHAR(32) DEFAULT 'NOT_STARTED',
+  precision_rate DECIMAL(8,4),
+  recall_rate DECIMAL(8,4),
+  false_positive_rate DECIMAL(8,4),
+  drift_score DECIMAL(8,4),
+  last_monitor_time TIMESTAMP,
+  iteration_plan CLOB,
+  archive_reason CLOB,
+  archived_time TIMESTAMP,
+  description CLOB,
+  config_json CLOB,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_aml_model_lifecycle_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  model_id BIGINT NOT NULL,
+  model_code VARCHAR(64) NOT NULL,
+  action_type VARCHAR(32) NOT NULL,
+  from_status VARCHAR(32),
+  to_status VARCHAR(32) NOT NULL,
+  operator VARCHAR(64),
+  action_time TIMESTAMP NOT NULL,
+  action_summary CLOB,
+  result_metric CLOB,
+  artifact_ref VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_regulation_category (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  category_code VARCHAR(64) NOT NULL,
+  category_name VARCHAR(128) NOT NULL,
+  category_type VARCHAR(32) DEFAULT 'GENERAL',
+  parent_id BIGINT DEFAULT 0,
+  sort_order INT DEFAULT 0,
+  status VARCHAR(32) DEFAULT 'ENABLED',
+  description VARCHAR(512),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_regulation_document (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  doc_code VARCHAR(64) NOT NULL,
+  title VARCHAR(256) NOT NULL,
+  doc_type VARCHAR(32) NOT NULL,
+  category_id BIGINT,
+  category_name VARCHAR(128),
+  source_type VARCHAR(32) DEFAULT 'INTERNAL',
+  source_org VARCHAR(128),
+  publish_date DATE,
+  effective_date DATE,
+  status VARCHAR(32) DEFAULT 'DRAFT',
+  important_flag BOOLEAN DEFAULT FALSE,
+  summary VARCHAR(1024),
+  content CLOB,
+  tags VARCHAR(512),
+  reference_url VARCHAR(512),
+  attachment_ref VARCHAR(512),
+  view_count INT DEFAULT 0,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 插入测试数据，admin 密码为 admin123
 INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
@@ -686,6 +779,11 @@ INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (6, 'investigation:view', '调查协查查看', 'API', '/investigations', 6, 'ENABLED');
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (7, 'investigation:manage', '调查协查管理', 'API', '/investigations', 7, 'ENABLED');
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (8, 'system:user', '系统用户管理', 'API', '/system/users', 8, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (9, 'model:view', '模型管理查看', 'API', '/models', 9, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (10, 'model:manage', '模型管理操作', 'API', '/models', 10, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (11, 'regulation:view', '法规资料库查看', 'API', '/regulation-library', 11, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (12, 'regulation:manage', '法规资料库管理', 'API', '/regulation-library', 12, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (13, 'MENU_REGULATION_LIBRARY', '法规及资料库菜单', 'MENU', '/regulation-library', 13, 'ENABLED');
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 1);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 2);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 3);
@@ -694,3 +792,8 @@ INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 5);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 6);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 7);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 8);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 9);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 10);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 11);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 12);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 13);

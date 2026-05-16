@@ -26,13 +26,21 @@ fi
 RUN_TAIL=$(printf "%08d" "$((10#$RUN_TAIL % 100000000))")
 ID_TAIL=$(printf "%04d" "$((10#$RUN_TAIL % 10000))")
 
-E2E_CUSTOMER_NAME="${E2E_CUSTOMER_NAME:-${E2E_PREFIX}客户_${E2E_RUN_ID}}"
+case $((10#$ID_TAIL % 6)) in
+    0) DEFAULT_E2E_CUSTOMER_NAME="张晨曦" ;;
+    1) DEFAULT_E2E_CUSTOMER_NAME="李若宁" ;;
+    2) DEFAULT_E2E_CUSTOMER_NAME="王嘉宁" ;;
+    3) DEFAULT_E2E_CUSTOMER_NAME="赵景行" ;;
+    4) DEFAULT_E2E_CUSTOMER_NAME="陈启明" ;;
+    *) DEFAULT_E2E_CUSTOMER_NAME="林致远" ;;
+esac
+E2E_CUSTOMER_NAME="${E2E_CUSTOMER_NAME:-$DEFAULT_E2E_CUSTOMER_NAME}"
 E2E_ID_NUMBER="${E2E_ID_NUMBER:-11010119900101${ID_TAIL}}"
 E2E_PHONE="${E2E_PHONE:-139${RUN_TAIL}}"
 E2E_EMAIL="${E2E_EMAIL:-e2e_${E2E_RUN_ID}@test.local}"
 E2E_TXN_NO="${E2E_TXN_NO:-${E2E_PREFIX}_TXN_${E2E_RUN_ID}_001}"
 E2E_FREEZE_DOC_NO="${E2E_FREEZE_DOC_NO:-${E2E_PREFIX}_FSD_${E2E_RUN_ID}}"
-E2E_INVESTIGATION_DOC_NO="${E2E_INVESTIGATION_DOC_NO:-${E2E_PREFIX}_IRQ_DOC_${E2E_RUN_ID}}"
+E2E_INVESTIGATION_DOC_NO="${E2E_INVESTIGATION_DOC_NO:-沪公经协查字〔2026〕${ID_TAIL}号}"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -135,7 +143,11 @@ RESP=$(auth_post "$BASE_URL/kyc/customers" '{
     "idType":"IDCARD",
     "idNumber":"'"$E2E_ID_NUMBER"'",
     "phone":"'"$E2E_PHONE"'",
-    "email":"'"$E2E_EMAIL"'"
+    "email":"'"$E2E_EMAIL"'",
+    "address":"北京市朝阳区建国路88号华贸中心A座",
+    "occupation":"企业管理人员",
+    "employer":"北京云澜科技有限公司",
+    "jobTitle":"财务经理"
 }')
 check "创建客户" '"code":200' "$RESP"
 CUSTOMER_ID=$(echo "$RESP" | jq -r '.data.id // empty' 2>/dev/null)
@@ -225,7 +237,7 @@ if [ -n "$CUSTOMER_ID" ]; then
 
     RESP=$(auth_post "$BASE_URL/special-prevention/freeze-records" "{
         \"customerId\":${CUSTOMER_ID},
-        \"authorityName\":\"${E2E_PREFIX}测试机关\",
+        \"authorityName\":\"上海市公安局经侦总队\",
         \"documentNo\":\"${E2E_FREEZE_DOC_NO}\",
         \"actionType\":\"QUERY\",
         \"amount\":1000,
@@ -278,7 +290,7 @@ if [ -n "$CUSTOMER_ID" ]; then
         \"receivedDate\":\"2026-05-14\",
         \"dueDate\":\"2026-06-14\",
         \"handler\":\"admin\",
-        \"summary\":\"${E2E_PREFIX}调查协查接口验证_${E2E_RUN_ID}\"
+        \"summary\":\"有权机关调取客户尽调资料和近期交易流水，用于案件协查（流水${E2E_RUN_ID}）。\"
     }")
     check "创建调查协查请求" '"code":200' "$RESP"
     INVESTIGATION_ID=$(echo "$RESP" | jq -r '.data.id // empty' 2>/dev/null)
@@ -287,16 +299,16 @@ fi
 if [ -n "${INVESTIGATION_ID:-}" ]; then
     RESP=$(auth_post "$BASE_URL/investigations/$INVESTIGATION_ID/actions" "{
         \"actionType\":\"REVIEW\",
-        \"actionContent\":\"${E2E_PREFIX}查阅客户尽调和交易材料\",
+        \"actionContent\":\"查阅客户尽调和交易材料\",
         \"actionResult\":\"材料已整理\",
         \"operator\":\"admin\",
-        \"attachmentRef\":\"${E2E_PREFIX}-archive-${E2E_RUN_ID}\"
+        \"attachmentRef\":\"investigation-archive-${E2E_RUN_ID}\"
     }")
     check "登记调查协查动作" '"code":200' "$RESP"
 
     RESP=$(auth_put "$BASE_URL/investigations/$INVESTIGATION_ID/status" "{
         \"status\":\"RESPONDED\",
-        \"responseSummary\":\"${E2E_PREFIX}调查协查已回复\"
+        \"responseSummary\":\"已按要求反馈客户身份资料、账户交易明细和风险复核结论。\"
     }")
     check "更新调查协查状态" '"code":200' "$RESP"
 
@@ -337,21 +349,21 @@ echo "[13] 整改中心"
 
 RESP=$(auth_post "$BASE_URL/rectifications" "{
     \"sourceType\":\"INTERNAL_CHECK\",
-    \"issueDescription\":\"${E2E_PREFIX}整改中心接口验证_${E2E_RUN_ID}\",
+    \"issueDescription\":\"客户尽调复核流程存在缺口，需补充整改闭环材料。\",
     \"issueCategory\":\"流程缺陷\",
     \"severity\":\"MEDIUM\",
     \"responsibleDept\":\"合规部\",
-    \"responsiblePerson\":\"admin\",
+    \"responsiblePerson\":\"刘思远\",
     \"deadline\":\"2026-06-14\"
 }")
 check "创建整改任务" '"code":200' "$RESP"
 RECTIFICATION_ID=$(echo "$RESP" | jq -r '.data.id // empty' 2>/dev/null)
 
 if [ -n "$RECTIFICATION_ID" ]; then
-    RESP=$(auth_put "$BASE_URL/rectifications/$RECTIFICATION_ID/progress" '{"progressPercent":100,"completionEvidence":"E2E整改证据","status":"COMPLETED"}')
+    RESP=$(auth_put "$BASE_URL/rectifications/$RECTIFICATION_ID/progress" '{"progressPercent":100,"completionEvidence":"已补充客户尽调复核底稿、整改审批记录和抽样检查材料。","status":"COMPLETED"}')
     check "更新整改进度" '"code":200' "$RESP"
 
-    RESP=$(auth_post "$BASE_URL/rectifications/$RECTIFICATION_ID/verify" '{"verificationStatus":"PASSED","verifyResult":"E2E验证通过"}')
+    RESP=$(auth_post "$BASE_URL/rectifications/$RECTIFICATION_ID/verify" '{"verificationStatus":"PASSED","verifyResult":"整改材料完整，抽样复核通过。"}')
     check "验证整改任务" '"code":200' "$RESP"
 fi
 

@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 整改任务服务实现
@@ -29,6 +30,16 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class RectificationServiceImpl implements RectificationService {
+
+    private static final Map<String, String> LEGACY_OPERATOR_NAMES = Map.of(
+            "admin", "刘思远",
+            "system", "系统自动处理",
+            "e2e_admin", "刘思远",
+            "e2e_seed_operator", "周明哲",
+            "e2e_compliance", "赵清妍",
+            "e2e_investigator", "陈立行",
+            "e2e_viewer", "李若宁"
+    );
 
     private final RectificationTaskMapper taskMapper;
 
@@ -45,7 +56,7 @@ public class RectificationServiceImpl implements RectificationService {
         task.setIssueCategory(req.getIssueCategory());
         task.setSeverity(req.getSeverity());
         task.setResponsibleDept(req.getResponsibleDept());
-        task.setResponsiblePerson(req.getResponsiblePerson());
+        task.setResponsiblePerson(normalizeLegacyOperatorName(req.getResponsiblePerson()));
         task.setDeadline(req.getDeadline());
         task.setStatus(RectificationStatus.OPEN.getCode());
         task.setProgressPercent(0);
@@ -102,6 +113,7 @@ public class RectificationServiceImpl implements RectificationService {
             }
         }
 
+        tasks.forEach(this::normalizeLegacyDisplayFields);
         return tasks;
     }
 
@@ -121,6 +133,7 @@ public class RectificationServiceImpl implements RectificationService {
 
         IPage<RectificationTask> page = taskMapper.selectPage(pageQuery.toPage(), wrapper);
         refreshOverdueStatus(page.getRecords());
+        page.getRecords().forEach(this::normalizeLegacyDisplayFields);
         return PageResult.from(page);
     }
 
@@ -162,7 +175,7 @@ public class RectificationServiceImpl implements RectificationService {
             throw new RuntimeException("只有已完成的任务才能验证，当前状态=" + task.getStatus());
         }
 
-        task.setVerifiedBy(verifiedBy);
+        task.setVerifiedBy(normalizeLegacyOperatorName(verifiedBy));
         task.setVerifiedTime(LocalDateTime.now());
         task.setVerificationStatus("PASSED");
         task.setStatus(RectificationStatus.VERIFIED.getCode());
@@ -186,7 +199,7 @@ public class RectificationServiceImpl implements RectificationService {
 
         task.setVerificationStatus(req.getVerificationStatus());
         task.setVerifyResult(req.getVerifyResult());
-        task.setVerifiedBy(SecurityUtils.getCurrentUsername());
+        task.setVerifiedBy(normalizeLegacyOperatorName(SecurityUtils.getCurrentUsername()));
         task.setVerifiedTime(LocalDateTime.now());
         if ("PASSED".equals(req.getVerificationStatus())) {
             task.setStatus(RectificationStatus.VERIFIED.getCode());
@@ -208,5 +221,17 @@ public class RectificationServiceImpl implements RectificationService {
                 taskMapper.updateById(task);
             }
         }
+    }
+
+    private void normalizeLegacyDisplayFields(RectificationTask task) {
+        task.setResponsiblePerson(normalizeLegacyOperatorName(task.getResponsiblePerson()));
+        task.setVerifiedBy(normalizeLegacyOperatorName(task.getVerifiedBy()));
+    }
+
+    private String normalizeLegacyOperatorName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        return LEGACY_OPERATOR_NAMES.getOrDefault(value, value);
     }
 }

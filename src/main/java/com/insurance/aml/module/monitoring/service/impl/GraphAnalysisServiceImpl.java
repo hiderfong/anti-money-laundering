@@ -1,5 +1,9 @@
 package com.insurance.aml.module.monitoring.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.insurance.aml.module.kyc.mapper.CustomerMapper;
+import com.insurance.aml.module.kyc.model.entity.Customer;
+import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
 import com.insurance.aml.module.monitoring.model.dto.MultiLayerTransferResult;
 import com.insurance.aml.module.monitoring.model.dto.NetworkDensityResult;
 import com.insurance.aml.module.monitoring.model.dto.RingTransactionResult;
@@ -48,6 +52,8 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
 
     private final CustomerNodeRepository customerNodeRepository;
     private final Neo4jClient neo4jClient;
+    private final TransactionMapper transactionMapper;
+    private final CustomerMapper customerMapper;
 
     /**
      * 关联方数量阈值，超过此值触发密度异常告警
@@ -75,11 +81,12 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
             String counterpartyAccount = transaction.getCounterpartyAccount();
             String counterpartyBank = transaction.getCounterpartyBank();
             String counterpartyName = transaction.getCounterpartyName();
+            double amount = transaction.getAmount() != null ? transaction.getAmount().doubleValue() : 0D;
 
             // 1. MERGE 客户节点
             neo4jClient.query("""
                     MERGE (c:Customer {customerId: $customerId})
-                    ON CREATE SET c.name = $customerName
+                    SET c.name = $customerName
                     """)
                     .bind(customerId).to("customerId")
                     .bind(getCustomerName(transaction)).to("customerName")
@@ -88,12 +95,15 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
             // 2. MERGE 交易节点
             neo4jClient.query("""
                     MERGE (t:Transaction {transactionId: $transactionId})
-                    ON CREATE SET t.amount = $amount,
-                                  t.type = $type,
-                                  t.time = datetime($time)
+                    SET t.amount = $amount,
+                        t.type = $type,
+                        t.time = CASE
+                            WHEN $time IS NULL THEN t.time
+                            ELSE datetime($time)
+                        END
                     """)
                     .bind(transaction.getId()).to("transactionId")
-                    .bind(transaction.getAmount()).to("amount")
+                    .bind(amount).to("amount")
                     .bind(transaction.getTransactionType()).to("type")
                     .bind(transaction.getTransactionTime() != null ?
                             transaction.getTransactionTime().toString() : null).to("time")
@@ -117,10 +127,12 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
             neo4jClient.query("""
                     MATCH (a:Account {accountNo: $accountNo})
                     MATCH (t:Transaction {transactionId: $transactionId})
-                    MERGE (a)-[:SENDS]->(t)
+                    MERGE (a)-[r:SENDS]->(t)
+                    SET r.amount = $amount
                     """)
                     .bind(customerAccountNo).to("accountNo")
                     .bind(transaction.getId()).to("transactionId")
+                    .bind(amount).to("amount")
                     .run();
 
             // 5. 创建对手方账户节点、OWNS关系和TO关系
@@ -138,18 +150,20 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
                 neo4jClient.query("""
                         MATCH (t:Transaction {transactionId: $transactionId})
                         MATCH (a:Account {accountNo: $accountNo})
-                        MERGE (t)-[:TO]->(a)
+                        MERGE (t)-[r:TO]->(a)
+                        SET r.amount = $amount
                         """)
                         .bind(transaction.getId()).to("transactionId")
                         .bind(counterpartyAccount).to("accountNo")
+                        .bind(amount).to("amount")
                         .run();
 
                 // 如果对手方名称已知，创建对手方客户节点和OWNS关系
                 if (StringUtils.hasText(counterpartyName)) {
-                    long counterpartyId = Math.abs((long) counterpartyName.hashCode());
+                    long counterpartyId = resolveCounterpartyCustomerId(counterpartyName);
                     neo4jClient.query("""
                             MERGE (c:Customer {customerId: $customerId})
-                            ON CREATE SET c.name = $name
+                            SET c.name = $name
                             WITH c
                             MATCH (a:Account {accountNo: $accountNo})
                             MERGE (c)-[:OWNS]->(a)
@@ -157,6 +171,26 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
                             .bind(counterpartyId).to("customerId")
                             .bind(counterpartyName).to("name")
                             .bind(counterpartyAccount).to("accountNo")
+                            .run();
+
+                    neo4jClient.query("""
+                            MATCH (src:Customer {customerId: $sourceCustomerId})
+                            MATCH (dst:Customer {customerId: $counterpartyId})
+                            MERGE (src)-[r:TRANSFERS_TO {transactionId: $transactionId}]->(dst)
+                            SET r.amount = $amount,
+                                r.transactionNo = $transactionNo,
+                                r.time = CASE
+                                    WHEN $time IS NULL THEN r.time
+                                    ELSE datetime($time)
+                                END
+                            """)
+                            .bind(customerId).to("sourceCustomerId")
+                            .bind(counterpartyId).to("counterpartyId")
+                            .bind(transaction.getId()).to("transactionId")
+                            .bind(transaction.getTransactionNo()).to("transactionNo")
+                            .bind(amount).to("amount")
+                            .bind(transaction.getTransactionTime() != null ?
+                                    transaction.getTransactionTime().toString() : null).to("time")
                             .run();
                 }
             }
@@ -171,6 +205,36 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
     }
 
     /**
+     * 将已有交易批量同步到Neo4j，覆盖历史数据没有进入Kafka消费链路的场景。
+     */
+    @Override
+    public long syncTransactionsToGraph(int limit, String sourceSystem) {
+        int effectiveLimit = Math.min(Math.max(limit, 1), 5000);
+        LambdaQueryWrapper<Transaction> wrapper = new LambdaQueryWrapper<>();
+        wrapper.isNotNull(Transaction::getCustomerId)
+                .orderByDesc(Transaction::getTransactionTime)
+                .last("LIMIT " + effectiveLimit);
+        if (StringUtils.hasText(sourceSystem)) {
+            wrapper.eq(Transaction::getSourceSystem, sourceSystem);
+        }
+
+        List<Transaction> transactions = transactionMapper.selectList(wrapper);
+        long synced = 0;
+        for (Transaction transaction : transactions) {
+            try {
+                syncTransactionToGraph(transaction);
+                synced++;
+            } catch (Exception e) {
+                log.warn("[图分析] 历史交易同步跳过: transactionNo={}, error={}",
+                        transaction.getTransactionNo(), e.getMessage());
+            }
+        }
+        log.info("[图分析] 历史交易批量同步完成: sourceSystem={}, requestedLimit={}, synced={}",
+                sourceSystem, effectiveLimit, synced);
+        return synced;
+    }
+
+    /**
      * 环形交易检测
      * 从指定客户出发，检测是否存在环形路径：A -> B -> C -> A
      */
@@ -181,17 +245,31 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
         try {
             Collection<Map<String, Object>> results = neo4jClient.query("""
                     MATCH (start:Customer {customerId: $customerId})
-                    MATCH path = (start)-[:OWNS*1..2]->(:Account)-[:SENDS]->(:Transaction)-[:TO]->(:Account)
-                                 <-[:OWNS]-(:Customer)-[:OWNS*1..2]->(:Account)-[:SENDS]->(:Transaction)-[:TO]->(:Account)
-                                 <-[:OWNS]-(start)
-                    RETURN [n IN nodes(path) |
-                        CASE
-                            WHEN n:Customer THEN {type: 'Customer', id: toString(n.customerId), name: n.name}
-                            WHEN n:Account  THEN {type: 'Account', id: n.accountNo, name: COALESCE(n.bank, ''), bank: n.bank}
-                            WHEN n:Transaction THEN {type: 'Transaction', id: toString(n.transactionId), name: toString(n.amount), amount: toString(n.amount)}
-                        END
-                    ] AS pathNodes
-                    LIMIT 50
+                    MATCH path = (start)-[:TRANSFERS_TO*2..8]->(start)
+                    WITH path, nodes(path) AS customerNodes, relationships(path) AS transferRels
+                    ORDER BY length(path) DESC
+                    LIMIT 1
+                    WITH [i IN range(0, size(transferRels) - 1) | [
+                        {
+                            type: 'Customer',
+                            id: toString(customerNodes[i].customerId),
+                            name: customerNodes[i].name
+                        },
+                        {
+                            type: 'Transaction',
+                            id: toString(transferRels[i].transactionId),
+                            name: toString(transferRels[i].amount),
+                            amount: toString(transferRels[i].amount)
+                        },
+                        {
+                            type: 'Customer',
+                            id: toString(customerNodes[i + 1].customerId),
+                            name: customerNodes[i + 1].name
+                        }
+                    ]] AS segments
+                    RETURN reduce(pathNodes = [], segment IN segments |
+                        pathNodes + CASE WHEN size(pathNodes) = 0 THEN segment ELSE tail(segment) END
+                    ) AS pathNodes
                     """)
                     .bind(customerId).to("customerId")
                     .fetch().all();
@@ -401,12 +479,12 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
 
         try {
             Optional<Map<String, Object>> densityOpt = neo4jClient.query("""
-                    MATCH (c:Customer {customerId: $customerId})-[:OWNS]->(:Account)-[:SENDS]->(:Transaction)-[:TO]->(:Account)<-[:OWNS]-(c2:Customer)
+                    MATCH (c:Customer {customerId: $customerId})-[:OWNS]->(:Account)-[:SENDS]->(t:Transaction)-[:TO]->(:Account)<-[:OWNS]-(c2:Customer)
                     RETURN c.customerId AS customerId,
                            c.name AS customerName,
                            COUNT(DISTINCT c2) AS relatedCustomerCount,
-                           COUNT(DISTINCT c2) AS transactionCount,
-                           SUM(0) AS totalAmount
+                           COUNT(DISTINCT t) AS transactionCount,
+                           COALESCE(SUM(t.amount), 0) AS totalAmount
                     """)
                     .bind(customerId).to("customerId")
                     .fetch().one();
@@ -485,7 +563,36 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
     // ==================== 私有辅助方法 ====================
 
     private String getCustomerName(Transaction transaction) {
-        return "Customer_" + transaction.getCustomerId();
+        try {
+            Customer customer = customerMapper.selectById(transaction.getCustomerId());
+            if (customer != null && StringUtils.hasText(customer.getName())) {
+                return customer.getName();
+            }
+        } catch (Exception e) {
+            log.debug("[图分析] 查询客户名称失败: customerId={}, error={}",
+                    transaction.getCustomerId(), e.getMessage());
+        }
+        return "客户_" + transaction.getCustomerId();
+    }
+
+    private long resolveCounterpartyCustomerId(String counterpartyName) {
+        try {
+            Customer matched = customerMapper.selectOne(
+                    new LambdaQueryWrapper<Customer>()
+                            .eq(Customer::getName, counterpartyName)
+                            .or()
+                            .eq(Customer::getNameEn, counterpartyName)
+                            .orderByDesc(Customer::getId)
+                            .last("LIMIT 1")
+            );
+            if (matched != null && matched.getId() != null) {
+                return matched.getId();
+            }
+        } catch (Exception e) {
+            log.debug("[图分析] 查询对手方客户ID失败: counterpartyName={}, error={}",
+                    counterpartyName, e.getMessage());
+        }
+        return Math.abs((long) counterpartyName.hashCode());
     }
 
     private String getCustomerNameById(Long customerId) {

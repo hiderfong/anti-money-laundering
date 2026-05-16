@@ -61,7 +61,7 @@ public class NotificationVO implements Serializable {
      * 是否已读
      */
     @Schema(description = "是否已读")
-    private boolean isRead;
+    private Boolean isRead;
 
     /**
      * 阅读时间

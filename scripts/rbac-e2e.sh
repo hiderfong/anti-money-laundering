@@ -179,13 +179,17 @@ info "3. 后端写接口 403 权限校验"
 VIEWER_CUSTOMER_BODY=$(cat <<JSON
 {
   "customerType": "INDIVIDUAL",
-  "name": "${E2E_PREFIX}RBAC拒绝客户_${E2E_RUN_ID}",
+  "name": "王嘉宁",
   "gender": "MALE",
   "nationality": "CN",
   "idType": "IDCARD",
   "idNumber": "9${E2E_RUN_ID}001",
   "phone": "13800138000",
-  "email": "rbac-viewer-${E2E_RUN_ID}@test.local"
+  "email": "e2e-rbac-viewer-${E2E_RUN_ID}@test.local",
+  "address": "北京市西城区金融大街15号",
+  "occupation": "风控专员",
+  "employer": "北京恒信科技有限公司",
+  "jobTitle": "风险分析师"
 }
 JSON
 )
@@ -193,7 +197,7 @@ JSON
 PRODUCT_BODY=$(cat <<JSON
 {
   "productCode": "${E2E_PREFIX}_RP_${E2E_CODE_ID}",
-  "productName": "${E2E_PREFIX}RBAC产品_${E2E_RUN_ID}",
+  "productName": "稳益终身寿险（RBAC验证版）",
   "productType": "LIFE"
 }
 JSON
@@ -230,7 +234,7 @@ fi
 
 info "4. 允许路径与新建用户状态"
 if [ -n "$INVESTIGATOR_TOKEN" ]; then
-    INVESTIGATOR_CUSTOMER_BODY=$(echo "$VIEWER_CUSTOMER_BODY" | sed "s/RBAC拒绝客户/RBAC允许客户/g; s/001/002/g; s/rbac-viewer/rbac-investigator/g")
+    INVESTIGATOR_CUSTOMER_BODY=$(echo "$VIEWER_CUSTOMER_BODY" | sed "s/王嘉宁/陆明远/g; s/001/002/g; s/e2e-rbac-viewer/e2e-rbac-investigator/g; s/风控专员/调查专员/g; s/风险分析师/反洗钱调查员/g")
     RESP=$(request POST "/kyc/customers" "$INVESTIGATOR_TOKEN" "$INVESTIGATOR_CUSTOMER_BODY")
     expect_status "调查员可创建客户" "200" "$RESP"
 fi

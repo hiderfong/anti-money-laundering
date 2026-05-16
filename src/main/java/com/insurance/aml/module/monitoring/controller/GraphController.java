@@ -11,8 +11,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,10 +35,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/monitoring/graph")
 @RequiredArgsConstructor
 @Tag(name = "图分析", description = "交易网络关联分析（基于Neo4j）")
-@ConditionalOnProperty(name = "aml.neo4j.enabled", havingValue = "true", matchIfMissing = true)
 public class GraphController {
 
     private final GraphAnalysisService graphAnalysisService;
+
+    /**
+     * 批量同步历史交易到Neo4j
+     * 用于补齐测试数据或历史交易未经过Kafka消费链路的场景。
+     */
+    @PostMapping("/sync-transactions")
+    @Operation(summary = "同步交易图谱数据", description = "将MySQL中的已有交易批量同步到Neo4j图数据库")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:config')")
+    public Result<SyncTransactionsResult> syncTransactions(
+            @Parameter(description = "最大同步笔数")
+            @RequestParam(defaultValue = "500") int limit,
+            @Parameter(description = "来源系统过滤；为空时同步全部")
+            @RequestParam(required = false) String sourceSystem) {
+
+        log.info("同步交易图谱数据请求: limit={}, sourceSystem={}", limit, sourceSystem);
+        long synced = graphAnalysisService.syncTransactionsToGraph(limit, sourceSystem);
+        return Result.success(new SyncTransactionsResult(synced));
+    }
 
     /**
      * 环形交易检测
@@ -105,5 +123,8 @@ public class GraphController {
         log.info("异常网络密度检测请求: customerId={}, threshold={}", customerId, densityThreshold);
         NetworkDensityResult result = graphAnalysisService.analyzeNetworkDensity(customerId, densityThreshold);
         return Result.success(result);
+    }
+
+    public record SyncTransactionsResult(long syncedCount) {
     }
 }

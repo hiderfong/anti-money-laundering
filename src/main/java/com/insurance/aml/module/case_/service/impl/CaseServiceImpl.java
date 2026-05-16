@@ -25,6 +25,10 @@ import com.insurance.aml.module.case_.model.entity.CaseInvestigation;
 import com.insurance.aml.module.case_.model.entity.CaseStatusLog;
 import com.insurance.aml.module.case_.model.entity.StrReport;
 import com.insurance.aml.module.case_.service.CaseService;
+import com.insurance.aml.module.kyc.mapper.CustomerMapper;
+import com.insurance.aml.module.kyc.model.entity.Customer;
+import com.insurance.aml.module.system.mapper.SysUserMapper;
+import com.insurance.aml.module.system.model.entity.SysUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -37,9 +41,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -57,9 +63,22 @@ public class CaseServiceImpl implements CaseService {
     private final CaseInvestigationMapper caseInvestigationMapper;
     private final CaseAttachmentMapper caseAttachmentMapper;
     private final StrReportMapper strReportMapper;
+    private final CustomerMapper customerMapper;
+    private final SysUserMapper sysUserMapper;
     @Lazy
     private final com.insurance.aml.module.alert.mapper.AlertMapper alertMapper;
     private final IdGenerator idGenerator;
+
+    private static final Map<String, String> OPERATOR_DISPLAY_NAMES = Map.of(
+            "admin", "系统管理员",
+            "system", "系统自动处理",
+            "e2e_admin", "系统管理员",
+            "e2e_seed_operator", "合规负责人",
+            "e2e_compliance", "合规审批员",
+            "e2e_investigator", "案件调查员",
+            "e2e_viewer", "只读观察员",
+            "e2e", "系统初始化"
+    );
 
     /**
      * 合法的状态流转映射
@@ -162,6 +181,11 @@ public class CaseServiceImpl implements CaseService {
         // 构建详情VO
         CaseDetailVO detailVO = new CaseDetailVO();
         BeanUtils.copyProperties(caseEntity, detailVO);
+        Map<Long, String> customerNameMap = needsCustomerNameFallback(caseEntity)
+                ? loadCustomerNameMap(Collections.singletonList(caseEntity.getCustomerId()))
+                : Collections.emptyMap();
+        Map<String, String> operatorNameMap = loadOperatorNameMap(Arrays.asList(caseEntity.getCreatedBy(), caseEntity.getUpdatedBy()));
+        enrichCaseVO(detailVO, caseEntity, customerNameMap, operatorNameMap);
 
         // 查询调查记录
         List<CaseInvestigation> investigations = caseInvestigationMapper.selectList(
@@ -195,6 +219,10 @@ public class CaseServiceImpl implements CaseService {
                         .eq(CaseStatusLog::getCaseId, caseId)
                         .orderByDesc(CaseStatusLog::getChangedTime)
         );
+        Map<String, String> statusOperatorNameMap = loadOperatorNameMap(
+                statusLogs.stream().map(CaseStatusLog::getChangedBy).collect(Collectors.toList())
+        );
+        statusLogs.forEach(log -> log.setChangedBy(resolveOperatorDisplayName(log.getChangedBy(), statusOperatorNameMap)));
         detailVO.setStatusLogs(statusLogs);
 
         return detailVO;
@@ -244,9 +272,24 @@ public class CaseServiceImpl implements CaseService {
         // 批量查询关联数据（消除N+1）
         Map<Long, Long> investigationCountMap = Collections.emptyMap();
         Set<Long> caseIdsWithStr = Collections.emptySet();
+        Map<Long, String> customerNameMap = Collections.emptyMap();
+        Map<String, String> operatorNameMap = Collections.emptyMap();
 
         if (!cases.isEmpty()) {
             List<Long> caseIds = cases.stream().map(Case::getId).collect(Collectors.toList());
+            List<Long> customerIds = cases.stream()
+                    .filter(this::needsCustomerNameFallback)
+                    .map(Case::getCustomerId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+            List<String> operatorKeys = cases.stream()
+                    .flatMap(caseEntity -> Arrays.asList(caseEntity.getCreatedBy(), caseEntity.getUpdatedBy()).stream())
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .collect(Collectors.toList());
+            customerNameMap = loadCustomerNameMap(customerIds);
+            operatorNameMap = loadOperatorNameMap(operatorKeys);
 
             // 批量查询调查记录，按caseId分组计数
             List<CaseInvestigation> investigations = caseInvestigationMapper.selectList(
@@ -271,9 +314,12 @@ public class CaseServiceImpl implements CaseService {
         // 转换为VO并组装关联数据
         final Map<Long, Long> finalInvestigationCountMap = investigationCountMap;
         final Set<Long> finalCaseIdsWithStr = caseIdsWithStr;
+        final Map<Long, String> finalCustomerNameMap = customerNameMap;
+        final Map<String, String> finalOperatorNameMap = operatorNameMap;
         IPage<CaseVO> voPage = page.convert(caseEntity -> {
             CaseVO vo = new CaseVO();
             BeanUtils.copyProperties(caseEntity, vo);
+            enrichCaseVO(vo, caseEntity, finalCustomerNameMap, finalOperatorNameMap);
             vo.setInvestigationCount(finalInvestigationCountMap.getOrDefault(caseEntity.getId(), 0L).intValue());
             vo.setHasStrReport(finalCaseIdsWithStr.contains(caseEntity.getId()));
             return vo;
@@ -351,5 +397,142 @@ public class CaseServiceImpl implements CaseService {
         statusLog.setChangedTime(LocalDateTime.now());
 
         caseStatusLogMapper.insert(statusLog);
+    }
+
+    private void enrichCaseVO(CaseVO vo,
+                              Case caseEntity,
+                              Map<Long, String> customerNameMap,
+                              Map<String, String> operatorNameMap) {
+        vo.setCustomerName(resolveCustomerName(caseEntity, customerNameMap));
+        vo.setCreatedBy(resolveOperatorDisplayName(caseEntity.getCreatedBy(), operatorNameMap));
+        vo.setUpdatedBy(resolveOperatorDisplayName(caseEntity.getUpdatedBy(), operatorNameMap));
+    }
+
+    private Map<Long, String> loadCustomerNameMap(Collection<Long> customerIds) {
+        List<Long> ids = customerIds == null ? Collections.emptyList() : customerIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Customer> customers = customerMapper.selectList(
+                new LambdaQueryWrapper<Customer>()
+                        .in(Customer::getId, ids)
+                        .select(Customer::getId, Customer::getName)
+        );
+        if (customers == null) {
+            return Collections.emptyMap();
+        }
+
+        return customers.stream()
+                .filter(customer -> customer.getId() != null && StringUtils.hasText(customer.getName()))
+                .collect(Collectors.toMap(Customer::getId, Customer::getName, (first, second) -> first));
+    }
+
+    private Map<String, String> loadOperatorNameMap(Collection<String> operatorKeys) {
+        List<String> usernames = operatorKeys == null ? Collections.emptyList() : operatorKeys.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(key -> !OPERATOR_DISPLAY_NAMES.containsKey(key))
+                .filter(key -> !isTestMarker(key))
+                .distinct()
+                .collect(Collectors.toList());
+        if (usernames.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<SysUser> users = sysUserMapper.selectList(
+                new LambdaQueryWrapper<SysUser>()
+                        .in(SysUser::getUsername, usernames)
+                        .select(SysUser::getUsername, SysUser::getRealName)
+        );
+        if (users == null) {
+            return Collections.emptyMap();
+        }
+
+        return users.stream()
+                .filter(user -> StringUtils.hasText(user.getUsername()) && StringUtils.hasText(user.getRealName()))
+                .collect(Collectors.toMap(SysUser::getUsername, SysUser::getRealName, (first, second) -> first));
+    }
+
+    private String resolveCustomerName(Case caseEntity, Map<Long, String> customerNameMap) {
+        String snapshotName = trimToEmpty(caseEntity.getCustomerName());
+        if (StringUtils.hasText(snapshotName) && !isLegacyCustomerName(snapshotName)) {
+            return snapshotName;
+        }
+
+        String currentName = customerNameMap.get(caseEntity.getCustomerId());
+        if (StringUtils.hasText(currentName)) {
+            return currentName;
+        }
+
+        if (caseEntity.getCustomerId() != null) {
+            return "客户ID " + caseEntity.getCustomerId();
+        }
+        return "-";
+    }
+
+    private boolean needsCustomerNameFallback(Case caseEntity) {
+        String snapshotName = trimToEmpty(caseEntity.getCustomerName());
+        return !StringUtils.hasText(snapshotName) || isLegacyCustomerName(snapshotName);
+    }
+
+    private String resolveOperatorDisplayName(String operator, Map<String, String> operatorNameMap) {
+        String key = trimToEmpty(operator);
+        if (!StringUtils.hasText(key)) {
+            return "-";
+        }
+
+        String mapped = OPERATOR_DISPLAY_NAMES.get(key);
+        if (mapped != null) {
+            return mapped;
+        }
+
+        String lowerKey = key.toLowerCase();
+        if (lowerKey.contains("compliance")) {
+            return "合规审批员";
+        }
+        if (lowerKey.contains("investigator")) {
+            return "案件调查员";
+        }
+        if (lowerKey.contains("viewer")) {
+            return "只读观察员";
+        }
+        if (lowerKey.contains("seed") || lowerKey.contains("business-seed")) {
+            return "合规负责人";
+        }
+        if (isTestMarker(key)) {
+            return "系统操作员";
+        }
+
+        String realName = operatorNameMap.get(key);
+        if (StringUtils.hasText(realName) && !isTestMarker(realName)) {
+            return realName;
+        }
+        return key;
+    }
+
+    private boolean isLegacyCustomerName(String value) {
+        String trimmed = trimToEmpty(value);
+        String lower = trimmed.toLowerCase();
+        return trimmed.matches("^客户\\d+$")
+                || lower.contains("e2e")
+                || isMojibakeText(trimmed);
+    }
+
+    private boolean isTestMarker(String value) {
+        String lower = trimToEmpty(value).toLowerCase();
+        return lower.contains("e2e") || lower.contains("test");
+    }
+
+    private boolean isMojibakeText(String value) {
+        return value.contains("å") || value.contains("æ") || value.contains("è")
+                || value.contains("é") || value.contains("ç") || value.contains("ä");
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 }

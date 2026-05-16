@@ -29,6 +29,30 @@
       </div>
     </div>
 
+    <section class="visual-grid">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div>
+            <h2>整改闭环状态</h2>
+            <p>展示待整改、整改中、已完成、逾期和验证通过的闭环占比</p>
+          </div>
+          <el-tag type="info" size="small">闭环进度</el-tag>
+        </div>
+        <div ref="statusChartRef" class="chart-box"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div>
+            <h2>问题来源与严重程度</h2>
+            <p>按来源拆分高、中、低风险问题，定位整改资源投入重点</p>
+          </div>
+          <el-tag type="warning" size="small">整改风险</el-tag>
+        </div>
+        <div ref="severityChartRef" class="chart-box"></div>
+      </div>
+    </section>
+
     <section class="table-panel">
       <div class="toolbar">
         <el-select v-model="query.sourceType" placeholder="问题来源" clearable @change="loadTasks">
@@ -67,7 +91,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="responsibleDept" label="责任部门" min-width="120" />
-        <el-table-column prop="responsiblePerson" label="责任人" width="110" />
+        <el-table-column label="责任人" width="120">
+          <template #default="{ row }">{{ displayResponsiblePerson(row.responsiblePerson) }}</template>
+        </el-table-column>
         <el-table-column prop="deadline" label="截止日期" width="120" />
         <el-table-column prop="progressPercent" label="进度" width="150">
           <template #default="{ row }">
@@ -163,15 +189,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import type { ECharts } from 'echarts'
 import { ElMessage } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { disposeEchart, getEcharts } from '@/utils/echarts'
 
 const loading = ref(false)
 const submitting = ref(false)
 const tasks = ref<any[]>([])
 const currentTaskId = ref<string>('')
+const statusChartRef = ref<HTMLElement | null>(null)
+const severityChartRef = ref<HTMLElement | null>(null)
+let statusChart: ECharts | null = null
+let severityChart: ECharts | null = null
+let resizeHandler: (() => void) | null = null
 
 const query = reactive({ sourceType: '', status: '', responsiblePerson: '' })
 const createDialogVisible = ref(false)
@@ -303,6 +336,21 @@ function severityType(value: string) {
   return ({ HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }[value] || 'info') as any
 }
 
+function displayResponsiblePerson(value: unknown) {
+  const raw = value == null ? '' : String(value).trim()
+  if (!raw) return '-'
+  const nameMap: Record<string, string> = {
+    admin: '刘思远',
+    system: '系统自动处理',
+    e2e_admin: '刘思远',
+    e2e_seed_operator: '周明哲',
+    e2e_compliance: '赵清妍',
+    e2e_investigator: '陈立行',
+    e2e_viewer: '李若宁'
+  }
+  return nameMap[raw] || raw
+}
+
 function statusLabel(value: string) {
   return { OPEN: '待整改', IN_PROGRESS: '整改中', COMPLETED: '已完成', OVERDUE: '已逾期', VERIFIED: '已验证' }[value] || value
 }
@@ -325,7 +373,115 @@ function progressStatus(row: any) {
   return undefined
 }
 
-onMounted(loadTasks)
+function countTasks(predicate: (item: any) => boolean) {
+  return tasks.value.filter(predicate).length
+}
+
+async function renderRectificationVisuals() {
+  await nextTick()
+  await Promise.all([renderStatusChart(), renderSeverityChart()])
+}
+
+async function renderStatusChart() {
+  const container = statusChartRef.value
+  if (!container || !container.isConnected) return
+  const echarts = await getEcharts()
+  if (!statusChart) statusChart = echarts.init(container)
+
+  const data = [
+    { name: '待整改', value: stats.value.open, itemStyle: { color: '#64748b' } },
+    { name: '整改中', value: stats.value.inProgress, itemStyle: { color: '#d97706' } },
+    { name: '已逾期', value: stats.value.overdue, itemStyle: { color: '#dc2626' } },
+    { name: '已验证', value: stats.value.verified, itemStyle: { color: '#16a34a' } },
+    { name: '已完成待验证', value: countTasks(item => item.status === 'COMPLETED'), itemStyle: { color: '#2563eb' } }
+  ].filter(item => item.value > 0)
+
+  statusChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}<br/>任务数：{c} ({d}%)' },
+    legend: {
+      bottom: 0,
+      itemWidth: 10,
+      itemHeight: 10,
+      textStyle: { color: '#64748b', fontSize: 12 }
+    },
+    series: [{
+      type: 'pie',
+      radius: ['48%', '70%'],
+      center: ['50%', '44%'],
+      label: { formatter: '{b}\\n{c}', color: '#334155', fontSize: 12 },
+      data: data.length ? data : [{ name: '暂无任务', value: 1, itemStyle: { color: '#cbd5e1' } }]
+    }]
+  }, true)
+  statusChart.resize()
+}
+
+async function renderSeverityChart() {
+  const container = severityChartRef.value
+  if (!container || !container.isConnected) return
+  const echarts = await getEcharts()
+  if (!severityChart) severityChart = echarts.init(container)
+
+  const sources = ['SELF_ASSESSMENT', 'INTERNAL_CHECK', 'EXTERNAL_CHECK', 'REGULATOR', 'AUDIT']
+  const severities: Array<'HIGH' | 'MEDIUM' | 'LOW'> = ['HIGH', 'MEDIUM', 'LOW']
+  const colors: Record<'HIGH' | 'MEDIUM' | 'LOW', string> = { HIGH: '#dc2626', MEDIUM: '#d97706', LOW: '#2563eb' }
+
+  severityChart.setOption({
+    color: severities.map(item => colors[item]),
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: {
+      top: 0,
+      right: 8,
+      textStyle: { color: '#64748b', fontSize: 12 },
+      formatter: (name: string) => severityLabel(name)
+    },
+    grid: { left: 44, right: 16, top: 38, bottom: 36 },
+    xAxis: {
+      type: 'category',
+      data: sources.map(sourceLabel),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#cbd5e1' } },
+      axisLabel: { color: '#475569' }
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      splitLine: { lineStyle: { color: '#eef2f7' } },
+      axisLabel: { color: '#64748b' }
+    },
+    series: severities.map(severity => ({
+      name: severity,
+      type: 'bar',
+      stack: 'severity',
+      barMaxWidth: 34,
+      data: sources.map(source => countTasks(item => item.sourceType === source && item.severity === severity))
+    }))
+  }, true)
+  severityChart.resize()
+}
+
+function disposeRectificationCharts() {
+  disposeEchart(statusChart)
+  disposeEchart(severityChart)
+  statusChart = null
+  severityChart = null
+}
+
+onMounted(() => {
+  loadTasks().then(renderRectificationVisuals)
+  resizeHandler = () => {
+    statusChart?.resize()
+    severityChart?.resize()
+  }
+  window.addEventListener('resize', resizeHandler)
+})
+
+watch(tasks, () => renderRectificationVisuals(), { deep: true })
+
+onUnmounted(() => {
+  if (resizeHandler) window.removeEventListener('resize', resizeHandler)
+  resizeHandler = null
+  disposeRectificationCharts()
+})
 </script>
 
 <style scoped>
@@ -387,6 +543,47 @@ onMounted(loadTasks)
   color: var(--el-color-success);
 }
 
+.visual-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+
+.chart-card {
+  min-width: 0;
+  padding: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.chart-card-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.chart-card-header p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chart-box {
+  height: 288px;
+}
+
 .table-panel {
   padding: 16px;
   background: var(--bg-surface);
@@ -417,10 +614,15 @@ onMounted(loadTasks)
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .visual-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
-  .metric-grid {
+  .metric-grid,
+  .visual-grid {
     grid-template-columns: 1fr;
   }
 }

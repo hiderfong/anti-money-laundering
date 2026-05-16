@@ -40,6 +40,14 @@ import java.util.List;
 public class InvestigationServiceImpl implements InvestigationService {
 
     private static final List<String> ACTIVE_STATUSES = List.of("RECEIVED", "PROCESSING", "WAITING_APPROVAL", "RETURNED");
+    private static final List<String> LEGACY_CUSTOMER_NAMES = List.of(
+            "张晨曦",
+            "李若宁",
+            "周建国",
+            "王嘉宁",
+            "上海华颐供应链管理有限公司",
+            "深圳远航进出口有限公司"
+    );
 
     private final InvestigationRequestMapper requestMapper;
     private final InvestigationActionMapper actionMapper;
@@ -98,7 +106,7 @@ public class InvestigationServiceImpl implements InvestigationService {
         entity.setRequestType(request.getRequestType());
         entity.setDocumentNo(request.getDocumentNo());
         entity.setCustomerId(request.getCustomerId());
-        entity.setCustomerName(customer == null ? null : customer.getName());
+        entity.setCustomerName(customer == null ? null : normalizeLegacyCustomerName(customer.getName(), customer.getId()));
         entity.setRelatedCaseId(request.getRelatedCaseId());
         entity.setPriority(StringUtils.hasText(request.getPriority()) ? request.getPriority() : "MEDIUM");
         entity.setReceivedDate(request.getReceivedDate());
@@ -126,6 +134,8 @@ public class InvestigationServiceImpl implements InvestigationService {
         }
         wrapper.orderByDesc(InvestigationRequest::getCreatedTime);
         IPage<InvestigationRequest> page = requestMapper.selectPage(pageQuery.toPage(), wrapper);
+        page.getRecords().forEach(item ->
+                item.setCustomerName(normalizeLegacyCustomerName(item.getCustomerName(), item.getCustomerId() == null ? item.getId() : item.getCustomerId())));
         return PageResult.from(page);
     }
 
@@ -202,5 +212,13 @@ public class InvestigationServiceImpl implements InvestigationService {
         action.setOperator(StringUtils.hasText(operator) ? operator : SecurityUtils.getCurrentUsername());
         action.setActionTime(LocalDateTime.now());
         actionMapper.insert(action);
+    }
+
+    private String normalizeLegacyCustomerName(String customerName, Long seed) {
+        if (!StringUtils.hasText(customerName) || !customerName.startsWith("E2E客户")) {
+            return customerName;
+        }
+        int index = seed == null ? 0 : (int) Math.floorMod(seed, (long) LEGACY_CUSTOMER_NAMES.size());
+        return LEGACY_CUSTOMER_NAMES.get(index);
     }
 }

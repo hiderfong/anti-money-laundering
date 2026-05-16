@@ -5,6 +5,30 @@
         <span style="font-size: 18px; font-weight: 600;">风险自评估管理</span>
       </template>
 
+      <section class="assessment-visual-grid">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div>
+              <h2>自评估风险画像</h2>
+              <p>汇总固有风险、控制有效性和综合评分，辅助识别短板维度</p>
+            </div>
+            <el-tag type="warning" size="small">风险评分</el-tag>
+          </div>
+          <div ref="assessmentRadarRef" class="chart-box"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div>
+              <h2>整改任务闭环</h2>
+              <p>按整改状态展示自评估问题从创建到验证的闭环进度</p>
+            </div>
+            <el-tag type="info" size="small">整改跟踪</el-tag>
+          </div>
+          <div ref="assessmentRectChartRef" class="chart-box"></div>
+        </div>
+      </section>
+
       <el-tabs v-model="activeTab">
         <!-- Tab 1: 自评估管理 -->
         <el-tab-pane label="自评估管理" name="assessment">
@@ -16,31 +40,65 @@
           </div>
 
           <el-table :data="assessments" stripe v-loading="assessmentLoading" border>
-            <el-table-column prop="assessmentName" label="评估名称" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="assessmentType" label="评估类型" width="120" />
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column label="评估名称" min-width="190" show-overflow-tooltip>
               <template #default="{ row }">
-                <el-tag :type="assessmentStatusType(row.status)" size="small">
-                  {{ assessmentStatusLabel(row.status) }}
+                {{ assessmentTitle(row) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="assessmentYear" label="年度" width="90" align="center" />
+            <el-table-column label="周期" width="110">
+              <template #default="{ row }">
+                {{ assessmentPeriodLabel(row.assessmentPeriod) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="assessmentStatus" label="状态" width="110">
+              <template #default="{ row }">
+                <el-tag :type="assessmentStatusType(row.assessmentStatus)" size="small">
+                  {{ assessmentStatusLabel(row.assessmentStatus) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="totalScore" label="总分" width="80" align="center">
+            <el-table-column prop="overallScore" label="综合分" width="90" align="center">
               <template #default="{ row }">
-                {{ row.totalScore ?? '-' }}
+                {{ displayValue(row.overallScore) }}
               </template>
             </el-table-column>
-            <el-table-column prop="assessorId" label="评估人" width="100" />
-            <el-table-column prop="approverId" label="审批人" width="100" />
-            <el-table-column prop="startTime" label="开始时间" width="170" />
-            <el-table-column prop="endTime" label="结束时间" width="170" />
+            <el-table-column prop="overallRiskLevel" label="风险等级" width="110" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.overallRiskLevel" :type="riskLevelType(row.overallRiskLevel)" size="small">
+                  {{ riskLevelLabel(row.overallRiskLevel) }}
+                </el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="inherentRiskScore" label="固有风险" width="100" align="center">
+              <template #default="{ row }">
+                {{ displayValue(row.inherentRiskScore) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="controlEffectivenessScore" label="控制有效性" width="110" align="center">
+              <template #default="{ row }">
+                {{ displayValue(row.controlEffectivenessScore) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="assessorId" label="评估人ID" width="120" />
+            <el-table-column prop="approvedBy" label="审批人" width="130">
+              <template #default="{ row }">
+                {{ formatAssessmentApprover(row) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="approvedTime" label="审批时间" width="170">
+              <template #default="{ row }">
+                {{ displayValue(row.approvedTime) }}
+              </template>
+            </el-table-column>
             <el-table-column prop="createdTime" label="创建时间" width="170" />
             <el-table-column label="操作" width="260" fixed="right">
               <template #default="{ row }">
                 <el-button size="small" @click="viewAssessmentDetail(row.id)">详情</el-button>
-                <el-button size="small" type="warning" @click="openScoreDialog(row)" v-if="row.status === 'CREATED'">评分</el-button>
-                <el-button size="small" type="success" @click="completeAssessment(row.id)" v-if="row.status === 'SCORED'">完成</el-button>
-                <el-button size="small" type="primary" @click="approveAssessment(row.id)" v-if="row.status === 'COMPLETED'">审批</el-button>
+                <el-button size="small" type="warning" @click="openScoreDialog(row)" v-if="isScorable(row)">评分</el-button>
+                <el-button size="small" type="success" @click="completeAssessment(row.id)" v-if="row.assessmentStatus === 'IN_PROGRESS'">完成</el-button>
+                <el-button size="small" type="primary" @click="approveAssessment(row.id)" v-if="row.assessmentStatus === 'COMPLETED'">审批</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -98,27 +156,17 @@
     <!-- 创建评估弹窗 -->
     <el-dialog v-model="showCreateAssessment" title="创建评估" width="560px" destroy-on-close>
       <el-form :model="assessmentForm" label-width="100px" ref="assessmentFormRef" :rules="assessmentRules">
-        <el-form-item label="评估名称" prop="assessmentName">
-          <el-input v-model="assessmentForm.assessmentName" placeholder="请输入评估名称" />
+        <el-form-item label="评估年度" prop="assessmentYear">
+          <el-input-number v-model="assessmentForm.assessmentYear" :min="2000" :max="2100" :step="1" style="width: 100%;" />
         </el-form-item>
-        <el-form-item label="评估类型" prop="assessmentType">
-          <el-select v-model="assessmentForm.assessmentType" placeholder="请选择评估类型" style="width: 100%;">
+        <el-form-item label="评估周期" prop="assessmentPeriod">
+          <el-select v-model="assessmentForm.assessmentPeriod" placeholder="请选择评估周期" style="width: 100%;">
             <el-option label="年度评估" value="ANNUAL" />
             <el-option label="季度评估" value="QUARTERLY" />
-            <el-option label="专项评估" value="SPECIAL" />
           </el-select>
         </el-form-item>
         <el-form-item label="评估人ID" prop="assessorId">
-          <el-input v-model="assessmentForm.assessorId" placeholder="请输入评估人ID" />
-        </el-form-item>
-        <el-form-item label="审批人ID" prop="approverId">
-          <el-input v-model="assessmentForm.approverId" placeholder="请输入审批人ID" />
-        </el-form-item>
-        <el-form-item label="开始时间" prop="startTime">
-          <el-date-picker v-model="assessmentForm.startTime" type="datetime" placeholder="选择开始时间" style="width: 100%;" />
-        </el-form-item>
-        <el-form-item label="结束时间" prop="endTime">
-          <el-date-picker v-model="assessmentForm.endTime" type="datetime" placeholder="选择结束时间" style="width: 100%;" />
+          <el-input-number v-model="assessmentForm.assessorId" :min="1" :step="1" style="width: 100%;" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -148,34 +196,55 @@
       <template v-if="detailData">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="评估ID">{{ detailData.id }}</el-descriptions-item>
-          <el-descriptions-item label="评估名称">{{ detailData.assessmentName }}</el-descriptions-item>
-          <el-descriptions-item label="评估类型">{{ detailData.assessmentType }}</el-descriptions-item>
+          <el-descriptions-item label="评估名称">{{ assessmentTitle(detailData) }}</el-descriptions-item>
+          <el-descriptions-item label="评估年度">{{ detailData.assessmentYear }}</el-descriptions-item>
+          <el-descriptions-item label="评估周期">{{ assessmentPeriodLabel(detailData.assessmentPeriod) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="assessmentStatusType(detailData.status)" size="small">
-              {{ assessmentStatusLabel(detailData.status) }}
+            <el-tag :type="assessmentStatusType(detailData.assessmentStatus)" size="small">
+              {{ assessmentStatusLabel(detailData.assessmentStatus) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="评估人">{{ detailData.assessorId }}</el-descriptions-item>
-          <el-descriptions-item label="审批人">{{ detailData.approverId ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="开始时间">{{ detailData.startTime }}</el-descriptions-item>
-          <el-descriptions-item label="结束时间">{{ detailData.endTime }}</el-descriptions-item>
+          <el-descriptions-item label="评估人ID">{{ displayValue(detailData.assessorId) }}</el-descriptions-item>
+          <el-descriptions-item label="审批人">{{ formatAssessmentApprover(detailData) }}</el-descriptions-item>
+          <el-descriptions-item label="审批时间">{{ displayValue(detailData.approvedTime) }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ displayValue(detailData.updatedTime) }}</el-descriptions-item>
           <el-descriptions-item label="创建时间" :span="2">{{ detailData.createdTime }}</el-descriptions-item>
+          <el-descriptions-item label="评估结论" :span="2">{{ displayValue(detailData.conclusion) }}</el-descriptions-item>
         </el-descriptions>
 
         <el-divider content-position="left">评分结果</el-divider>
 
-        <el-descriptions :column="2" border v-if="detailData.status !== 'CREATED'">
-          <el-descriptions-item label="总评分">
-            <span style="font-size: 20px; font-weight: bold; color: #409eff;">{{ detailData.totalScore ?? '-' }}</span>
+        <el-descriptions :column="2" border v-if="hasAssessmentScore(detailData)">
+          <el-descriptions-item label="综合评分">
+            <span style="font-size: 20px; font-weight: bold; color: #409eff;">{{ displayValue(detailData.overallScore) }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="评分等级">
-            <el-tag :type="scoreLevelType(detailData.totalScore)" size="default" v-if="detailData.totalScore != null">
-              {{ scoreLevelLabel(detailData.totalScore) }}
+          <el-descriptions-item label="综合风险等级">
+            <el-tag :type="riskLevelType(detailData.overallRiskLevel)" size="default" v-if="detailData.overallRiskLevel">
+              {{ riskLevelLabel(detailData.overallRiskLevel) }}
             </el-tag>
             <span v-else>-</span>
           </el-descriptions-item>
+          <el-descriptions-item label="固有风险评分">{{ displayValue(detailData.inherentRiskScore) }}</el-descriptions-item>
+          <el-descriptions-item label="控制有效性评分">{{ displayValue(detailData.controlEffectivenessScore) }}</el-descriptions-item>
         </el-descriptions>
         <el-empty description="暂无评分结果" :image-size="60" v-else />
+
+        <template v-if="detailData.scores?.length">
+          <el-divider content-position="left">评分明细</el-divider>
+          <el-table :data="detailData.scores" size="small" border>
+            <el-table-column prop="indicatorCode" label="指标编码" width="130" show-overflow-tooltip />
+            <el-table-column prop="indicatorName" label="指标名称" min-width="160" show-overflow-tooltip />
+            <el-table-column label="类别" width="130">
+              <template #default="{ row }">
+                {{ assessmentCategoryLabel(row.category) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="dimension" label="维度" min-width="130" show-overflow-tooltip />
+            <el-table-column prop="score" label="得分" width="80" align="center" />
+            <el-table-column prop="rawValue" label="原始值" width="90" align="center" />
+            <el-table-column prop="evidence" label="评分依据" min-width="180" show-overflow-tooltip />
+          </el-table>
+        </template>
       </template>
       <template #footer>
         <el-button @click="showDetailDialog = false">关闭</el-button>
@@ -210,13 +279,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, nextTick, watch } from 'vue'
+import type { ECharts } from 'echarts'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { useUserStore } from '@/stores/user'
+import { currentOperatorName, formatOperatorName } from '@/utils/operatorDisplay'
 import type { FormInstance } from 'element-plus'
+import { disposeEchart, getEcharts } from '@/utils/echarts'
 
 // ==================== State ====================
+const userStore = useUserStore()
 const activeTab = ref('assessment')
 const submitting = ref(false)
 
@@ -227,19 +301,21 @@ const showCreateAssessment = ref(false)
 const showScoreDialog = ref(false)
 const showDetailDialog = ref(false)
 const detailData = ref<any>(null)
+const assessmentRadarRef = ref<HTMLElement | null>(null)
+const assessmentRectChartRef = ref<HTMLElement | null>(null)
+let assessmentRadarChart: ECharts | null = null
+let assessmentRectChart: ECharts | null = null
+let resizeHandler: (() => void) | null = null
 const assessmentFormRef = ref<FormInstance>()
 const assessmentForm = reactive({
-  assessmentName: '',
-  assessmentType: '',
-  assessorId: '',
-  approverId: '',
-  startTime: '',
-  endTime: ''
+  assessmentYear: new Date().getFullYear(),
+  assessmentPeriod: 'ANNUAL',
+  assessorId: null as number | null
 })
 const scoreForm = reactive({ assessmentId: '', assessmentName: '', totalScore: 0 })
 const assessmentRules = {
-  assessmentName: [{ required: true, message: '请输入评估名称', trigger: 'blur' }],
-  assessmentType: [{ required: true, message: '请选择评估类型', trigger: 'change' }],
+  assessmentYear: [{ required: true, message: '请输入评估年度', trigger: 'blur' }],
+  assessmentPeriod: [{ required: true, message: '请选择评估周期', trigger: 'change' }],
   assessorId: [{ required: true, message: '请输入评估人ID', trigger: 'blur' }]
 }
 
@@ -268,7 +344,7 @@ async function loadAssessments() {
   assessmentLoading.value = true
   try {
     const res: any = await request.get('/assessments/list')
-    assessments.value = res.data || []
+    assessments.value = Array.isArray(res.data) ? res.data : []
   } catch { /* handled */ } finally {
     assessmentLoading.value = false
   }
@@ -279,10 +355,14 @@ async function submitAssessment() {
   if (!valid) return
   submitting.value = true
   try {
-    await request.post('/assessments', { ...assessmentForm })
+    await request.post('/assessments', {
+      assessmentYear: assessmentForm.assessmentYear,
+      assessmentPeriod: assessmentForm.assessmentPeriod,
+      assessorId: assessmentForm.assessorId
+    })
     ElMessage.success('创建评估成功')
     showCreateAssessment.value = false
-    Object.assign(assessmentForm, { assessmentName: '', assessmentType: '', assessorId: '', approverId: '', startTime: '', endTime: '' })
+    Object.assign(assessmentForm, { assessmentYear: new Date().getFullYear(), assessmentPeriod: 'ANNUAL', assessorId: null })
     loadAssessments()
   } catch { ElMessage.error('创建评估失败') } finally { submitting.value = false }
 }
@@ -297,7 +377,7 @@ async function viewAssessmentDetail(id: string | number) {
 
 function openScoreDialog(row: any) {
   scoreForm.assessmentId = row.id
-  scoreForm.assessmentName = row.assessmentName
+  scoreForm.assessmentName = assessmentTitle(row)
   scoreForm.totalScore = 0
   showScoreDialog.value = true
 }
@@ -328,34 +408,82 @@ async function completeAssessment(id: string | number) {
 async function approveAssessment(id: string | number) {
   await ElMessageBox.confirm('确认审批通过该评估？', '提示', { type: 'warning' })
   try {
-    await request.post(`/assessments/${id}/approve`)
+    const approvedBy = currentOperatorName(userStore.userInfo)
+    await request.post(`/assessments/${id}/approve`, undefined, { params: { approvedBy } })
     ElMessage.success('审批通过')
     loadAssessments()
   } catch { ElMessage.error('审批失败') }
 }
 
+function displayValue(value: unknown) {
+  return value === null || value === undefined || value === '' ? '-' : String(value)
+}
+
+function formatAssessmentApprover(row: any) {
+  return formatOperatorName(row?.approvedBy, row?.assessmentStatus === 'APPROVED' ? '待补录' : '待审批')
+}
+
+function assessmentTitle(row: any) {
+  if (row?.assessmentName) return row.assessmentName
+  if (row?.title) return row.title
+  const year = displayValue(row?.assessmentYear)
+  const period = assessmentPeriodLabel(row?.assessmentPeriod)
+  return `${year}年${period}风险自评估`
+}
+
+function assessmentPeriodLabel(period: string) {
+  const map: Record<string, string> = { ANNUAL: '年度', QUARTERLY: '季度', SPECIAL: '专项' }
+  return map[period] || displayValue(period)
+}
+
 function assessmentStatusType(status: string) {
-  const map: Record<string, string> = { CREATED: 'info', SCORED: 'warning', COMPLETED: '', APPROVED: 'success', REJECTED: 'danger' }
+  const map: Record<string, string> = {
+    CREATED: 'info',
+    IN_PROGRESS: 'warning',
+    SCORED: 'warning',
+    COMPLETED: '',
+    APPROVED: 'success',
+    REJECTED: 'danger'
+  }
   return (map[status] || 'info') as any
 }
 
 function assessmentStatusLabel(status: string) {
-  const map: Record<string, string> = { CREATED: '已创建', SCORED: '已评分', COMPLETED: '已完成', APPROVED: '已审批', REJECTED: '已驳回' }
+  const map: Record<string, string> = {
+    CREATED: '已创建',
+    IN_PROGRESS: '进行中',
+    SCORED: '已评分',
+    COMPLETED: '已完成',
+    APPROVED: '已审批',
+    REJECTED: '已驳回'
+  }
   return map[status] || status
 }
 
-function scoreLevelType(score: number | null): any {
-  if (score == null) return 'info'
-  if (score >= 80) return 'success'
-  if (score >= 60) return 'warning'
-  return 'danger'
+function riskLevelType(level: string): any {
+  const map: Record<string, string> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger' }
+  return map[level] || 'info'
 }
 
-function scoreLevelLabel(score: number | null) {
-  if (score == null) return '-'
-  if (score >= 80) return '优秀'
-  if (score >= 60) return '合格'
-  return '不合格'
+function riskLevelLabel(level: string) {
+  const map: Record<string, string> = { LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险' }
+  return map[level] || displayValue(level)
+}
+
+function assessmentCategoryLabel(category: string) {
+  const map: Record<string, string> = {
+    INHERENT_RISK: '固有风险',
+    CONTROL_EFFECTIVENESS: '控制有效性'
+  }
+  return map[category] || displayValue(category)
+}
+
+function hasAssessmentScore(row: any) {
+  return row?.overallScore !== null && row?.overallScore !== undefined
+}
+
+function isScorable(row: any) {
+  return row?.assessmentStatus === 'CREATED' || row?.assessmentStatus === 'IN_PROGRESS'
 }
 
 // ==================== Rectification Methods ====================
@@ -409,9 +537,179 @@ function rectStatusLabel(status: string) {
   return map[status] || status
 }
 
+function averageScore(field: string) {
+  const values = assessments.value
+    .map(item => Number(item?.[field]))
+    .filter(value => Number.isFinite(value))
+  if (!values.length) return 0
+  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1))
+}
+
+function rectificationCount(status: string) {
+  return rectifications.value.filter(item => item.status === status).length
+}
+
+async function renderAssessmentVisuals() {
+  await nextTick()
+  await Promise.all([renderAssessmentRadar(), renderAssessmentRectChart()])
+}
+
+async function renderAssessmentRadar() {
+  const container = assessmentRadarRef.value
+  if (!container || !container.isConnected) return
+  const echarts = await getEcharts()
+  if (!assessmentRadarChart) assessmentRadarChart = echarts.init(container)
+
+  const inherent = averageScore('inherentRiskScore')
+  const control = averageScore('controlEffectivenessScore')
+  const overall = averageScore('overallScore')
+
+  assessmentRadarChart.setOption({
+    tooltip: { trigger: 'item' },
+    radar: {
+      radius: '66%',
+      center: ['50%', '52%'],
+      indicator: [
+        { name: '固有风险', max: 100 },
+        { name: '控制有效性', max: 100 },
+        { name: '综合评分', max: 100 },
+        { name: '已审批覆盖', max: 100 },
+        { name: '评分完整度', max: 100 }
+      ],
+      axisName: { color: '#475569', fontSize: 12 },
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+      splitArea: { areaStyle: { color: ['rgba(37,99,235,0.04)', 'rgba(37,99,235,0.08)'] } },
+      axisLine: { lineStyle: { color: '#cbd5e1' } }
+    },
+    series: [{
+      type: 'radar',
+      data: [{
+        name: '当前评估画像',
+        value: [
+          inherent,
+          control,
+          overall,
+          assessments.value.length ? Math.round((assessments.value.filter(item => item.assessmentStatus === 'APPROVED').length / assessments.value.length) * 100) : 0,
+          assessments.value.length ? Math.round((assessments.value.filter(hasAssessmentScore).length / assessments.value.length) * 100) : 0
+        ],
+        areaStyle: { color: 'rgba(37, 99, 235, 0.20)' },
+        lineStyle: { color: '#2563eb', width: 2 },
+        itemStyle: { color: '#2563eb' }
+      }]
+    }]
+  }, true)
+  assessmentRadarChart.resize()
+}
+
+async function renderAssessmentRectChart() {
+  const container = assessmentRectChartRef.value
+  if (!container || !container.isConnected) return
+  const echarts = await getEcharts()
+  if (!assessmentRectChart) assessmentRectChart = echarts.init(container)
+
+  const statuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED']
+  assessmentRectChart.setOption({
+    color: ['#64748b', '#d97706', '#2563eb', '#16a34a'],
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 34, right: 16, top: 26, bottom: 34 },
+    xAxis: {
+      type: 'category',
+      data: statuses.map(rectStatusLabel),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#cbd5e1' } },
+      axisLabel: { color: '#475569' }
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      splitLine: { lineStyle: { color: '#eef2f7' } },
+      axisLabel: { color: '#64748b' }
+    },
+    series: [{
+      type: 'bar',
+      barMaxWidth: 34,
+      data: statuses.map((status, index) => ({
+        value: rectificationCount(status),
+        itemStyle: { color: ['#64748b', '#d97706', '#2563eb', '#16a34a'][index], borderRadius: [5, 5, 0, 0] }
+      })),
+      label: { show: true, position: 'top', color: '#334155', fontWeight: 600 }
+    }]
+  }, true)
+  assessmentRectChart.resize()
+}
+
+function disposeAssessmentCharts() {
+  disposeEchart(assessmentRadarChart)
+  disposeEchart(assessmentRectChart)
+  assessmentRadarChart = null
+  assessmentRectChart = null
+}
+
 // ==================== Init ====================
 onMounted(() => {
-  loadAssessments()
-  loadRectifications()
+  Promise.all([loadAssessments(), loadRectifications()]).then(renderAssessmentVisuals)
+  resizeHandler = () => {
+    assessmentRadarChart?.resize()
+    assessmentRectChart?.resize()
+  }
+  window.addEventListener('resize', resizeHandler)
+})
+
+watch([assessments, rectifications], () => renderAssessmentVisuals(), { deep: true })
+
+onUnmounted(() => {
+  if (resizeHandler) window.removeEventListener('resize', resizeHandler)
+  resizeHandler = null
+  disposeAssessmentCharts()
 })
 </script>
+
+<style scoped>
+.assessment-visual-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chart-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.chart-card-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.chart-card-header p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chart-box {
+  height: 286px;
+}
+
+@media (max-width: 980px) {
+  .assessment-visual-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

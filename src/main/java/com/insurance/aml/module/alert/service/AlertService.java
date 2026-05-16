@@ -47,6 +47,13 @@ public interface AlertService {
     AlertVO getAlertDetail(Long id);
 
     /**
+     * 获取预警处置链路
+     * @param id 预警ID
+     * @return 预警处置链路
+     */
+    AlertDispositionChainVO getDispositionChain(Long id);
+
+    /**
      * 分配预警
      * @param req 分配请求
      */

@@ -4,10 +4,8 @@ import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.Result;
 import com.insurance.aml.module.case_.model.dto.StrReportCreateRequest;
 import com.insurance.aml.module.case_.model.dto.StrReportReviewRequest;
-import com.insurance.aml.module.case_.model.entity.StrReport;
 import com.insurance.aml.module.case_.service.StrReportService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.insurance.aml.module.case_.model.entity.StrReport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +27,6 @@ import org.springframework.web.bind.annotation.*;
 public class StrReportController {
 
     private final StrReportService strReportService;
-    private final com.insurance.aml.module.case_.mapper.StrReportMapper strReportMapper;
 
     /**
      * 分页查询STR报告
@@ -40,13 +37,7 @@ public class StrReportController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer size,
             @RequestParam(required = false) String status) {
-        LambdaQueryWrapper<StrReport> wrapper = new LambdaQueryWrapper<>();
-        if (status != null && !status.isEmpty()) {
-            wrapper.eq(StrReport::getReportStatus, status);
-        }
-        wrapper.orderByDesc(StrReport::getCreatedTime);
-        Page<StrReport> result = strReportMapper.selectPage(new Page<>(page, size), wrapper);
-        return PageResult.from(result);
+        return strReportService.pageQuery(page, size, status);
     }
 
     /**

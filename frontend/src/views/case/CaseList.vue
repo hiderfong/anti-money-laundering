@@ -51,7 +51,9 @@
     <el-card shadow="never" style="margin-top:16px">
       <el-table :data="tableData" stripe border v-loading="loading" style="width:100%">
         <el-table-column prop="caseNo" label="案件编号" width="170" fixed />
-        <el-table-column prop="customerName" label="客户名称" width="130" />
+        <el-table-column prop="customerName" label="客户名称" width="130">
+          <template #default="{ row }">{{ displayCustomerName(row) }}</template>
+        </el-table-column>
         <el-table-column prop="caseType" label="案件类型" width="120">
           <template #default="{ row }">
             {{ caseTypeLabel(row.caseType) }}
@@ -72,7 +74,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="summary" label="摘要" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="100" />
+        <el-table-column prop="createdBy" label="创建人" width="110">
+          <template #default="{ row }">{{ formatOperatorName(row.createdBy) }}</template>
+        </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="170" />
         <el-table-column label="操作" width="310" fixed="right">
           <template #default="{ row }">
@@ -121,7 +125,7 @@
       <template v-if="detailData">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="案件编号">{{ detailData.case.caseNo }}</el-descriptions-item>
-          <el-descriptions-item label="客户名称">{{ detailData.case.customerName }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ displayCustomerName(detailData.case) }}</el-descriptions-item>
           <el-descriptions-item label="案件类型">{{ caseTypeLabel(detailData.case.caseType) }}</el-descriptions-item>
           <el-descriptions-item label="案件状态">
             <el-tag :type="statusTagType(detailData.case.caseStatus)" size="small" effect="dark">
@@ -134,10 +138,31 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="预警编号">{{ detailData.case.alertId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ detailData.case.createdBy }}</el-descriptions-item>
+          <el-descriptions-item label="创建人">{{ formatOperatorName(detailData.case.createdBy) }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ detailData.case.createdTime }}</el-descriptions-item>
           <el-descriptions-item label="摘要" :span="2">{{ detailData.case.summary || '-' }}</el-descriptions-item>
         </el-descriptions>
+
+        <!-- 案件处置时间轴 -->
+        <el-divider content-position="left">案件处置时间轴</el-divider>
+        <el-timeline class="case-flow-timeline" v-if="caseTimelineItems(detailData).length">
+          <el-timeline-item
+            v-for="item in caseTimelineItems(detailData)"
+            :key="item.key"
+            :timestamp="item.time"
+            :type="item.type"
+            placement="top"
+          >
+            <div class="case-flow-item">
+              <div class="case-flow-main">
+                <div class="case-flow-title">{{ item.title }}</div>
+                <div class="case-flow-desc">{{ item.description }}</div>
+              </div>
+              <el-tag :type="item.type" size="small">{{ item.tag }}</el-tag>
+            </div>
+          </el-timeline-item>
+        </el-timeline>
+        <el-empty v-else description="暂无案件时间轴" :image-size="60" />
 
         <!-- STR报告 -->
         <template v-if="detailData.strReport && detailData.strReport.id">
@@ -176,7 +201,9 @@
           <el-table-column prop="toStatus" label="新状态" width="120">
             <template #default="{ row }">{{ statusLabel(row.toStatus) }}</template>
           </el-table-column>
-          <el-table-column prop="changedBy" label="操作人" width="120" />
+          <el-table-column prop="changedBy" label="操作人" width="120">
+            <template #default="{ row }">{{ formatOperatorName(row.changedBy) }}</template>
+          </el-table-column>
           <el-table-column prop="changedTime" label="操作时间" width="170" />
           <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
         </el-table>
@@ -280,6 +307,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import request from '@/utils/request'
+import { formatOperatorName } from '@/utils/operatorDisplay'
 
 // ==================== 数据定义 ====================
 
@@ -347,11 +375,87 @@ function statusLabel(s: string) { return STATUS_MAP[s] || s }
 function caseTypeLabel(s: string) { return CASE_TYPE_MAP[s] || s }
 function priorityLabel(s: string) { return PRIORITY_MAP[s] || s }
 
+function displayCustomerName(row: any) {
+  const raw = String(row?.customerName || '').trim()
+  const lower = raw.toLowerCase()
+  const isLegacy = /^客户\d+$/.test(raw) || lower.includes('e2e') || /[åæèéçä]/.test(raw)
+  if (raw && !isLegacy) return raw
+  if (row?.customerId) return `客户ID ${row.customerId}`
+  return '-'
+}
+
 function statusTagType(s: string): '' | 'success' | 'warning' | 'info' | 'danger' {
   return { DRAFT: 'info', INVESTIGATING: '', PENDING_APPROVAL: 'warning', SUBMITTED: 'success', CLOSED: 'info' }[s] as any || 'info'
 }
 function priorityTagType(p: string): '' | 'success' | 'warning' | 'info' | 'danger' {
   return { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }[p] as any || 'info'
+}
+
+function caseTimelineItems(detail: any) {
+  if (!detail?.case) return []
+  const items: Array<{
+    key: string
+    time: string
+    title: string
+    description: string
+    tag: string
+    type: 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  }> = []
+  const caseData = detail.case
+  items.push({
+    key: 'created',
+    time: caseData.createdTime || '-',
+    title: '案件创建',
+    description: `${caseTypeLabel(caseData.caseType)} / ${displayCustomerName(caseData)} / ${caseData.summary || '无摘要'}`,
+    tag: priorityLabel(caseData.priority),
+    type: priorityTagType(caseData.priority) === 'danger' ? 'danger' : 'primary'
+  })
+  ;(detail.statusLogs || []).forEach((log: any, index: number) => {
+    items.push({
+      key: `status-${log.id || index}`,
+      time: log.changedTime || '-',
+      title: '状态流转',
+      description: `${statusLabel(log.fromStatus)} → ${statusLabel(log.toStatus)}${log.remark ? `，${log.remark}` : ''}`,
+      tag: statusLabel(log.toStatus),
+      type: statusTagType(log.toStatus) === 'success' ? 'success' : statusTagType(log.toStatus) === 'warning' ? 'warning' : 'primary'
+    })
+  })
+  ;(detail.investigations || []).forEach((inv: any, index: number) => {
+    items.push({
+      key: `investigation-${inv.id || index}`,
+      time: inv.createdTime || '-',
+      title: '调查记录',
+      description: `${inv.content || '调查内容待补充'}${inv.conclusion ? `；结论：${inv.conclusion}` : ''}`,
+      tag: '调查',
+      type: 'primary'
+    })
+  })
+  if (detail.strReport?.id) {
+    items.push({
+      key: `str-${detail.strReport.id}`,
+      time: detail.strReport.submitTime || detail.strReport.createdTime || '-',
+      title: 'STR 报告',
+      description: `${detail.strReport.reportNo || 'STR报告'} / ${detail.strReport.status || detail.strReport.reportStatus || '状态待补充'}`,
+      tag: 'STR',
+      type: 'danger'
+    })
+  }
+  if (caseData.closeTime || caseData.caseStatus === 'CLOSED') {
+    items.push({
+      key: 'closed',
+      time: caseData.closeTime || caseData.updatedTime || '-',
+      title: '案件关闭',
+      description: caseData.closeReason || '案件已完成闭环',
+      tag: '闭环',
+      type: 'info'
+    })
+  }
+  return items.sort((a, b) => {
+    const at = Date.parse(a.time)
+    const bt = Date.parse(b.time)
+    if (Number.isNaN(at) || Number.isNaN(bt)) return 0
+    return at - bt
+  })
 }
 
 // 状态流转规则：DRAFT->INVESTIGATING->PENDING_APPROVAL->SUBMITTED->CLOSED
@@ -412,7 +516,14 @@ async function openDetail(row: any) {
   detailData.value = null
   try {
     const res: any = await request.get(`/cases/${row.id}`)
-    detailData.value = res.data
+    const data = res.data
+    detailData.value = data?.case ? data : {
+      case: data,
+      investigations: data?.investigations || [],
+      attachments: data?.attachments || [],
+      strReport: data?.strReport,
+      statusLogs: data?.statusLogs || []
+    }
   } catch (e) {
     ElMessage.error('加载案件详情失败')
     detailVisible.value = false
@@ -540,5 +651,39 @@ onMounted(loadData)
 }
 .filter-card :deep(.el-card__body) {
   padding-bottom: 2px;
+}
+
+.case-flow-timeline {
+  padding: 4px 4px 0;
+}
+
+.case-flow-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fbfdff;
+}
+
+.case-flow-main {
+  min-width: 0;
+}
+
+.case-flow-title {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.case-flow-desc {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: break-word;
 }
 </style>

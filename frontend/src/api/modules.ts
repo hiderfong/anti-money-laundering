@@ -5,6 +5,7 @@
 import request from '@/utils/request'
 import type {
   ApiResponse,
+  PageParams,
   PageResult,
   // 认证
   LoginParams,
@@ -77,6 +78,20 @@ import type {
   AlertTrendParams,
   AlertTrendItem,
   AlertStatisticsByType,
+  // 模型
+  ModelPageParams,
+  AmlModel,
+  ModelOverview,
+  ModelCreateParams,
+  ModelLifecycleParams,
+  ModelLifecycleLog,
+  // 法规及资料库
+  RegulationCategory,
+  RegulationCategoryParams,
+  RegulationDocumentPageParams,
+  RegulationDocument,
+  RegulationDocumentParams,
+  RegulationOverview,
   // 系统
   UserPageParams,
   SysUser,
@@ -453,6 +468,102 @@ export const dashboardApi = {
   },
 }
 
+// ====== 模型管理模块 ======
+export const modelApi = {
+  /** 模型治理概览 */
+  getOverview() {
+    return request.get<ApiResponse<ModelOverview>>('/models/overview')
+  },
+  /** 分页查询模型 */
+  getPage(params: ModelPageParams) {
+    return request.get<ApiResponse<PageResult<AmlModel>>>('/models/page', { params })
+  },
+  /** 模型详情 */
+  getById(id: string) {
+    return request.get<ApiResponse<AmlModel>>(`/models/${id}`)
+  },
+  /** 创建模型 */
+  create(data: ModelCreateParams) {
+    return request.post<ApiResponse<AmlModel>>('/models', data)
+  },
+  /** 更新模型 */
+  update(id: string, data: ModelCreateParams) {
+    return request.put<ApiResponse<AmlModel>>(`/models/${id}`, data)
+  },
+  /** 测试模型 */
+  test(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/test`, data)
+  },
+  /** 部署模型 */
+  deploy(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/deploy`, data)
+  },
+  /** 刷新模型监控 */
+  monitor(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/monitor`, data)
+  },
+  /** 登记模型迭代 */
+  iterate(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/iterate`, data)
+  },
+  /** 归档模型 */
+  archive(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/archive`, data)
+  },
+  /** 生命周期记录 */
+  getLogs(id: string, params?: PageParams) {
+    return request.get<ApiResponse<PageResult<ModelLifecycleLog>>>(`/models/${id}/logs`, { params })
+  },
+}
+
+// ====== 法规及资料库模块 ======
+export const regulationApi = {
+  /** 法规资料库概览 */
+  getOverview() {
+    return request.get<ApiResponse<RegulationOverview>>('/regulation-library/overview')
+  },
+  /** 分类列表 */
+  getCategories(params?: { status?: string }) {
+    return request.get<ApiResponse<RegulationCategory[]>>('/regulation-library/categories', { params })
+  },
+  /** 创建分类 */
+  createCategory(data: RegulationCategoryParams) {
+    return request.post<ApiResponse<RegulationCategory>>('/regulation-library/categories', data)
+  },
+  /** 更新分类 */
+  updateCategory(id: string, data: RegulationCategoryParams) {
+    return request.put<ApiResponse<RegulationCategory>>(`/regulation-library/categories/${id}`, data)
+  },
+  /** 法规资料全文检索 */
+  getDocuments(params: RegulationDocumentPageParams) {
+    return request.get<ApiResponse<PageResult<RegulationDocument>>>('/regulation-library/documents/page', { params })
+  },
+  /** 监管及行业动态 */
+  getUpdates(params: RegulationDocumentPageParams) {
+    return request.get<ApiResponse<PageResult<RegulationDocument>>>('/regulation-library/updates/page', { params })
+  },
+  /** 资料详情 */
+  getDocument(id: string) {
+    return request.get<ApiResponse<RegulationDocument>>(`/regulation-library/documents/${id}`)
+  },
+  /** 创建资料 */
+  createDocument(data: RegulationDocumentParams) {
+    return request.post<ApiResponse<RegulationDocument>>('/regulation-library/documents', data)
+  },
+  /** 更新资料 */
+  updateDocument(id: string, data: RegulationDocumentParams) {
+    return request.put<ApiResponse<RegulationDocument>>(`/regulation-library/documents/${id}`, data)
+  },
+  /** 发布资料 */
+  publishDocument(id: string) {
+    return request.post<ApiResponse<RegulationDocument>>(`/regulation-library/documents/${id}/publish`)
+  },
+  /** 归档资料 */
+  archiveDocument(id: string) {
+    return request.post<ApiResponse<RegulationDocument>>(`/regulation-library/documents/${id}/archive`)
+  },
+}
+
 // ====== 系统管理模块 ======
 export const systemApi = {
   /** 用户列表 */
@@ -597,6 +708,8 @@ export default {
   assessmentApi,
   rectificationApi,
   dashboardApi,
+  modelApi,
+  regulationApi,
   systemApi,
   dictApi,
   notificationApi,

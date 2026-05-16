@@ -34,6 +34,8 @@ const router = createRouter({
         { path: 'special-prevention', name: 'SpecialPrevention', component: () => import('@/views/prevention/SpecialPreventionView.vue'), meta: { title: '特别预防', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] } },
         { path: 'rectifications', name: 'Rectifications', component: () => import('@/views/rectification/RectificationCenterView.vue'), meta: { title: '整改中心', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] } },
         { path: 'investigations', name: 'Investigations', component: () => import('@/views/investigation/InvestigationCenterView.vue'), meta: { title: '调查协查', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] } },
+        { path: 'models', name: 'ModelManagement', component: () => import('@/views/model/ModelManagementView.vue'), meta: { title: '模型管理', roles: ['ROLE_ADMIN'], permissions: ['model:view'] } },
+        { path: 'regulation-library', name: 'RegulationLibrary', component: () => import('@/views/regulation/RegulationLibraryView.vue'), meta: { title: '法规及资料库', roles: ['ROLE_ADMIN'], permissions: ['regulation:view'] } },
         { path: 'notifications', name: 'Notifications', component: () => import('@/views/system/NotificationView.vue'), meta: { title: '通知中心' } },
         { path: 'system', name: 'System', component: () => import('@/views/system/SystemView.vue'), meta: { title: '系统管理', roles: ['ROLE_ADMIN'], permissions: ['system:view'] } }
       ]

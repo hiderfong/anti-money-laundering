@@ -52,6 +52,15 @@ public interface CustomerService extends BaseServiceX<Customer> {
     Customer360VO getCustomer360View(Long id);
 
     /**
+     * 获取客户关系图谱
+     * 汇聚客户、受益人、保单、产品、交易、预警、案件、STR 和名单风险线索。
+     *
+     * @param id 客户ID
+     * @return 客户关系图谱
+     */
+    CustomerRelationshipGraphVO getCustomerRelationshipGraph(Long id);
+
+    /**
      * 触发客户风险评估
      * 根据PEP状态、制裁状态等因素计算风险评分
      *

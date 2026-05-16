@@ -21,6 +21,9 @@ public class ProductCreateRequest {
     @NotBlank(message = "产品名称不能为空")
     private String productName;
 
+    @Schema(description = "产品描述")
+    private String description;
+
     @Schema(description = "产品类型（LIFE/PROPERTY/HEALTH/ACCIDENT/ANNUITY）", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "产品类型不能为空")
     private String productType;

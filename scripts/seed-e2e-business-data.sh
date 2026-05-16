@@ -49,6 +49,8 @@ Environment:
   DB_NAME            Default aml_system
   DB_USER            Default root
   DB_PASSWORD        Default aml_dev_123
+  SEED_DB_CLIENT     auto, mysql, or jdbc. Default auto.
+  MYSQL_CONNECTOR_JAR Path to mysql-connector-j jar for JDBC fallback.
   E2E_PASSWORD_HASH  BCrypt hash for E2E users, default is admin123
 
 Cleanup:
@@ -132,6 +134,187 @@ if [ -n "$DB_PASSWORD" ]; then
     export MYSQL_PWD="$DB_PASSWORD"
 fi
 
+SEED_DB_CLIENT="${SEED_DB_CLIENT:-auto}"
+JDBC_RUNNER_DIR=""
+
+cleanup_jdbc_runner() {
+    if [ -n "$JDBC_RUNNER_DIR" ] && [ -d "$JDBC_RUNNER_DIR" ]; then
+        rm -rf "$JDBC_RUNNER_DIR"
+    fi
+}
+trap cleanup_jdbc_runner EXIT
+
+prepare_jdbc_runner() {
+    if [ -n "$JDBC_RUNNER_DIR" ] && [ -f "$JDBC_RUNNER_DIR/E2ESeedSqlRunner.class" ]; then
+        return
+    fi
+
+    if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]; then
+        JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+    fi
+
+    local javac_bin="${JAVA_HOME:+$JAVA_HOME/bin/}javac"
+    local java_bin="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+
+    if ! command -v "$javac_bin" >/dev/null 2>&1 || ! command -v "$java_bin" >/dev/null 2>&1; then
+        echo "Java compiler/runtime not found. Install JDK 21 or set JAVA_HOME for JDBC seed execution." >&2
+        exit 1
+    fi
+
+    MYSQL_CONNECTOR_JAR="${MYSQL_CONNECTOR_JAR:-}"
+    if [ -z "$MYSQL_CONNECTOR_JAR" ]; then
+        MYSQL_CONNECTOR_JAR="$(find "$HOME/.m2/repository/com/mysql/mysql-connector-j" -name 'mysql-connector-j-*.jar' 2>/dev/null | sort | tail -1 || true)"
+    fi
+
+    if [ -z "$MYSQL_CONNECTOR_JAR" ] || [ ! -f "$MYSQL_CONNECTOR_JAR" ]; then
+        echo "mysql-connector-j jar not found. Run Maven once or set MYSQL_CONNECTOR_JAR." >&2
+        exit 1
+    fi
+
+    JDBC_RUNNER_DIR="$(mktemp -d)"
+    cat > "$JDBC_RUNNER_DIR/E2ESeedSqlRunner.java" <<'JAVA'
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Statement;
+
+public class E2ESeedSqlRunner {
+    public static void main(String[] args) throws Exception {
+        if (args.length < 7) {
+            throw new IllegalArgumentException("Expected args: host port db user password mode print|quiet");
+        }
+
+        String host = args[0];
+        String port = args[1];
+        String db = args[2];
+        String user = args[3];
+        String password = args[4];
+        boolean printResultSets = "print".equals(args[6]);
+        String sql = readStdin();
+
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + db
+                + "?useUnicode=true&characterEncoding=UTF-8&useSSL=false"
+                + "&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&allowMultiQueries=true";
+
+        try (Connection connection = DriverManager.getConnection(url, user, password);
+             Statement statement = connection.createStatement()) {
+            boolean hasResultSet = statement.execute(sql);
+            while (true) {
+                if (hasResultSet && printResultSets) {
+                    printResultSet(statement.getResultSet());
+                }
+
+                int updateCount = statement.getUpdateCount();
+                if (!hasResultSet && updateCount == -1) {
+                    break;
+                }
+                hasResultSet = statement.getMoreResults();
+            }
+        }
+    }
+
+    private static String readStdin() throws IOException {
+        return new String(System.in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private static void printResultSet(ResultSet resultSet) throws Exception {
+        if (resultSet == null) {
+            return;
+        }
+
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        int columnCount = metaData.getColumnCount();
+        StringBuilder header = new StringBuilder();
+        for (int i = 1; i <= columnCount; i++) {
+            if (i > 1) {
+                header.append('\t');
+            }
+            header.append(metaData.getColumnLabel(i));
+        }
+        System.out.println(header);
+
+        while (resultSet.next()) {
+            StringBuilder row = new StringBuilder();
+            for (int i = 1; i <= columnCount; i++) {
+                if (i > 1) {
+                    row.append('\t');
+                }
+                String value = resultSet.getString(i);
+                row.append(value == null ? "NULL" : value);
+            }
+            System.out.println(row);
+        }
+    }
+}
+JAVA
+
+    "$javac_bin" -encoding UTF-8 -cp "$MYSQL_CONNECTOR_JAR" "$JDBC_RUNNER_DIR/E2ESeedSqlRunner.java"
+}
+
+run_sql_jdbc() {
+    local sql="$1"
+    local output_mode="$2"
+    prepare_jdbc_runner
+
+    local java_bin="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+    printf "%s\n" "$sql" | "$java_bin" -Dfile.encoding=UTF-8 -cp "$JDBC_RUNNER_DIR:$MYSQL_CONNECTOR_JAR" E2ESeedSqlRunner \
+        "$DB_HOST" "$DB_PORT" "$DB_NAME" "$DB_USER" "$DB_PASSWORD" "$MODE" "$output_mode"
+}
+
+run_sql_mysql() {
+    local sql="$1"
+    printf "%s\n" "$sql" | mysql "${MYSQL_ARGS[@]}"
+}
+
+run_sql() {
+    local sql="$1"
+    local output_mode="${2:-print}"
+    local mysql_error
+    mysql_error="$(mktemp)"
+
+    case "$SEED_DB_CLIENT" in
+        jdbc)
+            run_sql_jdbc "$sql" "$output_mode"
+            rm -f "$mysql_error"
+            return
+            ;;
+        mysql)
+            run_sql_mysql "$sql"
+            rm -f "$mysql_error"
+            return
+            ;;
+        auto)
+            ;;
+        *)
+            echo "Unsupported SEED_DB_CLIENT: $SEED_DB_CLIENT. Use auto, mysql, or jdbc." >&2
+            rm -f "$mysql_error"
+            exit 1
+            ;;
+    esac
+
+    if command -v mysql >/dev/null 2>&1; then
+        if printf "%s\n" "$sql" | mysql "${MYSQL_ARGS[@]}" 2>"$mysql_error"; then
+            rm -f "$mysql_error"
+            return
+        fi
+
+        cat "$mysql_error" >&2
+        if ! grep -Eq "mysql_native_password|Authentication plugin|cannot be loaded" "$mysql_error"; then
+            rm -f "$mysql_error"
+            exit 1
+        fi
+        echo "mysql CLI authentication plugin is unavailable. Falling back to JDBC seed runner." >&2
+    else
+        echo "mysql command not found. Falling back to JDBC seed runner." >&2
+    fi
+
+    rm -f "$mysql_error"
+    run_sql_jdbc "$sql" "$output_mode"
+}
+
 MODE="dry-run"
 if [ "$EXECUTE" = true ] && [ "$VERIFY" = true ]; then
     MODE="execute+verify"
@@ -198,16 +381,33 @@ SET @normal_customer_no := CONCAT(@prefix, 'C', @run_key, '01');
 SET @sanction_customer_no := CONCAT(@prefix, 'C', @run_key, '02');
 SET @pep_customer_no := CONCAT(@prefix, 'C', @run_key, '03');
 SET @corp_customer_no := CONCAT(@prefix, 'C', @run_key, '04');
+SET @chain_customer_01_no := CONCAT(@prefix, 'C', @run_key, '05');
+SET @chain_customer_02_no := CONCAT(@prefix, 'C', @run_key, '06');
+SET @chain_customer_03_no := CONCAT(@prefix, 'C', @run_key, '07');
+SET @normal_customer_name := '张晨曦';
+SET @sanction_customer_name := 'Grace Miller';
+SET @pep_customer_name := '周建国';
+SET @corp_customer_name := '上海华颐供应链管理有限公司';
+SET @chain_customer_01_name := '深圳前海星汇贸易有限公司';
+SET @chain_customer_02_name := '厦门融达进出口有限公司';
+SET @chain_customer_03_name := '宁波海泽物流有限公司';
+SET @beneficial_owner_name := '陈启明';
 
 INSERT INTO t_customer
   (customer_no, customer_type, name, name_en, gender, nationality, birth_date, id_type, id_number, address, residence_address, phone, email, occupation, employer, job_title, annual_income_range, tax_resident_status, risk_level, risk_score, risk_update_time, is_pep, pep_type, is_sanctioned, kyc_status, kyc_last_review_time, kyc_next_review_time, remark, status, created_by, created_time)
 VALUES
-  (@normal_customer_no, 'INDIVIDUAL', CONCAT(@prefix, '普通客户_', @run_id), 'E2E Normal Customer', 'MALE', 'CN', '1990-01-01', 'IDCARD', CONCAT('11010119900101', RIGHT(@run_key, 4)), '北京市朝阳区E2E测试路1号', '北京市朝阳区E2E测试路1号', CONCAT('139', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('normal_', @run_key, '@e2e.test'), '软件工程师', 'E2E科技有限公司', '工程师', '300K_500K', 'CHINA', 'LOW', 18, NOW(), 0, NULL, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 3 YEAR), CONCAT(@prefix, '闭环普通客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
-  (@sanction_customer_no, 'INDIVIDUAL', CONCAT(@prefix, '制裁命中客户_', @run_id), 'E2E Sanction Hit', 'FEMALE', 'US', '1982-02-02', 'PASSPORT', CONCAT('E2EPASS', @run_key), '上海市浦东新区E2E测试路2号', '上海市浦东新区E2E测试路2号', CONCAT('138', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('sanction_', @run_key, '@e2e.test'), '贵金属交易商', 'E2E贵金属贸易有限公司', '实际控制人', '1000K_PLUS', 'OTHER', 'HIGH', 92, NOW(), 0, NULL, 1, 'REVIEWING', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '闭环制裁命中客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
-  (@pep_customer_no, 'INDIVIDUAL', CONCAT(@prefix, 'PEP客户_', @run_id), 'E2E PEP Customer', 'MALE', 'CN', '1975-03-03', 'IDCARD', CONCAT('11010119750303', RIGHT(@run_key, 4)), '广州市天河区E2E测试路3号', '广州市天河区E2E测试路3号', CONCAT('137', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('pep_', @run_key, '@e2e.test'), '政府机关', 'E2E公共机构', '高级管理人员', '500K_1000K', 'CHINA', 'HIGH', 86, NOW(), 1, 'DOMESTIC', 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '闭环PEP客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
-  (@corp_customer_no, 'CORPORATE', CONCAT(@prefix, '法人客户_', @run_id), 'E2E Corporate Customer', NULL, 'CN', '2018-04-04', 'OTHER', CONCAT('E2EUSCC', @run_key), '深圳市南山区E2E测试路4号', '深圳市南山区E2E测试路4号', CONCAT('136', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('corp_', @run_key, '@e2e.test'), NULL, NULL, NULL, '1000K_PLUS', 'CHINA', 'MEDIUM', 61, NOW(), 0, NULL, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 2 YEAR), CONCAT(@prefix, '闭环法人客户 ', @run_id), 'ACTIVE', @seed_by, NOW())
+  (@normal_customer_no, 'INDIVIDUAL', @normal_customer_name, 'Chenxi Zhang', 'MALE', 'CN', '1990-01-01', 'IDCARD', CONCAT('11010119900101', RIGHT(@run_key, 4)), '北京市朝阳区建国路88号华贸中心A座', '北京市朝阳区建国路88号华贸中心A座', CONCAT('139', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('zhang.chenxi.', @run_key, '@example.com'), '软件研发工程师', '北京云澜科技有限公司', '高级工程师', '300K_500K', 'CHINA', 'LOW', 18, NOW(), 0, NULL, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 3 YEAR), CONCAT(@prefix, '闭环普通客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
+  (@sanction_customer_no, 'INDIVIDUAL', @sanction_customer_name, 'Grace Miller', 'FEMALE', 'US', '1982-02-02', 'PASSPORT', CONCAT('US', @run_key), '上海市浦东新区世纪大道100号环球金融中心', '上海市浦东新区世纪大道100号环球金融中心', CONCAT('138', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('grace.miller.', @run_key, '@example.com'), '贵金属贸易顾问', '上海鼎源珠宝贸易有限公司', '实际控制人', '1000K_PLUS', 'OTHER', 'HIGH', 92, NOW(), 0, NULL, 1, 'REVIEWING', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '闭环制裁命中客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
+  (@pep_customer_no, 'INDIVIDUAL', @pep_customer_name, 'Jianguo Zhou', 'MALE', 'CN', '1975-03-03', 'IDCARD', CONCAT('11010119750303', RIGHT(@run_key, 4)), '广州市天河区珠江新城华夏路16号', '广州市天河区珠江新城华夏路16号', CONCAT('137', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('zhou.jianguo.', @run_key, '@example.com'), '国有企业高级管理人员', '广州市城市建设投资集团有限公司', '副总经理', '500K_1000K', 'CHINA', 'HIGH', 86, NOW(), 1, 'DOMESTIC', 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '闭环PEP客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
+  (@corp_customer_no, 'CORPORATE', @corp_customer_name, 'Shanghai Huayi Supply Chain Management Co., Ltd.', NULL, 'CN', '2018-04-04', 'OTHER', CONCAT('91310000MA', @run_key), '深圳市南山区粤海街道科苑南路2666号', '深圳市南山区粤海街道科苑南路2666号', CONCAT('136', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('compliance.', @run_key, '@huayi-supply.example'), NULL, NULL, NULL, '1000K_PLUS', 'CHINA', 'MEDIUM', 61, NOW(), 0, NULL, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 2 YEAR), CONCAT(@prefix, '闭环法人客户 ', @run_id), 'ACTIVE', @seed_by, NOW())
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
+  name_en = VALUES(name_en),
+  address = VALUES(address),
+  residence_address = VALUES(residence_address),
+  occupation = VALUES(occupation),
+  employer = VALUES(employer),
+  job_title = VALUES(job_title),
   email = VALUES(email),
   risk_level = VALUES(risk_level),
   risk_score = VALUES(risk_score),
@@ -224,12 +424,40 @@ SELECT @sanction_customer_id := id FROM t_customer WHERE customer_no = @sanction
 SELECT @pep_customer_id := id FROM t_customer WHERE customer_no = @pep_customer_no LIMIT 1;
 SELECT @corp_customer_id := id FROM t_customer WHERE customer_no = @corp_customer_no LIMIT 1;
 
+INSERT INTO t_customer
+  (customer_no, customer_type, name, name_en, nationality, birth_date, id_type, id_number, address, residence_address, phone, email, annual_income_range, tax_resident_status, risk_level, risk_score, risk_update_time, is_pep, is_sanctioned, kyc_status, kyc_last_review_time, kyc_next_review_time, remark, status, created_by, created_time)
+VALUES
+  (@chain_customer_01_no, 'CORPORATE', @chain_customer_01_name, 'Shenzhen Qianhai Xinghui Trading Co., Ltd.', 'CN', '2020-05-12', 'OTHER', CONCAT('91440300MA', @run_key, 'A'), '深圳市前海深港合作区前湾一路1号A栋201室', '深圳市前海深港合作区前湾一路1号A栋201室', CONCAT('135', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('finance.', @run_key, '@xinghui-trade.example'), '1000K_PLUS', 'CHINA', 'MEDIUM', 68, NOW(), 0, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '复杂交易链路一跳中转客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
+  (@chain_customer_02_no, 'CORPORATE', @chain_customer_02_name, 'Xiamen Rongda Import Export Co., Ltd.', 'CN', '2019-09-18', 'OTHER', CONCAT('91350200MA', @run_key, 'B'), '厦门市湖里区枋湖北二路889号', '厦门市湖里区枋湖北二路889号', CONCAT('134', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('settlement.', @run_key, '@rongda-ie.example'), '1000K_PLUS', 'CHINA', 'HIGH', 78, NOW(), 0, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '复杂交易链路二跳中转客户 ', @run_id), 'ACTIVE', @seed_by, NOW()),
+  (@chain_customer_03_no, 'CORPORATE', @chain_customer_03_name, 'Ningbo Haize Logistics Co., Ltd.', 'CN', '2021-11-03', 'OTHER', CONCAT('91330200MA', @run_key, 'C'), '宁波市北仑区新碶街道明州路500号', '宁波市北仑区新碶街道明州路500号', CONCAT('133', LPAD(RIGHT(@run_key, 8), 8, '0')), CONCAT('ops.', @run_key, '@haize-logistics.example'), '1000K_PLUS', 'CHINA', 'HIGH', 82, NOW(), 0, 0, 'COMPLETE', NOW(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), CONCAT(@prefix, '复杂交易链路三跳中转客户 ', @run_id), 'ACTIVE', @seed_by, NOW())
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  name_en = VALUES(name_en),
+  address = VALUES(address),
+  residence_address = VALUES(residence_address),
+  email = VALUES(email),
+  risk_level = VALUES(risk_level),
+  risk_score = VALUES(risk_score),
+  kyc_status = VALUES(kyc_status),
+  remark = VALUES(remark),
+  updated_by = @seed_by,
+  updated_time = NOW();
+
+SELECT @chain_customer_01_id := id FROM t_customer WHERE customer_no = @chain_customer_01_no LIMIT 1;
+SELECT @chain_customer_02_id := id FROM t_customer WHERE customer_no = @chain_customer_02_no LIMIT 1;
+SELECT @chain_customer_03_id := id FROM t_customer WHERE customer_no = @chain_customer_03_no LIMIT 1;
+
 INSERT INTO t_customer_beneficial_owner
   (customer_id, owner_name, owner_id_type, owner_id_number, nationality, birth_date, ownership_percentage, control_type, control_description, relationship, status, created_by, created_time)
-SELECT @corp_customer_id, CONCAT(@prefix, '受益所有人_', @run_id), 'IDCARD', CONCAT('11010119770101', RIGHT(@run_key, 4)), 'CN', '1977-01-01', 75.00, 'EQUITY', CONCAT(@prefix, '测试法人控股股东'), '控股股东', 'ACTIVE', @seed_by, NOW()
+SELECT @corp_customer_id, @beneficial_owner_name, 'IDCARD', CONCAT('11010119770101', RIGHT(@run_key, 4)), 'CN', '1977-01-01', 75.00, 'EQUITY', CONCAT(@prefix, '法人客户控股股东 ', @run_id), '控股股东', 'ACTIVE', @seed_by, NOW()
 WHERE NOT EXISTS (
-  SELECT 1 FROM t_customer_beneficial_owner WHERE customer_id = @corp_customer_id AND owner_name = CONCAT(@prefix, '受益所有人_', @run_id)
+  SELECT 1 FROM t_customer_beneficial_owner WHERE customer_id = @corp_customer_id AND LOCATE(@run_id, COALESCE(control_description, '')) > 0
 );
+UPDATE t_customer_beneficial_owner
+SET owner_name = @beneficial_owner_name,
+    control_description = CONCAT(@prefix, '法人客户控股股东 ', @run_id)
+WHERE customer_id = @corp_customer_id
+  AND LOCATE(@run_id, COALESCE(control_description, '')) > 0;
 
 INSERT INTO t_verification_record
   (customer_id, verification_type, verification_result, request_data, response_data, third_party_provider, verified_by, verified_time, created_time)
@@ -259,9 +487,9 @@ WHERE NOT EXISTS (
 
 INSERT INTO t_pep_list
   (pep_name, pep_name_en, pep_type, pep_position, pep_country, pep_organization, data_source, effective_date, status, created_time)
-SELECT CONCAT(@prefix, 'PEP名单_', @run_id), 'E2E PEP Watch Person', 'DOMESTIC', '高级管理人员', 'CN', 'E2E公共机构', @seed_by, CURDATE(), 'ACTIVE', NOW()
-WHERE NOT EXISTS (SELECT 1 FROM t_pep_list WHERE pep_name = CONCAT(@prefix, 'PEP名单_', @run_id));
-SELECT @pep_list_id := id FROM t_pep_list WHERE pep_name = CONCAT(@prefix, 'PEP名单_', @run_id) LIMIT 1;
+SELECT @pep_customer_name, 'Jianguo Zhou', 'DOMESTIC', '国有企业副总经理', 'CN', '广州市城市建设投资集团有限公司', @seed_by, CURDATE(), 'ACTIVE', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM t_pep_list WHERE data_source = @seed_by AND pep_name = @pep_customer_name);
+SELECT @pep_list_id := id FROM t_pep_list WHERE data_source = @seed_by AND pep_name = @pep_customer_name LIMIT 1;
 
 INSERT INTO t_pep_relation
   (pep_list_id, related_customer_id, relation_type, relation_description, status, created_time)
@@ -279,7 +507,7 @@ SET @watchlist_external_id := CONCAT(@prefix, 'WL', @run_key, '01');
 INSERT INTO t_watchlist_source
   (source_code, source_name, source_type, update_frequency, file_format, file_url, last_update_time, next_update_time, total_entries, status, created_by, created_time)
 VALUES
-  (@source_code, CONCAT(@prefix, '测试名单源_', @run_id), 'OTHER', 'DAILY', 'JSON', CONCAT('mock://', @prefix, '/', @run_id, '/watchlist.json'), NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY), 1, 'ENABLED', @seed_by, NOW())
+  (@source_code, '国际制裁名单日终镜像', 'OTHER', 'DAILY', 'JSON', CONCAT('mock://', @prefix, '/', @run_id, '/watchlist.json'), NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY), 1, 'ENABLED', @seed_by, NOW())
 ON DUPLICATE KEY UPDATE
   source_name = VALUES(source_name),
   file_url = VALUES(file_url),
@@ -293,15 +521,20 @@ SELECT @watchlist_source_id := id FROM t_watchlist_source WHERE source_code = @s
 
 INSERT INTO t_watchlist
   (source_id, external_id, entity_type, name, name_en, gender, nationality, date_of_birth, place_of_birth, remarks, list_date, effective_date, status, created_time)
-SELECT @watchlist_source_id, @watchlist_external_id, 'INDIVIDUAL', CONCAT(@prefix, '制裁命中客户_', @run_id), 'E2E Sanction Hit', 'FEMALE', 'US', '1982-02-02', 'E2E City', CONCAT(@prefix, '业务闭环名单命中样本 ', @run_id), CURDATE(), CURDATE(), 'ACTIVE', NOW()
+SELECT @watchlist_source_id, @watchlist_external_id, 'INDIVIDUAL', @sanction_customer_name, 'Grace Miller', 'FEMALE', 'US', '1982-02-02', 'New York', CONCAT(@prefix, '业务闭环名单命中样本 ', @run_id), CURDATE(), CURDATE(), 'ACTIVE', NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM t_watchlist WHERE source_id = @watchlist_source_id AND external_id = @watchlist_external_id
 );
 SELECT @watchlist_id := id FROM t_watchlist WHERE source_id = @watchlist_source_id AND external_id = @watchlist_external_id LIMIT 1;
+UPDATE t_watchlist
+SET name = @sanction_customer_name,
+    name_en = 'Grace Miller',
+    place_of_birth = 'New York'
+WHERE id = @watchlist_id;
 
 INSERT INTO t_watchlist_alias (watchlist_id, alias_name, alias_type, language, created_time)
-SELECT @watchlist_id, 'E2E Sanction Alias', 'AKA', 'en', NOW()
-WHERE NOT EXISTS (SELECT 1 FROM t_watchlist_alias WHERE watchlist_id = @watchlist_id AND alias_name = 'E2E Sanction Alias');
+SELECT @watchlist_id, 'G. Miller', 'AKA', 'en', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM t_watchlist_alias WHERE watchlist_id = @watchlist_id AND alias_name = 'G. Miller');
 
 INSERT INTO t_watchlist_identity (watchlist_id, id_type, id_number, issuing_country, expiry_date, created_time)
 SELECT @watchlist_id, 'PASSPORT', CONCAT('E2EPASS', @run_key), 'US', DATE_ADD(CURDATE(), INTERVAL 5 YEAR), NOW()
@@ -323,18 +556,33 @@ SELECT @screening_request_id := id FROM t_screening_request WHERE request_no = @
 
 INSERT INTO t_screening_result
   (request_id, customer_id, customer_name, customer_id_number, watchlist_entry_id, watchlist_name, match_score, match_type, match_field, match_detail, review_status, review_result, review_reason, reviewed_by, reviewed_time, whitelisted, created_time)
-SELECT @screening_request_id, @sanction_customer_id, CONCAT(@prefix, '制裁命中客户_', @run_id), CONCAT('E2EPASS', @run_key), @watchlist_id, CONCAT(@prefix, '制裁命中客户_', @run_id), 98.50, 'EXACT', 'name,id_number', CONCAT('{"runId":"', @run_id, '","matched":["name","id_number"]}'), 'CONFIRMED', 'TRUE_HIT', CONCAT(@prefix, '测试确认命中'), 'e2e_compliance', NOW(), 0, NOW()
+SELECT @screening_request_id, @sanction_customer_id, @sanction_customer_name, CONCAT('US', @run_key), @watchlist_id, @sanction_customer_name, 98.50, 'EXACT', 'name,id_number', CONCAT('{"runId":"', @run_id, '","matched":["name","id_number"]}'), 'CONFIRMED', 'TRUE_HIT', CONCAT(@prefix, '人工复核确认为真实命中'), 'e2e_compliance', NOW(), 0, NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM t_screening_result
   WHERE request_id = @screening_request_id AND customer_id = @sanction_customer_id AND watchlist_entry_id = @watchlist_id
 );
+UPDATE t_screening_result
+SET customer_name = @sanction_customer_name,
+    customer_id_number = CONCAT('US', @run_key),
+    watchlist_name = @sanction_customer_name,
+    review_reason = CONCAT(@prefix, '人工复核确认为真实命中')
+WHERE request_id = @screening_request_id
+  AND customer_id = @sanction_customer_id
+  AND watchlist_entry_id = @watchlist_id;
 
 INSERT INTO t_whitelist
   (customer_id, customer_name, watchlist_entry_id, watchlist_name, exclude_reason, evidence, effective_date, expiry_date, approved_by, approved_time, review_status, created_by, created_time)
-SELECT @normal_customer_id, CONCAT(@prefix, '普通客户_', @run_id), @watchlist_id, CONCAT(@prefix, '制裁命中客户_', @run_id), CONCAT(@prefix, '同名不同人白名单样本'), CONCAT('{"runId":"', @run_id, '","evidence":"manual-review"}'), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 180 DAY), 'e2e_compliance', NOW(), 'ACTIVE', @seed_by, NOW()
+SELECT @normal_customer_id, @normal_customer_name, @watchlist_id, @sanction_customer_name, CONCAT(@prefix, '证件号、出生日期和工作单位均不一致，确认同名不同人'), CONCAT('{"runId":"', @run_id, '","evidence":"manual-review"}'), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 180 DAY), 'e2e_compliance', NOW(), 'ACTIVE', @seed_by, NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM t_whitelist WHERE customer_id = @normal_customer_id AND watchlist_entry_id = @watchlist_id AND LOCATE(@prefix, exclude_reason) > 0
 );
+UPDATE t_whitelist
+SET customer_name = @normal_customer_name,
+    watchlist_name = @sanction_customer_name,
+    exclude_reason = CONCAT(@prefix, '证件号、出生日期和工作单位均不一致，确认同名不同人')
+WHERE customer_id = @normal_customer_id
+  AND watchlist_entry_id = @watchlist_id
+  AND LOCATE(@prefix, exclude_reason) > 0;
 
 -- ---------------------------------------------------------------------------
 -- 4. Product, policy, transactions, rules and daily summary
@@ -344,13 +592,30 @@ SET @policy_no := CONCAT(@prefix, 'POL', @run_key);
 SET @txn_normal_no := CONCAT(@prefix, 'TX', @run_key, '01');
 SET @txn_large_no := CONCAT(@prefix, 'TX', @run_key, '02');
 SET @txn_cross_no := CONCAT(@prefix, 'TX', @run_key, '03');
+SET @txn_chain_01_no := CONCAT(@prefix, 'TX', @run_key, 'C01');
+SET @txn_chain_02_no := CONCAT(@prefix, 'TX', @run_key, 'C02');
+SET @txn_chain_03_no := CONCAT(@prefix, 'TX', @run_key, 'C03');
+SET @txn_chain_04_no := CONCAT(@prefix, 'TX', @run_key, 'C04');
+SET @txn_chain_05_no := CONCAT(@prefix, 'TX', @run_key, 'C05');
+SET @txn_chain_06_no := CONCAT(@prefix, 'TX', @run_key, 'C06');
 SET @rule_large_code := CONCAT(@prefix, 'RLG', @run_key);
 SET @rule_struct_code := CONCAT(@prefix, 'RST', @run_key);
+SET @rule_chain_code := CONCAT(@prefix, 'RCH', @run_key);
+SET @product_name := '鑫享传世终身寿险（万能型）';
+SET @beneficiary_name := '李安然';
+SET @counterparty_normal_name := '北京恒信科技有限公司';
+SET @counterparty_large_name := '上海鼎源珠宝贸易有限公司';
+SET @counterparty_cross_name := 'Harbor Pacific Holdings Ltd.';
+SET @normal_bank_name := '招商银行北京分行';
+SET @large_bank_name := '中国工商银行上海分行';
+SET @cross_bank_name := 'HSBC Hong Kong';
+SET @chain_bank_name := '平安银行深圳前海支行';
+SET @shared_chain_account := CONCAT('688866', RIGHT(@run_key, 8));
 
 INSERT INTO t_product
   (product_code, product_name, product_type, product_sub_type, payment_mode, has_cash_value, has_investment_feature, surrender_flexibility, beneficiary_changeable, risk_level, risk_score, risk_factors, status, effective_date, created_by, created_time)
 VALUES
-  (@product_code, CONCAT(@prefix, '高现金价值寿险_', @run_id), 'LIFE', 'WHOLE_LIFE', 'FLEXIBLE', 1, 1, 'HIGH', 1, 'HIGH', 88, CONCAT('{"runId":"', @run_id, '","factors":["cash_value","investment","flexible_payment"]}'), 'ACTIVE', CURDATE(), @seed_by, NOW())
+  (@product_code, @product_name, 'LIFE', 'WHOLE_LIFE', 'FLEXIBLE', 1, 1, 'HIGH', 1, 'HIGH', 88, CONCAT('{"runId":"', @run_id, '","factors":["cash_value","investment","flexible_payment"]}'), 'ACTIVE', CURDATE(), @seed_by, NOW())
 ON DUPLICATE KEY UPDATE
   product_name = VALUES(product_name),
   risk_level = VALUES(risk_level),
@@ -362,19 +627,26 @@ SELECT @product_id := id FROM t_product WHERE product_code = @product_code LIMIT
 
 INSERT INTO t_product_risk_assessment
   (product_id, assessment_date, assessor, client_group_score, payment_mode_score, product_structure_score, surrender_score, beneficiary_score, channel_score, total_score, risk_level, assessment_result, approved_by, approved_time, status, created_by, created_time)
-SELECT @product_id, CURDATE(), 'e2e_compliance', 80, 85, 88, 90, 75, 70, 82, 'HIGH', CONCAT(@prefix, '产品风险评估样本 ', @run_id), 'e2e_seed_operator', NOW(), 'APPROVED', @seed_by, NOW()
+SELECT @product_id, CURDATE(), 'e2e_compliance', 80, 85, 88, 90, 75, 70, 82, 'HIGH', CONCAT(@prefix, @product_name, ' 产品风险评估 ', @run_id), 'e2e_seed_operator', NOW(), 'APPROVED', @seed_by, NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM t_product_risk_assessment WHERE product_id = @product_id AND assessment_date = CURDATE() AND LOCATE(@run_id, COALESCE(assessment_result, '')) > 0
 );
+UPDATE t_product_risk_assessment
+SET assessment_result = CONCAT(@prefix, @product_name, ' 产品风险评估 ', @run_id)
+WHERE product_id = @product_id
+  AND assessment_date = CURDATE()
+  AND LOCATE(@run_id, COALESCE(assessment_result, '')) > 0;
 
 INSERT INTO t_policy
   (policy_no, customer_id, product_id, sum_insured, premium, payment_mode, effective_date, expiry_date, policy_status, agent_code, channel, beneficiary_info, insured_name, insured_id_type, insured_id_number, remark, status, created_by, created_time)
 VALUES
-  (@policy_no, @normal_customer_id, @product_id, 1000000.00, 60000.00, 'FLEXIBLE', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 20 YEAR), 'ACTIVE', CONCAT(@prefix, 'AGT'), 'BANK_INSURANCE', JSON_OBJECT('name', CONCAT(@prefix, '受益人_', @run_id), 'relationship', 'SPOUSE'), CONCAT(@prefix, '被保险人_', @run_id), 'IDCARD', CONCAT('11010119990101', RIGHT(@run_key, 4)), CONCAT(@prefix, '业务闭环保单 ', @run_id), 'ACTIVE', @seed_by, NOW())
+  (@policy_no, @normal_customer_id, @product_id, 1000000.00, 60000.00, 'FLEXIBLE', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 20 YEAR), 'ACTIVE', CONCAT(@prefix, 'AGT'), 'BANK_INSURANCE', JSON_OBJECT('name', @beneficiary_name, 'relationship', 'SPOUSE'), @normal_customer_name, 'IDCARD', CONCAT('11010119990101', RIGHT(@run_key, 4)), CONCAT(@prefix, '业务闭环保单 ', @run_id), 'ACTIVE', @seed_by, NOW())
 ON DUPLICATE KEY UPDATE
   customer_id = VALUES(customer_id),
   product_id = VALUES(product_id),
   premium = VALUES(premium),
+  beneficiary_info = VALUES(beneficiary_info),
+  insured_name = VALUES(insured_name),
   remark = VALUES(remark),
   updated_by = @seed_by,
   updated_time = NOW();
@@ -383,19 +655,36 @@ SELECT @policy_id := id FROM t_policy WHERE policy_no = @policy_no LIMIT 1;
 INSERT INTO t_transaction
   (transaction_no, policy_id, customer_id, transaction_type, amount, currency, payment_method, channel, counterparty_name, counterparty_account, counterparty_bank, is_cross_border, transaction_time, remark, status, source_system, created_time)
 VALUES
-  (@txn_normal_no, @policy_id, @normal_customer_id, 'PREMIUM', 12000.00, 'CNY', 'TRANSFER', 'ONLINE', CONCAT(@prefix, '普通交易对手'), CONCAT('622200', RIGHT(@run_key, 8)), 'E2E银行', 0, CONCAT(CURDATE(), ' 09:00:00'), CONCAT(@prefix, '普通交易样本 ', @run_id), 'SUCCESS', 'E2E-SEED', NOW()),
-  (@txn_large_no, @policy_id, @sanction_customer_id, 'PREMIUM', 260000.00, 'CNY', 'CASH', 'COUNTER', CONCAT(@prefix, '大额现金交易对手'), CONCAT('622201', RIGHT(@run_key, 8)), 'E2E银行', 0, CONCAT(CURDATE(), ' 10:00:00'), CONCAT(@prefix, '大额现金交易样本 ', @run_id), 'SUCCESS', 'E2E-SEED', NOW()),
-  (@txn_cross_no, @policy_id, @corp_customer_id, 'SURRENDER', 320000.00, 'USD', 'TRANSFER', 'BANK_COUNTER', CONCAT(@prefix, '跨境交易对手'), CONCAT('998877', RIGHT(@run_key, 8)), 'E2E Offshore Bank', 1, CONCAT(CURDATE(), ' 11:00:00'), CONCAT(@prefix, '跨境退保交易样本 ', @run_id), 'SUCCESS', 'E2E-SEED', NOW())
+  (@txn_normal_no, @policy_id, @normal_customer_id, 'PREMIUM', 12000.00, 'CNY', 'TRANSFER', 'ONLINE', @counterparty_normal_name, CONCAT('622200', RIGHT(@run_key, 8)), @normal_bank_name, 0, CONCAT(CURDATE(), ' 09:00:00'), CONCAT(@prefix, '首期保费转账缴纳 ', @run_id), 'SUCCESS', 'E2E-SEED', NOW()),
+  (@txn_large_no, @policy_id, @sanction_customer_id, 'PREMIUM', 260000.00, 'CNY', 'CASH', 'COUNTER', @counterparty_large_name, CONCAT('622201', RIGHT(@run_key, 8)), @large_bank_name, 0, CONCAT(CURDATE(), ' 10:00:00'), CONCAT(@prefix, '柜面大额现金缴费 ', @run_id), 'SUCCESS', 'E2E-SEED', NOW()),
+  (@txn_cross_no, @policy_id, @corp_customer_id, 'SURRENDER', 320000.00, 'USD', 'TRANSFER', 'BANK_COUNTER', @counterparty_cross_name, CONCAT('998877', RIGHT(@run_key, 8)), @cross_bank_name, 1, CONCAT(CURDATE(), ' 11:00:00'), CONCAT(@prefix, '跨境退保资金划转 ', @run_id), 'SUCCESS', 'E2E-SEED', NOW()),
+  (@txn_chain_01_no, @policy_id, @normal_customer_id, 'PREMIUM', 78000.00, 'CNY', 'TRANSFER', 'ONLINE', @chain_customer_01_name, @shared_chain_account, @chain_bank_name, 0, CONCAT(CURDATE(), ' 15:01:00'), CONCAT(@prefix, '复杂关联链路第1跳：', @normal_customer_name, ' -> ', @chain_customer_01_name, ' ', @run_id), 'SUCCESS', 'E2E-GRAPH-SEED', NOW()),
+  (@txn_chain_02_no, NULL, @chain_customer_01_id, 'LOAN', 76500.00, 'CNY', 'TRANSFER', 'BANK_COUNTER', @chain_customer_02_name, CONCAT('621701', RIGHT(@run_key, 8)), '兴业银行厦门分行', 0, CONCAT(CURDATE(), ' 15:08:00'), CONCAT(@prefix, '复杂关联链路第2跳：', @chain_customer_01_name, ' -> ', @chain_customer_02_name, ' ', @run_id), 'SUCCESS', 'E2E-GRAPH-SEED', NOW()),
+  (@txn_chain_03_no, NULL, @chain_customer_02_id, 'REPAYMENT', 74800.00, 'CNY', 'TRANSFER', 'BANK_COUNTER', @chain_customer_03_name, CONCAT('621702', RIGHT(@run_key, 8)), '宁波银行北仑支行', 0, CONCAT(CURDATE(), ' 15:15:00'), CONCAT(@prefix, '复杂关联链路第3跳：', @chain_customer_02_name, ' -> ', @chain_customer_03_name, ' ', @run_id), 'SUCCESS', 'E2E-GRAPH-SEED', NOW()),
+  (@txn_chain_04_no, NULL, @chain_customer_03_id, 'PARTIAL_WITHDRAWAL', 73500.00, 'CNY', 'TRANSFER', 'BANK_COUNTER', @corp_customer_name, CONCAT('621703', RIGHT(@run_key, 8)), '浦发银行上海分行', 0, CONCAT(CURDATE(), ' 15:22:00'), CONCAT(@prefix, '复杂关联链路第4跳：', @chain_customer_03_name, ' -> ', @corp_customer_name, ' ', @run_id), 'SUCCESS', 'E2E-GRAPH-SEED', NOW()),
+  (@txn_chain_05_no, NULL, @corp_customer_id, 'SURRENDER', 72000.00, 'USD', 'TRANSFER', 'BANK_COUNTER', @counterparty_cross_name, CONCAT('998800', RIGHT(@run_key, 8)), @cross_bank_name, 1, CONCAT(CURDATE(), ' 15:29:00'), CONCAT(@prefix, '复杂关联链路第5跳：', @corp_customer_name, ' -> ', @counterparty_cross_name, ' ', @run_id), 'SUCCESS', 'E2E-GRAPH-SEED', NOW()),
+  (@txn_chain_06_no, NULL, @corp_customer_id, 'CLAIM', 70200.00, 'CNY', 'TRANSFER', 'ONLINE', @normal_customer_name, @shared_chain_account, @normal_bank_name, 0, CONCAT(CURDATE(), ' 15:36:00'), CONCAT(@prefix, '复杂关联链路回流跳：', @corp_customer_name, ' -> ', @normal_customer_name, ' ', @run_id), 'SUCCESS', 'E2E-GRAPH-SEED', NOW())
 ON DUPLICATE KEY UPDATE
   amount = VALUES(amount),
   payment_method = VALUES(payment_method),
+  counterparty_name = VALUES(counterparty_name),
+  counterparty_account = VALUES(counterparty_account),
+  counterparty_bank = VALUES(counterparty_bank),
   is_cross_border = VALUES(is_cross_border),
+  transaction_time = VALUES(transaction_time),
+  source_system = VALUES(source_system),
   remark = VALUES(remark),
   updated_time = NOW();
 
 SELECT @txn_normal_id := id FROM t_transaction WHERE transaction_no = @txn_normal_no LIMIT 1;
 SELECT @txn_large_id := id FROM t_transaction WHERE transaction_no = @txn_large_no LIMIT 1;
 SELECT @txn_cross_id := id FROM t_transaction WHERE transaction_no = @txn_cross_no LIMIT 1;
+SELECT @txn_chain_01_id := id FROM t_transaction WHERE transaction_no = @txn_chain_01_no LIMIT 1;
+SELECT @txn_chain_02_id := id FROM t_transaction WHERE transaction_no = @txn_chain_02_no LIMIT 1;
+SELECT @txn_chain_03_id := id FROM t_transaction WHERE transaction_no = @txn_chain_03_no LIMIT 1;
+SELECT @txn_chain_04_id := id FROM t_transaction WHERE transaction_no = @txn_chain_04_no LIMIT 1;
+SELECT @txn_chain_05_id := id FROM t_transaction WHERE transaction_no = @txn_chain_05_no LIMIT 1;
+SELECT @txn_chain_06_id := id FROM t_transaction WHERE transaction_no = @txn_chain_06_no LIMIT 1;
 
 INSERT INTO t_transaction_daily_summary
   (customer_id, summary_date, transaction_type, payment_method, is_cross_border, total_amount, transaction_count, large_txn_flag, created_time)
@@ -412,8 +701,9 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO t_rule_definition
   (rule_code, rule_name, rule_category, description, risk_weight, priority, status, effective_date, config_json, created_by, created_time)
 VALUES
-  (@rule_large_code, CONCAT(@prefix, '大额现金交易规则_', @run_id), 'LARGE_TXN', CONCAT(@prefix, '业务闭环大额交易规则'), 90, 100, 'ENABLED', CURDATE(), '{"threshold":50000,"paymentMethod":"CASH"}', @seed_by, NOW()),
-  (@rule_struct_code, CONCAT(@prefix, '跨境退保交易规则_', @run_id), 'SUSPICIOUS', CONCAT(@prefix, '业务闭环跨境退保规则'), 85, 95, 'ENABLED', CURDATE(), '{"crossBorder":true,"transactionType":"SURRENDER"}', @seed_by, NOW())
+  (@rule_large_code, '大额现金缴费监测规则', 'LARGE_TXN', CONCAT(@prefix, '业务闭环大额现金缴费规则 ', @run_id), 90, 100, 'ENABLED', CURDATE(), '{"threshold":50000,"paymentMethod":"CASH"}', @seed_by, NOW()),
+  (@rule_struct_code, '跨境退保异常监测规则', 'SUSPICIOUS', CONCAT(@prefix, '业务闭环跨境退保规则 ', @run_id), 85, 95, 'ENABLED', CURDATE(), '{"crossBorder":true,"transactionType":"SURRENDER"}', @seed_by, NOW()),
+  (@rule_chain_code, '复杂资金链路关联监测规则', 'CORRELATION', CONCAT(@prefix, '多跳转账、金额递减、跨境转出及回流关联监测规则 ', @run_id), 92, 90, 'ENABLED', CURDATE(), CONCAT('{"minDepth":5,"amountDecay":true,"ringBack":true,"sharedAccount":"', @shared_chain_account, '"}'), @seed_by, NOW())
 ON DUPLICATE KEY UPDATE
   rule_name = VALUES(rule_name),
   description = VALUES(description),
@@ -422,6 +712,7 @@ ON DUPLICATE KEY UPDATE
   updated_time = NOW();
 SELECT @rule_large_id := id FROM t_rule_definition WHERE rule_code = @rule_large_code LIMIT 1;
 SELECT @rule_struct_id := id FROM t_rule_definition WHERE rule_code = @rule_struct_code LIMIT 1;
+SELECT @rule_chain_id := id FROM t_rule_definition WHERE rule_code = @rule_chain_code LIMIT 1;
 
 INSERT INTO t_rule_execution_log
   (rule_id, rule_code, transaction_id, customer_id, execution_time, match_result, match_score, execution_detail, duration_ms, created_time)
@@ -429,6 +720,8 @@ SELECT rule_id, rule_code, transaction_id, customer_id, NOW(), 1, match_score, d
 FROM (
   SELECT @rule_large_id AS rule_id, @rule_large_code AS rule_code, @txn_large_id AS transaction_id, @sanction_customer_id AS customer_id, 96.00 AS match_score, CONCAT('{"runId":"', @run_id, '","reason":"large_cash"}') AS detail, 18 AS duration_ms
   UNION ALL SELECT @rule_struct_id, @rule_struct_code, @txn_cross_id, @corp_customer_id, 89.00, CONCAT('{"runId":"', @run_id, '","reason":"cross_border_surrender"}'), 22
+  UNION ALL SELECT @rule_chain_id, @rule_chain_code, @txn_chain_05_id, @corp_customer_id, 93.00, CONCAT('{"runId":"', @run_id, '","reason":"multi_hop_decay_cross_border","chainDepth":6}'), 31
+  UNION ALL SELECT @rule_chain_id, @rule_chain_code, @txn_chain_06_id, @corp_customer_id, 91.00, CONCAT('{"runId":"', @run_id, '","reason":"ring_back_to_origin","sharedAccount":"', @shared_chain_account, '"}'), 28
 ) r
 WHERE NOT EXISTS (
   SELECT 1 FROM t_rule_execution_log l WHERE l.rule_code = r.rule_code AND l.transaction_id = r.transaction_id
@@ -446,9 +739,11 @@ SET @large_report_no := CONCAT(@prefix, 'LTR', @run_key);
 INSERT INTO t_alert
   (alert_no, customer_id, customer_name, alert_type, risk_score, risk_level, source_rule_codes, alert_summary, status, assigned_to, assigned_time, process_result, process_remark, process_time, deduplicate_key, related_transaction_ids, created_time)
 VALUES
-  (@alert_large_no, @sanction_customer_id, CONCAT(@prefix, '制裁命中客户_', @run_id), 'LARGE_TXN', 96, 'CRITICAL', @rule_large_code, CONCAT(@prefix, '大额现金交易预警 ', @run_id), 'CONFIRMED', @investigator_id, NOW(), 'CONFIRMED_SUSPICIOUS', CONCAT(@prefix, '测试确认可疑'), NOW(), CONCAT(@prefix, ':', @run_key, ':LARGE'), CAST(@txn_large_id AS CHAR), NOW()),
-  (@alert_sanction_no, @sanction_customer_id, CONCAT(@prefix, '制裁命中客户_', @run_id), 'SANCTIONS_HIT', 98, 'CRITICAL', 'SANCTIONS_SCREENING', CONCAT(@prefix, '名单筛查命中预警 ', @run_id), 'ESCALATED', @investigator_id, NOW(), 'ESCALATED', CONCAT(@prefix, '测试升级案件'), NOW(), CONCAT(@prefix, ':', @run_key, ':SANCTION'), CAST(@txn_large_id AS CHAR), NOW())
+  (@alert_large_no, @sanction_customer_id, @sanction_customer_name, 'LARGE_TXN', 96, 'CRITICAL', @rule_large_code, CONCAT(@prefix, '客户柜面大额现金缴费触发预警 ', @run_id), 'CONFIRMED', @investigator_id, NOW(), 'CONFIRMED_SUSPICIOUS', CONCAT(@prefix, '复核确认资金来源说明不足'), NOW(), CONCAT(@prefix, ':', @run_key, ':LARGE'), CAST(@txn_large_id AS CHAR), NOW()),
+  (@alert_sanction_no, @sanction_customer_id, @sanction_customer_name, 'SANCTIONS_HIT', 98, 'CRITICAL', 'SANCTIONS_SCREENING', CONCAT(@prefix, '客户命中国际制裁名单预警 ', @run_id), 'ESCALATED', @investigator_id, NOW(), 'ESCALATED', CONCAT(@prefix, '升级案件调查并暂停后续交易'), NOW(), CONCAT(@prefix, ':', @run_key, ':SANCTION'), CAST(@txn_large_id AS CHAR), NOW())
 ON DUPLICATE KEY UPDATE
+  customer_name = VALUES(customer_name),
+  alert_summary = VALUES(alert_summary),
   status = VALUES(status),
   assigned_to = VALUES(assigned_to),
   process_result = VALUES(process_result),
@@ -460,21 +755,25 @@ SELECT @alert_sanction_id := id FROM t_alert WHERE alert_no = @alert_sanction_no
 
 INSERT INTO t_alert_rule_detail
   (alert_id, rule_id, rule_code, rule_name, match_score, match_detail, created_time)
-SELECT @alert_large_id, @rule_large_id, @rule_large_code, CONCAT(@prefix, '大额现金交易规则_', @run_id), 96.00, CONCAT('{"runId":"', @run_id, '","transactionNo":"', @txn_large_no, '"}'), NOW()
+SELECT @alert_large_id, @rule_large_id, @rule_large_code, '大额现金缴费监测规则', 96.00, CONCAT('{"runId":"', @run_id, '","transactionNo":"', @txn_large_no, '"}'), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM t_alert_rule_detail WHERE alert_id = @alert_large_id AND rule_code = @rule_large_code);
+UPDATE t_alert_rule_detail
+SET rule_name = '大额现金缴费监测规则'
+WHERE alert_id = @alert_large_id AND rule_code = @rule_large_code;
 
 INSERT INTO t_alert_assignment_log
   (alert_id, from_user_id, to_user_id, assign_type, assign_reason, assigned_by, assigned_time)
-SELECT @alert_sanction_id, @compliance_id, @investigator_id, 'MANUAL', CONCAT(@prefix, '测试升级调查 ', @run_id), 'e2e_compliance', NOW()
+SELECT @alert_sanction_id, @compliance_id, @investigator_id, 'MANUAL', CONCAT(@prefix, '名单命中叠加大额现金缴费，升级调查 ', @run_id), 'e2e_compliance', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM t_alert_assignment_log WHERE alert_id = @alert_sanction_id AND to_user_id = @investigator_id);
 
 INSERT INTO t_case
   (case_no, alert_id, customer_id, customer_name, case_status, case_type, priority, summary, investigator_id, reviewer_id, approver_id, submit_time, created_by, created_time)
 VALUES
-  (@case_no, @alert_sanction_id, @sanction_customer_id, CONCAT(@prefix, '制裁命中客户_', @run_id), 'SUBMITTED', 'SUSPICIOUS_TRANSACTION', 100, CONCAT(@prefix, '名单命中和大额现金交易组合案件 ', @run_id), @investigator_id, @compliance_id, @operator_id, NOW(), @seed_by, NOW())
+  (@case_no, @alert_sanction_id, @sanction_customer_id, @sanction_customer_name, 'SUBMITTED', 'SUSPICIOUS_TRANSACTION', 100, CONCAT(@prefix, '客户名单命中叠加大额现金缴费调查案件 ', @run_id), @investigator_id, @compliance_id, @operator_id, NOW(), '合规负责人', NOW())
 ON DUPLICATE KEY UPDATE
   alert_id = VALUES(alert_id),
   customer_id = VALUES(customer_id),
+  customer_name = VALUES(customer_name),
   case_status = VALUES(case_status),
   priority = VALUES(priority),
   summary = VALUES(summary),
@@ -489,9 +788,9 @@ SELECT @case_id := id FROM t_case WHERE case_no = @case_no LIMIT 1;
 INSERT INTO t_case_status_log (case_id, from_status, to_status, remark, changed_by, changed_time)
 SELECT @case_id, from_status, to_status, remark, changed_by, NOW()
 FROM (
-  SELECT NULL AS from_status, 'DRAFT' AS to_status, CONCAT(@prefix, '案件创建 ', @run_id) AS remark, @seed_by AS changed_by
-  UNION ALL SELECT 'DRAFT', 'INVESTIGATING', CONCAT(@prefix, '进入调查 ', @run_id), 'e2e_investigator'
-  UNION ALL SELECT 'INVESTIGATING', 'SUBMITTED', CONCAT(@prefix, '提交报送 ', @run_id), 'e2e_compliance'
+  SELECT NULL AS from_status, 'DRAFT' AS to_status, CONCAT(@prefix, '案件创建 ', @run_id) AS remark, '合规负责人' AS changed_by
+  UNION ALL SELECT 'DRAFT', 'INVESTIGATING', CONCAT(@prefix, '进入调查 ', @run_id), '案件调查员'
+  UNION ALL SELECT 'INVESTIGATING', 'SUBMITTED', CONCAT(@prefix, '提交报送 ', @run_id), '合规审批员'
 ) s
 WHERE NOT EXISTS (
   SELECT 1 FROM t_case_status_log l WHERE l.case_id = @case_id AND l.to_status = s.to_status AND LOCATE(@run_id, COALESCE(l.remark, '')) > 0
@@ -499,20 +798,25 @@ WHERE NOT EXISTS (
 
 INSERT INTO t_case_investigation
   (case_id, content, conclusion, investigator_id, created_time)
-SELECT @case_id, CONCAT(@prefix, '调查记录：核查客户交易背景、名单命中证据和资金来源 ', @run_id), 'SUSPICIOUS_CONFIRMED', @investigator_id, NOW()
+SELECT @case_id, CONCAT(@prefix, '调查记录：核查客户身份资料、名单命中证据、现金缴费来源及保单受益安排 ', @run_id), 'SUSPICIOUS_CONFIRMED', @investigator_id, NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM t_case_investigation WHERE case_id = @case_id AND LOCATE(@run_id, content) > 0
 );
+UPDATE t_case_investigation
+SET content = CONCAT(@prefix, '调查记录：核查客户身份资料、名单命中证据、现金缴费来源及保单受益安排 ', @run_id)
+WHERE case_id = @case_id AND LOCATE(@run_id, content) > 0;
 
 INSERT INTO t_str_report
   (report_no, case_id, customer_id, report_type, report_status, report_content, analysis_opinion, measures_taken, writer_id, writer_time, reviewer_id, reviewer_opinion, reviewer_time, approver_id, approver_opinion, approver_time, submit_time, submit_result, created_time)
 VALUES
-  (@str_report_no, @case_id, @sanction_customer_id, 'URGENT', 'SUBMITTED', CONCAT(@prefix, '可疑交易报告正文 ', @run_id), '客户命中测试制裁名单并发生大额现金交易，建议报送。', '已冻结后续高风险交易并升级调查。', @compliance_id, NOW(), @compliance_id, '审核通过', NOW(), @operator_id, '签发通过', NOW(), NOW(), 'E2E_MOCK_ACCEPTED', NOW())
+  (@str_report_no, @case_id, @sanction_customer_id, 'URGENT', 'SUBMITTED', CONCAT(@prefix, '可疑交易报告：客户 Grace Miller 命中国际制裁名单并发生柜面大额现金缴费，资金来源解释不足。', @run_id), '客户身份、名单命中和交易行为叠加呈现高风险特征，建议按可疑交易报送。', '已暂停后续高风险交易，要求补充资金来源材料并升级人工复核。', @compliance_id, NOW(), @compliance_id, '审核通过', NOW(), @operator_id, '签发通过', NOW(), NOW(), 'E2E_MOCK_ACCEPTED', NOW())
 ON DUPLICATE KEY UPDATE
   case_id = VALUES(case_id),
   customer_id = VALUES(customer_id),
   report_status = VALUES(report_status),
   report_content = VALUES(report_content),
+  analysis_opinion = VALUES(analysis_opinion),
+  measures_taken = VALUES(measures_taken),
   submit_result = VALUES(submit_result),
   updated_time = NOW();
 SELECT @str_report_id := id FROM t_str_report WHERE report_no = @str_report_no LIMIT 1;
@@ -520,11 +824,17 @@ SELECT @str_report_id := id FROM t_str_report WHERE report_no = @str_report_no L
 INSERT INTO t_large_txn_report
   (report_no, customer_id, customer_name, transaction_id, report_date, transaction_time, transaction_type, amount, currency, payment_method, counterparty_info, report_status, reviewed_by, reviewed_time, submitted_by, submitted_time, xml_content, submit_response, created_time)
 VALUES
-  (@large_report_no, @sanction_customer_id, CONCAT(@prefix, '制裁命中客户_', @run_id), @txn_large_id, CURDATE(), CONCAT(CURDATE(), ' 10:00:00'), 'PREMIUM', 260000.00, 'CNY', 'CASH', CONCAT('{"counterparty":"', @prefix, '大额现金交易对手","runId":"', @run_id, '"}'), 'SUBMITTED', 'e2e_compliance', NOW(), 'e2e_seed_operator', NOW(), CONCAT('<LargeTxnReport><RunId>', @run_id, '</RunId></LargeTxnReport>'), '{"status":"ACCEPTED","seed":true}', NOW())
+  (@large_report_no, @sanction_customer_id, @sanction_customer_name, @txn_large_id, CURDATE(), CONCAT(CURDATE(), ' 10:00:00'), 'PREMIUM', 260000.00, 'CNY', 'CASH', CONCAT('{"counterparty":"', @counterparty_large_name, '","bank":"', @large_bank_name, '","runId":"', @run_id, '"}'), 'SUBMITTED', '合规审批员', NOW(), '监管报送员', NOW(), CONCAT('<LargeTxnReport><CustomerName>Grace Miller</CustomerName><RunId>', @run_id, '</RunId></LargeTxnReport>'), '{"status":"ACCEPTED","seed":true}', NOW())
 ON DUPLICATE KEY UPDATE
   customer_id = VALUES(customer_id),
+  customer_name = VALUES(customer_name),
   transaction_id = VALUES(transaction_id),
+  counterparty_info = VALUES(counterparty_info),
   report_status = VALUES(report_status),
+  reviewed_by = VALUES(reviewed_by),
+  reviewed_time = VALUES(reviewed_time),
+  submitted_by = VALUES(submitted_by),
+  submitted_time = VALUES(submitted_time),
   xml_content = VALUES(xml_content),
   submit_response = VALUES(submit_response),
   updated_time = NOW();
@@ -549,17 +859,22 @@ SET @indicator_control_code := CONCAT(@prefix, 'IND', @run_key, '02');
 
 INSERT INTO t_self_assessment
   (assessment_year, assessment_period, assessment_status, assessor_id, inherent_risk_score, control_effectiveness_score, overall_score, overall_risk_level, conclusion, approved_by, approved_time, created_time)
-SELECT YEAR(CURDATE()), 'ANNUAL', 'APPROVED', @compliance_id, 78, 64, 71, 'MEDIUM', CONCAT(@prefix, '年度自评估闭环样本 ', @run_id), 'e2e_seed_operator', NOW(), NOW()
+SELECT YEAR(CURDATE()), 'ANNUAL', 'APPROVED', @compliance_id, 78, 64, 71, 'MEDIUM', CONCAT(@prefix, '年度反洗钱风险自评估：客户尽调、名单筛查和交易监测控制整体有效 ', @run_id), '合规负责人', NOW(), NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM t_self_assessment WHERE LOCATE(@run_id, COALESCE(conclusion, '')) > 0
 );
 SELECT @assessment_id := id FROM t_self_assessment WHERE LOCATE(@run_id, COALESCE(conclusion, '')) > 0 LIMIT 1;
+UPDATE t_self_assessment
+SET conclusion = CONCAT(@prefix, '年度反洗钱风险自评估：客户尽调、名单筛查和交易监测控制整体有效 ', @run_id),
+    approved_by = '合规负责人',
+    approved_time = COALESCE(approved_time, NOW())
+WHERE id = @assessment_id;
 
 INSERT INTO t_assessment_indicator
   (indicator_code, indicator_name, category, dimension, weight, scoring_criteria, max_score, status, created_time)
 VALUES
-  (@indicator_inherent_code, CONCAT(@prefix, '固有风险指标_', @run_id), 'INHERENT_RISK', '客户和交易风险', 50.00, '高风险客户占比、跨境交易占比、大额现金交易占比', 100, 'ENABLED', NOW()),
-  (@indicator_control_code, CONCAT(@prefix, '控制有效性指标_', @run_id), 'CONTROL_EFFECTIVENESS', '监测和报送控制', 50.00, '预警处理及时性、报送准确性、审计完整性', 100, 'ENABLED', NOW())
+  (@indicator_inherent_code, '客户与交易固有风险指标', 'INHERENT_RISK', '客户和交易风险', 50.00, '高风险客户占比、跨境交易占比、大额现金交易占比', 100, 'ENABLED', NOW()),
+  (@indicator_control_code, '监测报送控制有效性指标', 'CONTROL_EFFECTIVENESS', '监测和报送控制', 50.00, '预警处理及时性、报送准确性、审计完整性', 100, 'ENABLED', NOW())
 ON DUPLICATE KEY UPDATE
   indicator_name = VALUES(indicator_name),
   scoring_criteria = VALUES(scoring_criteria),
@@ -571,8 +886,8 @@ INSERT INTO t_assessment_score
   (assessment_id, indicator_id, raw_value, score, evidence, data_source, remark, scored_by, scored_time, created_time)
 SELECT @assessment_id, indicator_id, raw_value, score, evidence, 'E2E-SEED', CONCAT(@prefix, '评分样本 ', @run_id), 'e2e_compliance', NOW(), NOW()
 FROM (
-  SELECT @indicator_inherent_id AS indicator_id, 78.00 AS raw_value, 78 AS score, CONCAT(@prefix, '客户、交易、名单命中综合固有风险证据') AS evidence
-  UNION ALL SELECT @indicator_control_id, 64.00, 64, CONCAT(@prefix, '预警处理、案件调查、报送控制证据')
+  SELECT @indicator_inherent_id AS indicator_id, 78.00 AS raw_value, 78 AS score, '高风险客户占比、跨境交易和大额现金交易综合证据' AS evidence
+  UNION ALL SELECT @indicator_control_id, 64.00, 64, '预警处理时效、案件调查完整性和报送准确性证据'
 ) s
 WHERE NOT EXISTS (
   SELECT 1 FROM t_assessment_score WHERE assessment_id = @assessment_id AND indicator_id = s.indicator_id
@@ -580,17 +895,28 @@ WHERE NOT EXISTS (
 
 INSERT INTO t_rectification_task
   (assessment_id, issue_description, severity, responsible_dept, responsible_person, deadline, status, completion_evidence, completed_time, verified_by, verified_time, created_time)
-SELECT @assessment_id, CONCAT(@prefix, '整改任务：完善高风险客户复核频率和名单筛查复核记录 ', @run_id), 'MEDIUM', '合规部', 'e2e_compliance', DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'IN_PROGRESS', NULL, NULL, NULL, NULL, NOW()
+SELECT @assessment_id, '高风险客户复核频率不足，名单筛查复核记录需补充。', 'MEDIUM', '合规部', '赵清妍', DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'IN_PROGRESS', NULL, NULL, NULL, NULL, NOW()
 WHERE NOT EXISTS (
-  SELECT 1 FROM t_rectification_task WHERE assessment_id = @assessment_id AND LOCATE(@run_id, issue_description) > 0
+  SELECT 1 FROM t_rectification_task WHERE assessment_id = @assessment_id
 );
+UPDATE t_rectification_task
+SET issue_description = '高风险客户复核频率不足，名单筛查复核记录需补充。',
+    responsible_person = '赵清妍'
+WHERE assessment_id = @assessment_id
+  AND (responsible_person LIKE 'e2e!_%' ESCAPE '!' OR issue_description LIKE CONCAT(@prefix, '%'));
 
 INSERT INTO t_notification
   (user_id, type, title, content, related_type, related_id, is_read, created_time)
-SELECT @investigator_id, 'ALERT', CONCAT(@prefix, '预警待处理 ', @run_id), CONCAT(@prefix, '名单命中预警已分配，请处理。'), 'ALERT', CAST(@alert_sanction_id AS CHAR), 0, NOW()
+SELECT @investigator_id, 'ALERT', CONCAT(@prefix, 'Grace Miller 制裁名单命中预警待处理 ', @run_id), CONCAT(@prefix, 'Grace Miller 已命中国际制裁名单并发生柜面大额现金缴费，请完成案件调查。'), 'ALERT', CAST(@alert_sanction_id AS CHAR), 0, NOW()
 WHERE NOT EXISTS (
-  SELECT 1 FROM t_notification WHERE user_id = @investigator_id AND title = CONCAT(@prefix, '预警待处理 ', @run_id)
+  SELECT 1 FROM t_notification WHERE user_id = @investigator_id AND title = CONCAT(@prefix, 'Grace Miller 制裁名单命中预警待处理 ', @run_id)
 );
+UPDATE t_notification
+SET title = CONCAT(@prefix, 'Grace Miller 制裁名单命中预警待处理 ', @run_id),
+    content = CONCAT(@prefix, 'Grace Miller 已命中国际制裁名单并发生柜面大额现金缴费，请完成案件调查。')
+WHERE user_id = @investigator_id
+  AND related_type = 'ALERT'
+  AND related_id = CAST(@alert_sanction_id AS CHAR);
 
 INSERT INTO t_audit_log
   (trace_id, user_id, username, operation_type, module, target_type, target_id, detail, ip_address, user_agent, request_uri, request_method, response_code, duration_ms, created_time)
@@ -608,12 +934,17 @@ SET collation_connection = 'utf8mb4_unicode_ci';
 SET @prefix := '${PREFIX_SQL}';
 SET @run_id := '${RUN_ID_SQL}';
 SET @run_key := '${RUN_KEY_SQL}';
+SET @assessment_id := (
+  SELECT id FROM t_self_assessment WHERE LOCATE(@run_id, COALESCE(conclusion, '')) > 0 LIMIT 1
+);
 
 SELECT 'users' AS artifact, COUNT(*) AS seeded_rows
 FROM t_user
 WHERE username IN ('e2e_seed_operator', 'e2e_compliance', 'e2e_investigator', 'e2e_viewer')
 UNION ALL
 SELECT 'customers', COUNT(*) FROM t_customer WHERE customer_no IN (CONCAT(@prefix, 'C', @run_key, '01'), CONCAT(@prefix, 'C', @run_key, '02'), CONCAT(@prefix, 'C', @run_key, '03'), CONCAT(@prefix, 'C', @run_key, '04'))
+UNION ALL
+SELECT 'complex_graph_customers', COUNT(*) FROM t_customer WHERE customer_no IN (CONCAT(@prefix, 'C', @run_key, '05'), CONCAT(@prefix, 'C', @run_key, '06'), CONCAT(@prefix, 'C', @run_key, '07'))
 UNION ALL
 SELECT 'watchlist_sources', COUNT(*) FROM t_watchlist_source WHERE source_code = CONCAT(@prefix, 'SRC', @run_key)
 UNION ALL
@@ -629,7 +960,11 @@ SELECT 'policies', COUNT(*) FROM t_policy WHERE policy_no = CONCAT(@prefix, 'POL
 UNION ALL
 SELECT 'transactions', COUNT(*) FROM t_transaction WHERE transaction_no IN (CONCAT(@prefix, 'TX', @run_key, '01'), CONCAT(@prefix, 'TX', @run_key, '02'), CONCAT(@prefix, 'TX', @run_key, '03'))
 UNION ALL
+SELECT 'complex_graph_transactions', COUNT(*) FROM t_transaction WHERE transaction_no IN (CONCAT(@prefix, 'TX', @run_key, 'C01'), CONCAT(@prefix, 'TX', @run_key, 'C02'), CONCAT(@prefix, 'TX', @run_key, 'C03'), CONCAT(@prefix, 'TX', @run_key, 'C04'), CONCAT(@prefix, 'TX', @run_key, 'C05'), CONCAT(@prefix, 'TX', @run_key, 'C06'))
+UNION ALL
 SELECT 'rules', COUNT(*) FROM t_rule_definition WHERE rule_code IN (CONCAT(@prefix, 'RLG', @run_key), CONCAT(@prefix, 'RST', @run_key))
+UNION ALL
+SELECT 'complex_graph_rules', COUNT(*) FROM t_rule_definition WHERE rule_code = CONCAT(@prefix, 'RCH', @run_key)
 UNION ALL
 SELECT 'alerts', COUNT(*) FROM t_alert WHERE alert_no IN (CONCAT(@prefix, 'AL', @run_key, '01'), CONCAT(@prefix, 'AL', @run_key, '02'))
 UNION ALL
@@ -641,9 +976,9 @@ SELECT 'large_txn_reports', COUNT(*) FROM t_large_txn_report WHERE report_no = C
 UNION ALL
 SELECT 'self_assessments', COUNT(*) FROM t_self_assessment WHERE conclusion LIKE CONCAT('%', @run_id, '%')
 UNION ALL
-SELECT 'rectification_tasks', COUNT(*) FROM t_rectification_task WHERE issue_description LIKE CONCAT('%', @run_id, '%')
+SELECT 'rectification_tasks', COUNT(*) FROM t_rectification_task WHERE assessment_id = @assessment_id
 UNION ALL
-SELECT 'notifications', COUNT(*) FROM t_notification WHERE title = CONCAT(@prefix, '预警待处理 ', @run_id)
+SELECT 'notifications', COUNT(*) FROM t_notification WHERE title = CONCAT(@prefix, 'Grace Miller 制裁名单命中预警待处理 ', @run_id)
 UNION ALL
 SELECT 'audit_logs', COUNT(*) FROM t_audit_log WHERE trace_id = CONCAT(@prefix, '-SEED-', @run_key);
 SQL
@@ -663,28 +998,23 @@ echo "  Run Key: ${RUN_KEY}"
 echo "  Mode: ${MODE}"
 echo ""
 
-if ! command -v mysql >/dev/null 2>&1; then
-    echo "mysql command not found. Use --sql-only to export SQL, or install MySQL client." >&2
-    exit 1
-fi
-
 if [ "$EXECUTE" = true ]; then
-    printf "%s\n" "$SEED_SQL" | mysql "${MYSQL_ARGS[@]}"
+    run_sql "$SEED_SQL" quiet
     echo ""
     echo "Seed completed. Verification:"
-    printf "%s\n" "$VERIFY_SQL" | mysql "${MYSQL_ARGS[@]}"
+    run_sql "$VERIFY_SQL" print
     exit 0
 fi
 
 if [ "$VERIFY" = true ]; then
-    printf "%s\n" "$VERIFY_SQL" | mysql "${MYSQL_ARGS[@]}"
+    run_sql "$VERIFY_SQL" print
     exit 0
 else
     echo "Dry-run only. No data was written."
     echo ""
     echo "This run will create/update a full E2E business data bundle for:"
     echo "  Customers: ${E2E_PREFIX}C${RUN_KEY}01..04"
-    echo "  Transactions: ${E2E_PREFIX}TX${RUN_KEY}01..03"
+    echo "  Transactions: ${E2E_PREFIX}TX${RUN_KEY}01..03 plus complex graph chain ${E2E_PREFIX}TX${RUN_KEY}C01..C06"
     echo "  Alerts: ${E2E_PREFIX}AL${RUN_KEY}01..02"
     echo "  Case: ${E2E_PREFIX}CASE${RUN_KEY}"
     echo "  Reports: ${E2E_PREFIX}STR${RUN_KEY}, ${E2E_PREFIX}LTR${RUN_KEY}"

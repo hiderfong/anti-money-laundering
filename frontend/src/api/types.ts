@@ -135,16 +135,23 @@ export interface ScreeningResultPageParams extends PageParams {
 
 export interface ScreeningResult {
   id: string
-  screeningId: string
-  targetName: string
+  requestId: string
+  customerId: string
+  customerName: string
+  customerIdNumber?: string
+  watchlistEntryId?: string
+  watchlistName: string
   matchScore: number
   matchType: string
-  listName: string
-  status: string
-  reviewedBy: string
-  reviewedAt: string
-  createdAt: string
-  details: Record<string, unknown>
+  matchField?: string
+  matchDetail?: string
+  reviewStatus: string
+  reviewResult?: string
+  reviewReason?: string
+  reviewedBy?: string
+  reviewedTime?: string
+  whitelisted?: boolean
+  createdTime: string
 }
 
 export interface ReviewParams {
@@ -414,6 +421,7 @@ export interface STRReport {
 export interface ReportingPageParams extends PageParams {
   reportType?: string
   status?: string
+  reportStatus?: string
   startDate?: string
   endDate?: string
 }
@@ -421,17 +429,25 @@ export interface ReportingPageParams extends PageParams {
 export interface ReportingRecord {
   id: string
   reportNo: string
-  reportType: string
-  status: string
-  customerName: string
-  totalAmount: number
+  customerId?: string
+  customerName?: string
+  transactionId?: string
+  reportDate: string
+  transactionTime: string
+  transactionType: string
+  amount: number
   currency: string
-  generatedAt: string
-  reviewedBy: string
-  submittedAt: string
-  xmlContent: string
-  errorMessage: string
-  createdAt: string
+  paymentMethod?: string
+  counterpartyInfo?: string
+  reportStatus: string
+  reviewedBy?: string
+  reviewedTime?: string
+  submittedBy?: string
+  submittedTime?: string
+  xmlContent?: string
+  submitResponse?: string
+  createdTime: string
+  updatedTime?: string
 }
 
 export interface ReportReviewParams {
@@ -583,6 +599,197 @@ export interface AlertStatisticsByType {
   byStatus: { status: string; count: number }[]
 }
 
+// ===================== 模型管理模块 =====================
+
+export interface ModelPageParams extends PageParams {
+  keyword?: string
+  modelType?: string
+  scenario?: string
+  lifecycleStatus?: string
+  riskLevel?: string
+}
+
+export interface AmlModel {
+  id: string
+  modelCode: string
+  modelName: string
+  modelType: string
+  scenario: string
+  algorithmType: string
+  version: string
+  lifecycleStatus: string
+  owner: string
+  governanceLevel: string
+  riskLevel: string
+  trainingDataset: string
+  validationDataset: string
+  testResult: string
+  lastTestTime: string
+  deploymentEnv: string
+  deployedTime: string
+  monitorStatus: string
+  precisionRate: number
+  recallRate: number
+  falsePositiveRate: number
+  driftScore: number
+  lastMonitorTime: string
+  iterationPlan: string
+  archiveReason: string
+  archivedTime: string
+  description: string
+  configJson: string
+  createdTime: string
+  updatedTime: string
+}
+
+export interface ModelOverview {
+  totalModels: number
+  draftModels: number
+  testingModels: number
+  deployedModels: number
+  monitoringModels: number
+  iterationModels: number
+  archivedModels: number
+  attentionModels: number
+  averageFalsePositiveRate: number
+  averageDriftScore: number
+}
+
+export interface ModelCreateParams {
+  modelCode: string
+  modelName: string
+  modelType: string
+  scenario: string
+  algorithmType?: string
+  version?: string
+  lifecycleStatus?: string
+  owner?: string
+  governanceLevel?: string
+  riskLevel?: string
+  trainingDataset?: string
+  validationDataset?: string
+  iterationPlan?: string
+  description?: string
+  configJson?: string
+}
+
+export interface ModelLifecycleParams {
+  operator?: string
+  actionSummary?: string
+  artifactRef?: string
+  deploymentEnv?: string
+  testDataset?: string
+  targetVersion?: string
+  iterationPlan?: string
+  archiveReason?: string
+  monitorStatus?: string
+  precisionRate?: number
+  recallRate?: number
+  falsePositiveRate?: number
+  driftScore?: number
+}
+
+export interface ModelLifecycleLog {
+  id: string
+  modelId: string
+  modelCode: string
+  actionType: string
+  fromStatus: string
+  toStatus: string
+  operator: string
+  actionTime: string
+  actionSummary: string
+  resultMetric: string
+  artifactRef: string
+}
+
+// ===================== 法规及资料库模块 =====================
+
+export interface RegulationCategory {
+  id: string
+  categoryCode: string
+  categoryName: string
+  categoryType: string
+  parentId: string
+  sortOrder: number
+  status: string
+  description: string
+  createdTime: string
+  updatedTime: string
+}
+
+export interface RegulationCategoryParams {
+  categoryCode: string
+  categoryName: string
+  categoryType?: string
+  parentId?: string
+  sortOrder?: number
+  status?: string
+  description?: string
+}
+
+export interface RegulationDocumentPageParams extends PageParams {
+  keyword?: string
+  docType?: string
+  categoryId?: string
+  status?: string
+  sourceType?: string
+  importantFlag?: boolean
+}
+
+export interface RegulationDocument {
+  id: string
+  docCode: string
+  title: string
+  docType: string
+  categoryId: string
+  categoryName: string
+  sourceType: string
+  sourceOrg: string
+  publishDate: string
+  effectiveDate: string
+  status: string
+  importantFlag: boolean
+  summary: string
+  content: string
+  tags: string
+  referenceUrl: string
+  attachmentRef: string
+  viewCount: number
+  createdTime: string
+  updatedTime: string
+}
+
+export interface RegulationDocumentParams {
+  docCode: string
+  title: string
+  docType: string
+  categoryId?: string
+  sourceType?: string
+  sourceOrg?: string
+  publishDate?: string
+  effectiveDate?: string
+  status?: string
+  importantFlag?: boolean
+  summary?: string
+  content?: string
+  tags?: string
+  referenceUrl?: string
+  attachmentRef?: string
+}
+
+export interface RegulationOverview {
+  totalDocuments: number
+  regulationDocuments: number
+  policyDocuments: number
+  trainingDocuments: number
+  regulatoryUpdates: number
+  industryUpdates: number
+  publishedDocuments: number
+  importantDocuments: number
+  categories: number
+}
+
 // ===================== 系统管理模块 =====================
 
 export interface UserPageParams extends PageParams {
@@ -652,10 +859,13 @@ export interface NotificationInfo {
   type: string
   title: string
   content: string
-  isRead: boolean
-  relatedType: string
-  relatedId: string
-  createdAt: string
+  isRead?: boolean
+  read?: boolean
+  readTime?: string
+  relatedType?: string
+  relatedId?: string
+  createdTime?: string
+  createdAt?: string
 }
 
 // ===================== 审计日志模块 =====================

@@ -23,7 +23,9 @@
         <el-table-column prop="reportNo" label="报告编号" width="155" show-overflow-tooltip />
         <el-table-column prop="caseId" label="关联案件ID" width="95" />
         <el-table-column prop="reportType" label="报告类型" width="95" />
-        <el-table-column prop="reportContent" label="报告内容" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="reportContent" label="报告内容" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">{{ displayReportContent(row) }}</template>
+        </el-table-column>
         <el-table-column prop="reportStatus" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.reportStatus)" size="small">
@@ -93,8 +95,8 @@
         <el-descriptions-item label="审核人ID">{{ detailData.reviewerId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="报送时间">{{ detailData.submitTime || '-' }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">{{ detailData.createdTime }}</el-descriptions-item>
-        <el-descriptions-item label="审核意见" :span="2">{{ detailData.reviewRemark || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="报告内容" :span="2">{{ detailData.reportContent }}</el-descriptions-item>
+        <el-descriptions-item label="审核意见" :span="2">{{ detailData.reviewerOpinion || detailData.reviewRemark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="报告内容" :span="2">{{ displayReportContent(detailData) }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
@@ -172,6 +174,15 @@ function statusTagType(status: string) {
     SUBMITTED: 'success'
   }
   return (map[status] || 'info') as any
+}
+
+function displayReportContent(row: any) {
+  const content = String(row?.reportContent || '').trim()
+  if (content && !/[åæèéçä]/.test(content)) return content
+
+  const customerRef = row?.customerName || (row?.customerId ? `客户ID ${row.customerId}` : '相关客户')
+  const caseRef = row?.caseId ? `案件ID ${row.caseId}` : '关联案件'
+  return `可疑交易报告：${customerRef} 涉及${caseRef}的异常交易线索，需结合客户尽调、交易流水和人工复核结论持续监测。`
 }
 
 // --- 创建报告 ---

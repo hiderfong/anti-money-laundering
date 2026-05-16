@@ -1,5 +1,6 @@
 package com.insurance.aml.module.case_.service;
 
+import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.module.case_.model.dto.StrReportCreateRequest;
 import com.insurance.aml.module.case_.model.dto.StrReportReviewRequest;
 import com.insurance.aml.module.case_.model.entity.StrReport;
@@ -9,6 +10,16 @@ import com.insurance.aml.module.case_.model.entity.StrReport;
  * 提供可疑交易报告的创建、审核、提交等流程管理
  */
 public interface StrReportService {
+
+    /**
+     * 分页查询可疑交易报告。
+     *
+     * @param page 页码
+     * @param size 每页条数
+     * @param status 报告状态
+     * @return 报告分页结果
+     */
+    PageResult<StrReport> pageQuery(Integer page, Integer size, String status);
 
     /**
      * 创建可疑交易报告

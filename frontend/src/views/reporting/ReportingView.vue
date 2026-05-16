@@ -14,12 +14,22 @@
       <!-- 搜索筛选栏 -->
       <div style="margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;">
         <el-select v-model="statusFilter" placeholder="报告状态" clearable style="width:160px;" @change="loadData">
-          <el-option label="待审核" value="PENDING" />
-          <el-option label="已审核" value="APPROVED" />
+          <el-option label="草稿" value="DRAFT" />
+          <el-option label="已审核" value="REVIEWED" />
           <el-option label="已报送" value="SUBMITTED" />
-          <el-option label="已驳回" value="REJECTED" />
+          <el-option label="报送失败" value="FAILED" />
+          <el-option label="已重报" value="RESUBMITTED" />
         </el-select>
-        <el-input v-model="periodFilter" placeholder="报告期间 (如 202601)" clearable style="width:180px;" @clear="loadData" @keyup.enter="loadData" />
+        <el-date-picker
+          v-model="dateRangeFilter"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          value-format="YYYY-MM-DD"
+          style="width:260px;"
+          @change="loadData"
+        />
         <el-button type="primary" @click="loadData">搜索</el-button>
         <el-button @click="resetFilters">重置</el-button>
       </div>
@@ -27,14 +37,22 @@
       <!-- 数据表格 -->
       <el-table :data="reports" stripe v-loading="loading" border>
         <el-table-column prop="reportNo" label="报告编号" width="180" />
-        <el-table-column prop="reportType" label="报告类型" width="130" />
-        <el-table-column prop="reportPeriod" label="报告期间" width="120" align="center" />
-        <el-table-column prop="transactionCount" label="交易笔数" width="100" align="right" />
-        <el-table-column prop="totalAmount" label="总金额" width="140" align="right">
+        <el-table-column label="客户" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.customerName || `客户ID ${row.customerId || '-'}` }}</template>
+        </el-table-column>
+        <el-table-column prop="transactionType" label="交易类型" width="110">
+          <template #default="{ row }">{{ transactionTypeLabel(row.transactionType) }}</template>
+        </el-table-column>
+        <el-table-column label="交易金额" width="150" align="right">
           <template #default="{ row }">
-            {{ formatAmount(row.totalAmount) }}
+            {{ formatAmount(row.amount) }} {{ row.currency || '' }}
           </template>
         </el-table-column>
+        <el-table-column prop="paymentMethod" label="支付方式" width="110">
+          <template #default="{ row }">{{ paymentMethodLabel(row.paymentMethod) }}</template>
+        </el-table-column>
+        <el-table-column prop="reportDate" label="报告日期" width="120" align="center" />
+        <el-table-column prop="transactionTime" label="交易时间" width="170" />
         <el-table-column prop="reportStatus" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.reportStatus)" size="small">
@@ -42,15 +60,19 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="reviewerId" label="审核人" width="100" />
+        <el-table-column prop="reviewedBy" label="审核人" width="120">
+          <template #default="{ row }">{{ formatReportReviewer(row) }}</template>
+        </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="170" />
-        <el-table-column prop="submitTime" label="报送时间" width="170" />
+        <el-table-column prop="submittedTime" label="报送时间" width="170">
+          <template #default="{ row }">{{ row.submittedTime || '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openDetail(row)">详情</el-button>
-            <el-button v-if="row.reportStatus === 'PENDING'" type="success" size="small" @click="openReviewDialog(row)">审核</el-button>
-            <el-button v-if="row.reportStatus === 'APPROVED'" type="warning" size="small" @click="handleSubmitReport(row)">提交报送</el-button>
-            <el-button v-if="row.reportStatus === 'APPROVED' || row.reportStatus === 'SUBMITTED'" type="info" size="small" @click="handleExportXml(row)">导出XML</el-button>
+            <el-button v-if="row.reportStatus === 'DRAFT'" type="success" size="small" @click="openReviewDialog(row)">审核</el-button>
+            <el-button v-if="row.reportStatus === 'REVIEWED'" type="warning" size="small" @click="handleSubmitReport(row)">提交报送</el-button>
+            <el-button v-if="row.reportStatus === 'REVIEWED' || row.reportStatus === 'SUBMITTED' || row.reportStatus === 'RESUBMITTED'" type="info" size="small" @click="handleExportXml(row)">导出XML</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -100,17 +122,20 @@
     <el-dialog v-model="detailDialogVisible" title="大额交易报告详情" width="650px" destroy-on-close>
       <el-descriptions :column="2" border v-if="detailData">
         <el-descriptions-item label="报告编号">{{ detailData.reportNo }}</el-descriptions-item>
-        <el-descriptions-item label="报告类型">{{ detailData.reportType }}</el-descriptions-item>
-        <el-descriptions-item label="报告期间">{{ detailData.reportPeriod }}</el-descriptions-item>
+        <el-descriptions-item label="客户">{{ detailData.customerName || `客户ID ${detailData.customerId || '-'}` }}</el-descriptions-item>
+        <el-descriptions-item label="报告日期">{{ detailData.reportDate || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="statusTagType(detailData.reportStatus)" size="small">
             {{ statusLabel(detailData.reportStatus) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="交易笔数">{{ detailData.transactionCount }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{ formatAmount(detailData.totalAmount) }}</el-descriptions-item>
-        <el-descriptions-item label="审核人ID">{{ detailData.reviewerId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="报送时间">{{ detailData.submitTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="交易类型">{{ transactionTypeLabel(detailData.transactionType) }}</el-descriptions-item>
+        <el-descriptions-item label="交易金额">{{ formatAmount(detailData.amount) }} {{ detailData.currency || '' }}</el-descriptions-item>
+        <el-descriptions-item label="支付方式">{{ paymentMethodLabel(detailData.paymentMethod) }}</el-descriptions-item>
+        <el-descriptions-item label="交易时间">{{ detailData.transactionTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="审核人">{{ formatReportReviewer(detailData) }}</el-descriptions-item>
+        <el-descriptions-item label="报送时间">{{ detailData.submittedTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="交易对手" :span="2">{{ formatCounterparty(detailData.counterpartyInfo) }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">{{ detailData.createdTime }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
@@ -140,15 +165,18 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import request from '@/utils/request'
+import { useUserStore } from '@/stores/user'
+import { currentOperatorName, formatOperatorName } from '@/utils/operatorDisplay'
 
 // ==================== 列表 ====================
+const userStore = useUserStore()
 const loading = ref(false)
 const reports = ref<any[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const statusFilter = ref('')
-const periodFilter = ref('')
+const dateRangeFilter = ref<string[] | null>(null)
 
 async function loadData() {
   loading.value = true
@@ -158,7 +186,8 @@ async function loadData() {
         page: currentPage.value,
         size: pageSize.value,
         reportStatus: statusFilter.value || undefined,
-        reportPeriod: periodFilter.value || undefined
+        startDate: dateRangeFilter.value?.[0] || undefined,
+        endDate: dateRangeFilter.value?.[1] || undefined
       }
     })
     const pageData = res.data || res
@@ -173,17 +202,18 @@ async function loadData() {
 
 function resetFilters() {
   statusFilter.value = ''
-  periodFilter.value = ''
+  dateRangeFilter.value = null
   currentPage.value = 1
   loadData()
 }
 
 // ==================== 状态映射 ====================
 const STATUS_MAP: Record<string, string> = {
-  PENDING: '待审核',
-  APPROVED: '已审核',
+  DRAFT: '草稿',
+  REVIEWED: '已审核',
   SUBMITTED: '已报送',
-  REJECTED: '已驳回'
+  FAILED: '报送失败',
+  RESUBMITTED: '已重报'
 }
 
 function statusLabel(status: string) {
@@ -192,10 +222,11 @@ function statusLabel(status: string) {
 
 function statusTagType(status: string) {
   const map: Record<string, string> = {
-    PENDING: 'warning',
-    APPROVED: '',
+    DRAFT: 'warning',
+    REVIEWED: '',
     SUBMITTED: 'success',
-    REJECTED: 'danger'
+    FAILED: 'danger',
+    RESUBMITTED: 'success'
   }
   return (map[status] || 'info') as any
 }
@@ -203,6 +234,42 @@ function statusTagType(status: string) {
 function formatAmount(amount: number | string | undefined) {
   if (amount == null) return '-'
   return Number(amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function transactionTypeLabel(type: string | undefined) {
+  const map: Record<string, string> = {
+    PREMIUM: '保费缴纳',
+    CLAIM: '理赔',
+    SURRENDER: '退保',
+    LOAN: '保单贷款',
+    REFUND: '退款'
+  }
+  return type ? (map[type] || type) : '-'
+}
+
+function paymentMethodLabel(method: string | undefined) {
+  const map: Record<string, string> = {
+    CASH: '现金',
+    TRANSFER: '转账',
+    BANK_TRANSFER: '银行转账',
+    ONLINE: '线上支付',
+    COUNTER: '柜面'
+  }
+  return method ? (map[method] || method) : '-'
+}
+
+function formatReportReviewer(row: any) {
+  return formatOperatorName(row?.reviewedBy, row?.reportStatus === 'DRAFT' ? '待审核' : '待补录')
+}
+
+function formatCounterparty(counterpartyInfo: string | undefined) {
+  if (!counterpartyInfo) return '-'
+  try {
+    const data = JSON.parse(counterpartyInfo)
+    return [data.name, data.account, data.bank].filter(Boolean).join(' / ') || counterpartyInfo
+  } catch {
+    return counterpartyInfo
+  }
 }
 
 // ==================== 生成报告 ====================
@@ -264,17 +331,15 @@ function openReviewDialog(row: any) {
 }
 
 async function handleReview() {
-  if (!reviewForm.approved && !reviewForm.remark.trim()) {
-    ElMessage.warning('驳回时必须填写审核意见')
+  if (!reviewForm.approved) {
+    ElMessage.warning('当前大额交易报告接口暂不支持驳回，请选择通过或由后续审批流处理')
     return
   }
   reviewing.value = true
   try {
-    await request.post(`/reporting/large-txn/${reviewTargetId.value}/review`, {
-      approved: reviewForm.approved,
-      remark: reviewForm.remark
-    })
-    ElMessage.success(reviewForm.approved ? '审核通过' : '已驳回')
+    const reviewedBy = currentOperatorName(userStore.userInfo)
+    await request.post(`/reporting/large-txn/${reviewTargetId.value}/review`, undefined, { params: { reviewedBy } })
+    ElMessage.success('审核通过')
     reviewDialogVisible.value = false
     loadData()
   } catch {

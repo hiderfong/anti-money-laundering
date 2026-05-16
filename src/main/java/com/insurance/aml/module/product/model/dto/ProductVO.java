@@ -22,6 +22,9 @@ public class ProductVO {
     @Schema(description = "产品名称")
     private String productName;
 
+    @Schema(description = "产品描述")
+    private String description;
+
     @Schema(description = "产品类型")
     private String productType;
 

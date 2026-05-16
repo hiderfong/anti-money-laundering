@@ -96,6 +96,8 @@ const menuItems: MenuItem[] = [
   { path: '/special-prevention', title: '特别预防', icon: 'Operation', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] },
   { path: '/rectifications', title: '整改中心', icon: 'Check', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] },
   { path: '/investigations', title: '调查协查', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] },
+  { path: '/models', title: '模型管理', icon: 'DataAnalysis', roles: ['ROLE_ADMIN'], permissions: ['model:view'] },
+  { path: '/regulation-library', title: '法规及资料库', icon: 'Document', roles: ['ROLE_ADMIN'], permissions: ['regulation:view'] },
   { path: '/notifications', title: '通知中心', icon: 'Notification' },
   { path: '/system', title: '系统管理', icon: 'Setting', roles: ['ROLE_ADMIN'], permissions: ['system:view'] }
 ]
@@ -186,26 +188,26 @@ onBeforeUnmount(() => {
 }
 
 .aside :deep(.el-menu) {
-  --el-menu-item-height: 50px;
-  --el-menu-item-font-size: 17px;
-  --el-menu-icon-width: 29px;
+  --el-menu-item-height: 47.5px;
+  --el-menu-item-font-size: 16.15px;
+  --el-menu-icon-width: 27.55px;
   padding-top: 10px;
 }
 
 .aside :deep(.el-menu-item) {
-  height: 50px;
-  line-height: 50px;
-  margin: 3px 9px;
-  padding: 0 15px !important;
-  font-size: 17px !important;
+  height: 47.5px;
+  line-height: 47.5px;
+  margin: 2.85px 9px;
+  padding: 0 14.25px !important;
+  font-size: 16.15px !important;
   font-weight: 600;
   border-radius: 8px;
 }
 
 .aside :deep(.el-menu-item .el-icon) {
-  width: 22px !important;
+  width: 20.9px !important;
   margin-right: 8px !important;
-  font-size: 22px !important;
+  font-size: 20.9px !important;
 }
 
 .aside :deep(.el-menu--collapse .el-menu-item) {

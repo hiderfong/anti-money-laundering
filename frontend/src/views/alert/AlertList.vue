@@ -157,7 +157,7 @@
     </el-card>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="预警详情" width="700px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="预警详情" width="880px" destroy-on-close>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="预警编号">{{ detailData.alertNo }}</el-descriptions-item>
         <el-descriptions-item label="客户名称">{{ detailData.customerName }}</el-descriptions-item>
@@ -192,6 +192,41 @@
         <el-descriptions-item label="处理时间">{{ detailData.processTime || '-' }}</el-descriptions-item>
         <el-descriptions-item label="生成时间">{{ detailData.createdTime || '-' }}</el-descriptions-item>
       </el-descriptions>
+      <section class="alert-chain-panel" v-loading="chainLoading">
+        <div class="chain-header">
+          <div>
+            <div class="chain-title">预警处置链路图</div>
+            <div class="chain-subtitle">从真实交易或规则命中到人工处置、案件升级与监管报送</div>
+          </div>
+          <el-tag :type="riskLevelTagType(detailData.riskLevel)" size="small">
+            {{ mapLabel(riskLevelMap, detailData.riskLevel) }}
+          </el-tag>
+        </div>
+        <div class="alert-chain">
+          <div
+            v-for="(node, index) in alertChainNodes(detailData)"
+            :key="node.key"
+            class="chain-step-wrap"
+          >
+            <div :class="['chain-step', `chain-step-${node.state}`]">
+              <div class="chain-step-dot">{{ index + 1 }}</div>
+              <div class="chain-step-body">
+                <div class="chain-step-title">{{ node.title }}</div>
+                <div class="chain-step-subtitle">{{ node.subtitle }}</div>
+                <div v-if="node.meta" class="chain-step-meta">{{ node.meta }}</div>
+              </div>
+            </div>
+            <div v-if="index < alertChainNodes(detailData).length - 1" class="chain-arrow"></div>
+          </div>
+        </div>
+        <div v-if="chainEvidence.length" class="chain-evidence-list">
+          <div v-for="item in chainEvidence" :key="item.key" class="chain-evidence-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <em>{{ item.note }}</em>
+          </div>
+        </div>
+      </section>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
@@ -260,7 +295,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Bell, WarningFilled, Loading, CircleCheckFilled } from '@element-plus/icons-vue'
 import request from '@/utils/request'
@@ -282,6 +317,9 @@ interface AlertItem {
   processRemark: string
   processTime: string
   createdTime: string
+  sourceRuleCodes?: string
+  relatedTransactionIds?: string
+  ruleDetails?: any[]
 }
 
 interface StatisticsData {
@@ -294,6 +332,28 @@ interface StatisticsData {
 interface UserOption {
   id: string | number
   name: string
+}
+
+interface ChainStep {
+  key?: string
+  title?: string
+  subtitle?: string
+  meta?: string
+  time?: string
+  state?: string
+}
+
+interface DispositionChain {
+  summary?: {
+    transactionCount?: number
+    caseCount?: number
+    strReportCount?: number
+    submittedToRegulator?: boolean
+  }
+  transactions?: Array<{ transactionNo?: string; transactionType?: string; amount?: number; currency?: string }>
+  cases?: Array<{ caseNo?: string; caseStatus?: string }>
+  strReports?: Array<{ reportNo?: string; reportStatus?: string; submitResult?: string }>
+  steps?: ChainStep[]
 }
 
 // ===================== 常量映射 =====================
@@ -317,12 +377,37 @@ const statusMap: Record<string, string> = {
   ASSIGNED: '已分配',
   PROCESSING: '处理中',
   CONFIRMED: '已确认',
-  EXCLUDED: '已排除'
+  EXCLUDED: '已排除',
+  ESCALATED: '已升级'
 }
 
 const processResultMap: Record<string, string> = {
   CONFIRMED: '确认可疑',
-  EXCLUDED: '排除误报'
+  CONFIRMED_SUSPICIOUS: '确认可疑',
+  EXCLUDED: '排除误报',
+  ESCALATED: '升级处理'
+}
+
+const caseStatusMap: Record<string, string> = {
+  DRAFT: '草稿',
+  INVESTIGATING: '调查中',
+  PENDING_APPROVAL: '待审批',
+  SUBMITTED: '已报送',
+  CLOSED: '已结案'
+}
+
+const reportStatusMap: Record<string, string> = {
+  DRAFT: '草稿',
+  PENDING_REVIEW: '待审核',
+  APPROVED: '已审核',
+  REJECTED: '已拒绝',
+  SUBMITTED: '已报送'
+}
+
+const submitResultMap: Record<string, string> = {
+  SUBMIT_SUCCESS: '报送成功',
+  SUCCESS: '成功',
+  E2E_MOCK_ACCEPTED: '模拟报送成功'
 }
 
 // ===================== 状态 =====================
@@ -345,6 +430,37 @@ const query = reactive({
 // 详情弹窗
 const detailVisible = ref(false)
 const detailData = ref<Partial<AlertItem>>({})
+const chainLoading = ref(false)
+const dispositionChain = ref<DispositionChain | null>(null)
+const chainEvidence = computed(() => {
+  const chain = dispositionChain.value
+  if (!chain) return []
+  const transactions = chain.transactions || []
+  const cases = chain.cases || []
+  const reports = chain.strReports || []
+  return [
+    {
+      key: 'transactions',
+      label: '关联交易',
+      value: transactions.length ? joinText(transactions.map(item => item.transactionNo), '、', 3) : '未关联',
+      note: transactions.length ? `${transactions.length} 笔交易进入本次预警链路` : '预警未记录真实交易ID'
+    },
+    {
+      key: 'cases',
+      label: '关联案件',
+      value: cases.length ? joinText(cases.map(item => item.caseNo), '、', 3) : '未生成',
+      note: cases.length ? joinText(cases.map(item => chainStatusLabel(item.caseStatus)), '、', 3) : '当前预警尚未形成案件'
+    },
+    {
+      key: 'strReports',
+      label: 'STR报告',
+      value: reports.length ? joinText(reports.map(item => item.reportNo), '、', 3) : '未生成',
+      note: reports.length
+        ? joinText(reports.map(item => [chainStatusLabel(item.reportStatus), chainStatusLabel(item.submitResult)].filter(Boolean).join('/')), '、', 3)
+        : '当前预警尚未进入可疑交易报告'
+    }
+  ]
+})
 
 // 指派弹窗
 const assignVisible = ref(false)
@@ -399,6 +515,82 @@ function statusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' |
   }
   const key = typeof status === 'string' ? status : ''
   return map[key] || 'info'
+}
+
+function splitIds(value: unknown) {
+  return String(value || '')
+    .split(/[,\s;]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function joinText(values: unknown[], separator = '、', limit = 3) {
+  const filtered = values.map(item => String(item || '').trim()).filter(Boolean)
+  if (!filtered.length) return '-'
+  const text = filtered.slice(0, limit).join(separator)
+  return filtered.length > limit ? `${text} 等${filtered.length}项` : text
+}
+
+function chainStatusLabel(value: unknown) {
+  const key = String(value || '').trim()
+  return processResultMap[key] || statusMap[key] || caseStatusMap[key] || reportStatusMap[key] || submitResultMap[key] || key
+}
+
+function alertChainNodes(alert: Partial<AlertItem> & Record<string, any>) {
+  const serverSteps = dispositionChain.value?.steps || []
+  if (serverSteps.length) {
+    return serverSteps.map((step, index) => ({
+      key: step.key || `step-${index}`,
+      title: step.title || '-',
+      subtitle: chainStatusLabel(step.subtitle) || '-',
+      meta: [step.meta, step.time].filter(Boolean).join(' · '),
+      state: step.state || 'done'
+    }))
+  }
+
+  const transactionIds = splitIds(alert.relatedTransactionIds)
+  const ruleCodes = splitIds(alert.sourceRuleCodes)
+  const ruleDetailCount = Array.isArray(alert.ruleDetails) ? alert.ruleDetails.length : 0
+  const isFinal = ['CONFIRMED', 'EXCLUDED'].includes(String(alert.status || ''))
+  const confirmed = String(alert.processResult || '').includes('CONFIRMED') || alert.status === 'CONFIRMED'
+  const excluded = String(alert.processResult || '').includes('EXCLUDED') || alert.status === 'EXCLUDED'
+  return [
+    {
+      key: 'source',
+      title: transactionIds.length ? '关联交易命中' : '规则/名单命中',
+      subtitle: transactionIds.length ? `${transactionIds.length} 笔交易触发预警` : '由筛查、规则或人工线索触发',
+      meta: ruleCodes.length ? `规则：${ruleCodes.join('、')}` : ruleDetailCount ? `命中规则明细 ${ruleDetailCount} 条` : '规则明细待补充',
+      state: 'done'
+    },
+    {
+      key: 'alert',
+      title: '预警生成',
+      subtitle: alert.alertNo || '-',
+      meta: `${mapLabel(typeMap, alert.alertType)} / 风险分 ${alert.riskScore ?? 0}`,
+      state: alert.riskLevel === 'CRITICAL' || alert.riskLevel === 'HIGH' ? 'warn' : 'done'
+    },
+    {
+      key: 'assign',
+      title: '分派处理',
+      subtitle: alert.assignedTo ? `处理人：${alert.assignedTo}` : '尚未指派处理人',
+      meta: alert.assignedTime || '等待分派',
+      state: alert.assignedTo ? 'done' : 'current'
+    },
+    {
+      key: 'review',
+      title: '人工复核',
+      subtitle: alert.processResult ? mapLabel(processResultMap, alert.processResult) : mapLabel(statusMap, alert.status),
+      meta: alert.processTime || alert.processRemark || '等待处理结论',
+      state: excluded ? 'muted' : isFinal ? 'done' : 'current'
+    },
+    {
+      key: 'case',
+      title: confirmed ? '案件/STR准备' : '处置闭环',
+      subtitle: confirmed ? '可升级案件并形成可疑交易报告' : excluded ? '误报排除，保留复核留痕' : '等待处置结果进入后续链路',
+      meta: confirmed ? '建议核查案件与 STR 生成状态' : '',
+      state: confirmed ? 'warn' : excluded ? 'muted' : 'pending'
+    }
+  ]
 }
 
 // ===================== 数据加载 =====================
@@ -468,13 +660,28 @@ function handleSelectionChange(rows: AlertItem[]) {
 
 // ===================== 详情弹窗 =====================
 async function openDetail(row: AlertItem) {
-  try {
-    const res: any = await request.get(`/alerts/${row.id}`)
-    detailData.value = res.data || row
-  } catch {
-    detailData.value = row
-  }
   detailVisible.value = true
+  detailData.value = row
+  dispositionChain.value = null
+  chainLoading.value = true
+  try {
+    const [detailResult, chainResult] = await Promise.allSettled([
+      request.get(`/alerts/${row.id}`),
+      request.get(`/alerts/${row.id}/disposition-chain`)
+    ])
+    if (detailResult.status === 'fulfilled') {
+      const res: any = detailResult.value
+      detailData.value = res.data || row
+    }
+    if (chainResult.status === 'fulfilled') {
+      const res: any = chainResult.value
+      dispositionChain.value = res.data || null
+    }
+  } catch (e) {
+    console.error('加载预警详情失败', e)
+  } finally {
+    chainLoading.value = false
+  }
 }
 
 // ===================== 指派弹窗 =====================
@@ -659,5 +866,191 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+.alert-chain-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fbfdff;
+}
+
+.chain-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.chain-title {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.chain-subtitle {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.alert-chain {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.chain-step-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.chain-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.chain-step-dot {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 28px;
+  text-align: center;
+}
+
+.chain-step-warn .chain-step-dot {
+  background: #dc2626;
+}
+
+.chain-step-current .chain-step-dot {
+  background: #d97706;
+}
+
+.chain-step-pending .chain-step-dot,
+.chain-step-muted .chain-step-dot {
+  background: #94a3b8;
+}
+
+.chain-step-body {
+  min-width: 0;
+}
+
+.chain-step-title {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.chain-step-subtitle,
+.chain-step-meta {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.chain-evidence-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.chain-evidence-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.chain-evidence-card span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.chain-evidence-card strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chain-evidence-card em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.chain-arrow {
+  flex: 0 0 18px;
+  height: 2px;
+  margin: 0 -2px;
+  background: #cbd5e1;
+  position: relative;
+}
+
+.chain-arrow::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  border-left: 7px solid #cbd5e1;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+
+@media (max-width: 1200px) {
+  .alert-chain {
+    grid-template-columns: 1fr;
+  }
+
+  .chain-evidence-list {
+    grid-template-columns: 1fr;
+  }
+
+  .chain-step-wrap {
+    display: block;
+  }
+
+  .chain-arrow {
+    width: 2px;
+    height: 18px;
+    margin: 0 0 0 25px;
+  }
+
+  .chain-arrow::after {
+    right: -4px;
+    top: 12px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid #cbd5e1;
+    border-bottom: 0;
+  }
 }
 </style>

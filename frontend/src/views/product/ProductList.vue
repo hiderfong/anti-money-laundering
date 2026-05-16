@@ -10,14 +10,8 @@
           <el-input v-model="filterForm.productCode" placeholder="请输入产品编码" clearable style="width:180px" />
         </el-form-item>
         <el-form-item label="产品类型">
-          <el-select v-model="filterForm.productType" placeholder="全部类型" clearable style="width:140px">
-            <el-option label="存款产品" value="DEPOSIT" />
-            <el-option label="贷款产品" value="LOAN" />
-            <el-option label="理财产品" value="INVESTMENT" />
-            <el-option label="保险产品" value="INSURANCE" />
-            <el-option label="汇款产品" value="REMITTANCE" />
-            <el-option label="电子支付" value="E_PAYMENT" />
-            <el-option label="其他" value="OTHER" />
+          <el-select v-model="filterForm.productType" placeholder="全部类型" clearable style="width:150px">
+            <el-option v-for="option in productTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="风险等级">
@@ -41,8 +35,12 @@
     <el-card shadow="never" style="margin-top:16px">
       <el-table :data="tableData" stripe border v-loading="loading" style="width:100%">
         <el-table-column prop="productCode" label="产品编码" width="150" fixed />
-        <el-table-column prop="productName" label="产品名称" width="200" show-overflow-tooltip />
-        <el-table-column prop="productType" label="产品类型" width="120">
+        <el-table-column label="产品名称" width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ displayProductName(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="productType" label="产品类型" width="130">
           <template #default="{ row }">
             {{ productTypeLabel(row.productType) }}
           </template>
@@ -61,7 +59,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column label="产品简介" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ productDescription(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="170" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
@@ -100,13 +102,7 @@
         </el-form-item>
         <el-form-item label="产品类型" prop="productType">
           <el-select v-model="productForm.productType" placeholder="请选择产品类型" style="width:100%">
-            <el-option label="存款产品" value="DEPOSIT" />
-            <el-option label="贷款产品" value="LOAN" />
-            <el-option label="理财产品" value="INVESTMENT" />
-            <el-option label="保险产品" value="INSURANCE" />
-            <el-option label="汇款产品" value="REMITTANCE" />
-            <el-option label="电子支付" value="E_PAYMENT" />
-            <el-option label="其他" value="OTHER" />
+            <el-option v-for="option in productTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="风险等级" prop="riskLevel">
@@ -134,7 +130,7 @@
       <template v-if="detailData">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="产品编码">{{ detailData.productCode }}</el-descriptions-item>
-          <el-descriptions-item label="产品名称">{{ detailData.productName }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ displayProductName(detailData) }}</el-descriptions-item>
           <el-descriptions-item label="产品类型">{{ productTypeLabel(detailData.productType) }}</el-descriptions-item>
           <el-descriptions-item label="风险等级">
             <el-tag :type="riskLevelTagType(detailData.riskLevel)" size="small" effect="dark">
@@ -147,7 +143,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ detailData.createdTime }}</el-descriptions-item>
-          <el-descriptions-item label="产品描述" :span="2">{{ detailData.description || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="产品简介" :span="2">{{ productDescription(detailData) }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 评估历史 -->
@@ -186,8 +182,15 @@ interface Product {
   productCode: string
   productName: string
   productType: string
+  productSubType?: string
+  paymentMode?: string
+  hasCashValue?: boolean
+  hasInvestmentFeature?: boolean
+  beneficiaryChangeable?: boolean
   riskLevel: string
-  description: string
+  riskScore?: number
+  description?: string
+  riskFactors?: string
   status: string
   createdTime: string
 }
@@ -245,13 +248,44 @@ const assessmentLoading = ref(false)
 // ==================== 工具函数 ====================
 
 const PRODUCT_TYPE_MAP: Record<string, string> = {
-  DEPOSIT: '存款产品',
-  LOAN: '贷款产品',
-  INVESTMENT: '理财产品',
-  INSURANCE: '保险产品',
-  REMITTANCE: '汇款产品',
-  E_PAYMENT: '电子支付',
+  LIFE: '人寿保险',
+  LIFE_INSURANCE: '人寿保险',
+  PROPERTY: '财产保险',
+  HEALTH: '健康保险',
+  MEDICAL: '医疗保险',
+  ACCIDENT: '意外伤害保险',
+  ANNUITY: '年金保险',
+  CRITICAL_ILLNESS: '重大疾病保险',
+  UNIVERSAL_LIFE: '万能寿险',
+  INVESTMENT_LINKED: '投资连结保险',
+  GROUP: '团体保险',
+  CROSS_BORDER: '跨境保险',
+  HIGH_NET_WORTH: '高净值客户保险',
+  RETIREMENT: '退休养老保险',
   OTHER: '其他'
+}
+
+const productTypeOptions = Object.entries(PRODUCT_TYPE_MAP).map(([value, label]) => ({ value, label }))
+
+const LEGACY_PRODUCT_NAME_MAP: Record<string, string> = {
+  PROD001: '定期寿险A款',
+  PROD002: '终身寿险B款',
+  PROD003: '万能寿险C款',
+  PROD004: '投连寿险D款',
+  PROD005: '年金保险E款',
+  PROD006: '重大疾病保险F款',
+  PROD007: '医疗保险G款',
+  PROD008: '意外伤害保险H款',
+  PROD009: '团体保险I款',
+  PROD010: '跨境保险J款',
+  PROD011: '高净值客户保险K款',
+  PROD012: '退休养老保险L款'
+}
+
+const PAYMENT_MODE_MAP: Record<string, string> = {
+  LUMP_SUM: '趸交',
+  PERIODIC: '期交',
+  FLEXIBLE: '灵活缴费'
 }
 
 const RISK_LEVEL_MAP: Record<string, string> = {
@@ -279,6 +313,31 @@ function riskLevelTagType(r: string): '' | 'success' | 'warning' | 'info' | 'dan
     NOT_ASSESSED: 'info'
   }
   return map[r] || 'info'
+}
+
+function isMojibakeText(value?: string) {
+  return !!value && /[åæèéçä�]/.test(value)
+}
+
+function displayProductName(row: Product | null) {
+  if (!row) return '-'
+  if (row.productName?.startsWith('E2ERBAC产品')) return '稳益终身寿险（权限验证版）'
+  const legacyName = LEGACY_PRODUCT_NAME_MAP[row.productCode]
+  if (legacyName && (!row.productName || isMojibakeText(row.productName))) return legacyName
+  return row.productName || legacyName || '-'
+}
+
+function productDescription(row: Product | null) {
+  if (!row) return '-'
+  if (row.description) return row.description
+
+  const type = productTypeLabel(row.productType) || '保险产品'
+  const payment = row.paymentMode ? PAYMENT_MODE_MAP[row.paymentMode] || row.paymentMode : '未配置'
+  const cashValue = row.hasCashValue ? '具备现金价值' : '无现金价值'
+  const investment = row.hasInvestmentFeature ? '含投资属性' : '不含投资属性'
+  const beneficiary = row.beneficiaryChangeable === false ? '受益人不可变更' : '受益人可变更'
+  const score = row.riskScore == null ? '未评分' : `${row.riskScore}分`
+  return `${type}，缴费方式${payment}，${cashValue}，${investment}，${beneficiary}，当前风险评分${score}。`
 }
 
 // ==================== 数据加载 ====================
@@ -339,10 +398,10 @@ function openEditDialog(row: Product) {
   isEdit.value = true
   editingId.value = row.id
   productForm.productCode = row.productCode
-  productForm.productName = row.productName
+  productForm.productName = displayProductName(row)
   productForm.productType = row.productType
   productForm.riskLevel = row.riskLevel
-  productForm.description = row.description || ''
+  productForm.description = row.description || productDescription(row)
   formVisible.value = true
 }
 
@@ -354,6 +413,7 @@ async function handleSubmit() {
   try {
     if (isEdit.value && editingId.value) {
       await request.put(`/products/${editingId.value}`, {
+        productCode: productForm.productCode,
         productName: productForm.productName,
         productType: productForm.productType,
         riskLevel: productForm.riskLevel,
@@ -412,7 +472,7 @@ async function openDetail(row: Product) {
 async function handleAssess(row: Product) {
   try {
     await ElMessageBox.confirm(
-      `确认对产品「${row.productName}」发起风险评估？`,
+      `确认对产品「${displayProductName(row)}」发起风险评估？`,
       '风险评估确认',
       { confirmButtonText: '确认评估', cancelButtonText: '取消', type: 'warning' }
     )

@@ -28,12 +28,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.beans.BeanUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -48,6 +55,7 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
     private final CustomerRiskRatingLogMapper riskRatingLogMapper;
     private final IdGenerator idGenerator;
     private final EncryptUtils encryptUtils;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * 创建客户
@@ -247,6 +255,65 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
     }
 
     /**
+     * 获取客户关系图谱
+     */
+    @Override
+    public CustomerRelationshipGraphVO getCustomerRelationshipGraph(Long id) {
+        log.debug("获取客户关系图谱，客户ID：{}", id);
+
+        CustomerVO customerVO = getCustomerDetail(id);
+        CustomerRelationshipGraphVO graph = new CustomerRelationshipGraphVO();
+        Map<String, CustomerRelationshipGraphVO.Node> nodes = new LinkedHashMap<>();
+        List<CustomerRelationshipGraphVO.Link> links = new ArrayList<>();
+
+        String customerNodeId = "customer-" + id;
+        addNode(nodes, node(customerNodeId, customerVO.getName(), "CUSTOMER", "客户")
+                .riskLevel(customerVO.getRiskLevel())
+                .riskScore(customerVO.getRiskScore())
+                .status(customerVO.getStatus())
+                .detail(Map.of(
+                        "customerNo", nullToBlank(customerVO.getCustomerNo()),
+                        "customerType", nullToBlank(customerVO.getCustomerType()),
+                        "kycStatus", nullToBlank(customerVO.getKycStatus()),
+                        "isPep", Boolean.TRUE.equals(customerVO.getIsPep()),
+                        "isSanctioned", Boolean.TRUE.equals(customerVO.getIsSanctioned())
+                ))
+                .build());
+
+        if (Boolean.TRUE.equals(customerVO.getIsPep())) {
+            String pepNodeId = "pep-" + id;
+            addNode(nodes, node(pepNodeId, "PEP敏感身份", "PEP", "PEP/制裁名单")
+                    .riskLevel("HIGH")
+                    .status(nullToBlank(customerVO.getPepType()))
+                    .detail(Map.of("pepType", nullToBlank(customerVO.getPepType())))
+                    .build());
+            links.add(link(customerNodeId, pepNodeId, "身份标签", null, "HIGH"));
+        }
+        if (Boolean.TRUE.equals(customerVO.getIsSanctioned())) {
+            String sanctionNodeId = "sanction-" + id;
+            addNode(nodes, node(sanctionNodeId, "制裁名单标记", "SANCTION", "PEP/制裁名单")
+                    .riskLevel("CRITICAL")
+                    .status("命中")
+                    .build());
+            links.add(link(customerNodeId, sanctionNodeId, "名单风险", null, "CRITICAL"));
+        }
+
+        addBeneficialOwnerNodes(customerNodeId, customerVO.getBeneficialOwners(), nodes, links);
+        List<Map<String, Object>> policies = addPolicyAndProductNodes(id, customerNodeId, nodes, links);
+        List<Map<String, Object>> transactions = addTransactionNodes(id, customerNodeId, nodes, links);
+        List<Map<String, Object>> alerts = addAlertNodes(id, customerNodeId, nodes, links);
+        List<Map<String, Object>> cases = addCaseNodes(id, customerNodeId, nodes, links);
+        List<Map<String, Object>> strReports = addStrReportNodes(id, customerNodeId, nodes, links);
+        List<Map<String, Object>> screeningResults = addWatchlistNodes(id, customerNodeId, nodes, links);
+
+        graph.setNodes(new ArrayList<>(nodes.values()));
+        graph.setLinks(links);
+        fillGraphSummary(graph, customerVO, policies, transactions, alerts, cases, strReports, screeningResults);
+        graph.setInsights(buildGraphInsights(customerVO, graph.getSummary()));
+        return graph;
+    }
+
+    /**
      * 触发客户风险评估
      * 根据PEP状态、制裁状态等因素计算风险评分，确定风险等级
      * 评分规则：PEP +30分，被制裁 +50分，高风险职业 +20分
@@ -322,6 +389,534 @@ public class CustomerServiceImpl extends BaseServiceXImpl<CustomerMapper, Custom
 
         log.info("客户风险评估完成，客户ID：{}，风险等级：{} -> {}，评分：{} -> {}",
                 customerId, oldRiskLevel, newRiskLevel, oldRiskScore, score);
+    }
+
+    private void addBeneficialOwnerNodes(String customerNodeId,
+                                         List<CustomerBeneficialOwnerVO> owners,
+                                         Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                         List<CustomerRelationshipGraphVO.Link> links) {
+        if (owners == null) {
+            return;
+        }
+        for (CustomerBeneficialOwnerVO owner : owners) {
+            String ownerNodeId = "owner-" + owner.getId();
+            BigDecimal ownership = owner.getOwnershipPercentage();
+            String riskLevel = ownership != null && ownership.compareTo(BigDecimal.valueOf(25)) >= 0 ? "HIGH" : "MEDIUM";
+            addNode(nodes, node(ownerNodeId, firstNonBlank(owner.getOwnerName(), owner.getRelationship(), "受益所有人"),
+                    "BENEFICIAL_OWNER", "受益人")
+                    .riskLevel(riskLevel)
+                    .status(owner.getStatus())
+                    .detail(Map.of(
+                            "relationship", nullToBlank(owner.getRelationship()),
+                            "controlType", nullToBlank(owner.getControlType()),
+                            "ownershipPercentage", ownership == null ? "" : ownership.toPlainString()
+                    ))
+                    .build());
+            links.add(link(customerNodeId, ownerNodeId,
+                    ownership == null ? "受益/控制" : "受益/控制 " + ownership.stripTrailingZeros().toPlainString() + "%",
+                    ownership, riskLevel));
+        }
+    }
+
+    private List<Map<String, Object>> addPolicyAndProductNodes(Long customerId,
+                                                                String customerNodeId,
+                                                                Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                                                List<CustomerRelationshipGraphVO.Link> links) {
+        List<Map<String, Object>> policies = jdbcTemplate.queryForList("""
+                SELECT p.id AS policyId,
+                       p.customer_id AS policyCustomerId,
+                       p.policy_no AS policyNo,
+                       p.policy_status AS policyStatus,
+                       p.payment_mode AS paymentMode,
+                       p.channel AS channel,
+                       p.premium AS premium,
+                       p.sum_insured AS sumInsured,
+                       p.beneficiary_info AS beneficiaryInfo,
+                       pr.id AS productId,
+                       pr.product_name AS productName,
+                       pr.product_type AS productType,
+                       pr.risk_level AS productRiskLevel,
+                       pr.risk_score AS productRiskScore
+                FROM t_policy p
+                LEFT JOIN t_product pr ON pr.id = p.product_id
+                WHERE p.customer_id = ?
+                   OR EXISTS (
+                       SELECT 1
+                       FROM t_transaction tx
+                       WHERE tx.policy_id = p.id
+                         AND tx.customer_id = ?
+                   )
+                ORDER BY p.created_time DESC
+                LIMIT 12
+                """, customerId, customerId);
+
+        for (Map<String, Object> row : policies) {
+            String policyId = stringValue(row, "policyId");
+            String policyNodeId = "policy-" + policyId;
+            BigDecimal premium = decimalValue(row, "premium");
+            String policyCustomerId = stringValue(row, "policyCustomerId");
+            addNode(nodes, node(policyNodeId, firstNonBlank(stringValue(row, "policyNo"), "保单" + policyId),
+                    "POLICY", "保单")
+                    .status(stringValue(row, "policyStatus"))
+                    .amount(premium)
+                    .detail(copyDetail(row))
+                    .build());
+            links.add(link(customerNodeId, policyNodeId,
+                    String.valueOf(customerId).equals(policyCustomerId) ? "持有保单" : "交易关联保单",
+                    premium, null));
+
+            String productId = stringValue(row, "productId");
+            if (StringUtils.hasText(productId)) {
+                String productNodeId = "product-" + productId;
+                addNode(nodes, node(productNodeId, firstNonBlank(stringValue(row, "productName"), "保险产品" + productId),
+                        "PRODUCT", "产品")
+                        .riskLevel(stringValue(row, "productRiskLevel"))
+                        .riskScore(intValue(row, "productRiskScore"))
+                        .detail(copyDetail(row))
+                        .build());
+                links.add(link(policyNodeId, productNodeId, "承保产品", null, stringValue(row, "productRiskLevel")));
+            }
+
+            String beneficiaryInfo = stringValue(row, "beneficiaryInfo");
+            if (StringUtils.hasText(beneficiaryInfo)) {
+                String beneficiaryNodeId = "policy-beneficiary-" + policyId;
+                addNode(nodes, node(beneficiaryNodeId, "保单受益安排", "POLICY_BENEFICIARY", "受益人")
+                        .detail(Map.of("beneficiaryInfo", beneficiaryInfo))
+                        .build());
+                links.add(link(policyNodeId, beneficiaryNodeId, "约定受益人", null, null));
+            }
+        }
+        return policies;
+    }
+
+    private List<Map<String, Object>> addTransactionNodes(Long customerId,
+                                                           String customerNodeId,
+                                                           Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                                           List<CustomerRelationshipGraphVO.Link> links) {
+        List<Map<String, Object>> transactions = jdbcTemplate.queryForList("""
+                SELECT id,
+                       transaction_no AS transactionNo,
+                       policy_id AS policyId,
+                       transaction_type AS transactionType,
+                       amount,
+                       currency,
+                       payment_method AS paymentMethod,
+                       counterparty_name AS counterpartyName,
+                       counterparty_account AS counterpartyAccount,
+                       counterparty_bank AS counterpartyBank,
+                       is_cross_border AS crossBorder,
+                       transaction_time AS transactionTime,
+                       status
+                FROM t_transaction
+                WHERE customer_id = ?
+                ORDER BY transaction_time DESC
+                LIMIT 16
+                """, customerId);
+
+        for (Map<String, Object> row : transactions) {
+            String transactionId = stringValue(row, "id");
+            String transactionNodeId = "transaction-" + transactionId;
+            BigDecimal amount = decimalValue(row, "amount");
+            boolean crossBorder = booleanValue(row, "crossBorder");
+            addNode(nodes, node(transactionNodeId, firstNonBlank(stringValue(row, "transactionNo"), "交易" + transactionId),
+                    "TRANSACTION", "交易")
+                    .riskLevel(crossBorder ? "HIGH" : null)
+                    .status(stringValue(row, "status"))
+                    .amount(amount)
+                    .detail(copyDetail(row))
+                    .build());
+            links.add(link(customerNodeId, transactionNodeId,
+                    firstNonBlank(stringValue(row, "transactionType"), "发生交易"), amount, crossBorder ? "HIGH" : null));
+
+            String policyId = stringValue(row, "policyId");
+            if (StringUtils.hasText(policyId) && nodes.containsKey("policy-" + policyId)) {
+                links.add(link("policy-" + policyId, transactionNodeId, "保单交易", amount, null));
+            }
+
+            String counterparty = stringValue(row, "counterpartyName");
+            if (StringUtils.hasText(counterparty)) {
+                String counterpartyNodeId = "counterparty-" + normalizeId(counterparty);
+                addNode(nodes, node(counterpartyNodeId, counterparty, "COUNTERPARTY", "交易对手")
+                        .detail(Map.of(
+                                "account", nullToBlank(stringValue(row, "counterpartyAccount")),
+                                "bank", nullToBlank(stringValue(row, "counterpartyBank"))
+                        ))
+                        .build());
+                links.add(link(transactionNodeId, counterpartyNodeId, "交易对手", amount, crossBorder ? "HIGH" : null));
+            }
+        }
+        return transactions;
+    }
+
+    private List<Map<String, Object>> addAlertNodes(Long customerId,
+                                                     String customerNodeId,
+                                                     Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                                     List<CustomerRelationshipGraphVO.Link> links) {
+        List<Map<String, Object>> alerts = jdbcTemplate.queryForList("""
+                SELECT id,
+                       alert_no AS alertNo,
+                       alert_type AS alertType,
+                       risk_score AS riskScore,
+                       risk_level AS riskLevel,
+                       source_rule_codes AS sourceRuleCodes,
+                       alert_summary AS alertSummary,
+                       status,
+                       process_result AS processResult,
+                       related_transaction_ids AS relatedTransactionIds,
+                       created_time AS createdTime
+                FROM t_alert
+                WHERE customer_id = ?
+                ORDER BY created_time DESC
+                LIMIT 12
+                """, customerId);
+
+        for (Map<String, Object> row : alerts) {
+            String alertId = stringValue(row, "id");
+            String alertNodeId = "alert-" + alertId;
+            addNode(nodes, node(alertNodeId, firstNonBlank(stringValue(row, "alertNo"), stringValue(row, "alertType"), "预警" + alertId),
+                    "ALERT", "预警")
+                    .riskLevel(stringValue(row, "riskLevel"))
+                    .riskScore(intValue(row, "riskScore"))
+                    .status(stringValue(row, "status"))
+                    .detail(copyDetail(row))
+                    .build());
+            links.add(link(customerNodeId, alertNodeId, "触发预警", null, stringValue(row, "riskLevel")));
+
+            for (String transactionId : splitIds(stringValue(row, "relatedTransactionIds"))) {
+                if (nodes.containsKey("transaction-" + transactionId)) {
+                    links.add(link("transaction-" + transactionId, alertNodeId, "触发", null, stringValue(row, "riskLevel")));
+                }
+            }
+
+            String alertType = stringValue(row, "alertType").toUpperCase(Locale.ROOT);
+            if (alertType.contains("SANCTION") && nodes.containsKey("sanction-" + customerId)) {
+                links.add(link("sanction-" + customerId, alertNodeId, "名单命中预警", null, "CRITICAL"));
+            }
+            if (alertType.contains("PEP") && nodes.containsKey("pep-" + customerId)) {
+                links.add(link("pep-" + customerId, alertNodeId, "PEP预警", null, "HIGH"));
+            }
+        }
+        return alerts;
+    }
+
+    private List<Map<String, Object>> addCaseNodes(Long customerId,
+                                                    String customerNodeId,
+                                                    Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                                    List<CustomerRelationshipGraphVO.Link> links) {
+        List<Map<String, Object>> cases = jdbcTemplate.queryForList("""
+                SELECT id,
+                       case_no AS caseNo,
+                       alert_id AS alertId,
+                       case_status AS caseStatus,
+                       case_type AS caseType,
+                       priority,
+                       summary,
+                       submit_time AS submitTime,
+                       close_time AS closeTime,
+                       created_time AS createdTime
+                FROM t_case
+                WHERE customer_id = ?
+                ORDER BY created_time DESC
+                LIMIT 10
+                """, customerId);
+
+        for (Map<String, Object> row : cases) {
+            String caseId = stringValue(row, "id");
+            String caseNodeId = "case-" + caseId;
+            String riskLevel = intValue(row, "priority") != null && intValue(row, "priority") >= 80 ? "HIGH" : "MEDIUM";
+            addNode(nodes, node(caseNodeId, firstNonBlank(stringValue(row, "caseNo"), "案件" + caseId),
+                    "CASE", "案件")
+                    .riskLevel(riskLevel)
+                    .riskScore(intValue(row, "priority"))
+                    .status(stringValue(row, "caseStatus"))
+                    .detail(copyDetail(row))
+                    .build());
+
+            String alertId = stringValue(row, "alertId");
+            if (StringUtils.hasText(alertId) && nodes.containsKey("alert-" + alertId)) {
+                links.add(link("alert-" + alertId, caseNodeId, "升级案件", null, riskLevel));
+            } else {
+                links.add(link(customerNodeId, caseNodeId, "关联案件", null, riskLevel));
+            }
+        }
+        return cases;
+    }
+
+    private List<Map<String, Object>> addStrReportNodes(Long customerId,
+                                                         String customerNodeId,
+                                                         Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                                         List<CustomerRelationshipGraphVO.Link> links) {
+        List<Map<String, Object>> reports = jdbcTemplate.queryForList("""
+                SELECT id,
+                       report_no AS reportNo,
+                       case_id AS caseId,
+                       report_type AS reportType,
+                       report_status AS reportStatus,
+                       analysis_opinion AS analysisOpinion,
+                       measures_taken AS measuresTaken,
+                       submit_time AS submitTime,
+                       submit_result AS submitResult,
+                       created_time AS createdTime
+                FROM t_str_report
+                WHERE customer_id = ?
+                ORDER BY created_time DESC
+                LIMIT 10
+                """, customerId);
+
+        for (Map<String, Object> row : reports) {
+            String reportId = stringValue(row, "id");
+            String reportNodeId = "str-" + reportId;
+            addNode(nodes, node(reportNodeId, firstNonBlank(stringValue(row, "reportNo"), "STR" + reportId),
+                    "STR", "STR")
+                    .riskLevel("HIGH")
+                    .status(stringValue(row, "reportStatus"))
+                    .detail(copyDetail(row))
+                    .build());
+
+            String caseId = stringValue(row, "caseId");
+            if (StringUtils.hasText(caseId) && nodes.containsKey("case-" + caseId)) {
+                links.add(link("case-" + caseId, reportNodeId, "形成STR", null, "HIGH"));
+            } else {
+                links.add(link(customerNodeId, reportNodeId, "关联STR", null, "HIGH"));
+            }
+        }
+        return reports;
+    }
+
+    private List<Map<String, Object>> addWatchlistNodes(Long customerId,
+                                                         String customerNodeId,
+                                                         Map<String, CustomerRelationshipGraphVO.Node> nodes,
+                                                         List<CustomerRelationshipGraphVO.Link> links) {
+        List<Map<String, Object>> results = jdbcTemplate.queryForList("""
+                SELECT id,
+                       watchlist_entry_id AS watchlistEntryId,
+                       watchlist_name AS watchlistName,
+                       match_score AS matchScore,
+                       match_type AS matchType,
+                       match_field AS matchField,
+                       review_status AS reviewStatus,
+                       review_result AS reviewResult,
+                       created_time AS createdTime
+                FROM t_screening_result
+                WHERE customer_id = ?
+                ORDER BY created_time DESC
+                LIMIT 10
+                """, customerId);
+
+        for (Map<String, Object> row : results) {
+            String watchlistKey = firstNonBlank(stringValue(row, "watchlistEntryId"), stringValue(row, "id"));
+            String watchlistNodeId = "watchlist-" + watchlistKey;
+            BigDecimal matchScore = decimalValue(row, "matchScore");
+            String riskLevel = matchScore != null && matchScore.compareTo(BigDecimal.valueOf(90)) >= 0 ? "CRITICAL" : "HIGH";
+            addNode(nodes, node(watchlistNodeId, firstNonBlank(stringValue(row, "watchlistName"), "名单命中" + watchlistKey),
+                    "WATCHLIST", "PEP/制裁名单")
+                    .riskLevel(riskLevel)
+                    .status(stringValue(row, "reviewStatus"))
+                    .amount(matchScore)
+                    .detail(copyDetail(row))
+                    .build());
+            links.add(link(customerNodeId, watchlistNodeId,
+                    matchScore == null ? "名单筛查命中" : "名单筛查命中 " + matchScore.stripTrailingZeros().toPlainString(),
+                    matchScore, riskLevel));
+        }
+        return results;
+    }
+
+    private void fillGraphSummary(CustomerRelationshipGraphVO graph,
+                                  CustomerVO customerVO,
+                                  List<Map<String, Object>> policies,
+                                  List<Map<String, Object>> transactions,
+                                  List<Map<String, Object>> alerts,
+                                  List<Map<String, Object>> cases,
+                                  List<Map<String, Object>> strReports,
+                                  List<Map<String, Object>> screeningResults) {
+        CustomerRelationshipGraphVO.Summary summary = graph.getSummary();
+        summary.setNodeCount(graph.getNodes().size());
+        summary.setLinkCount(graph.getLinks().size());
+        summary.setBeneficialOwnerCount(customerVO.getBeneficialOwners() == null ? 0 : customerVO.getBeneficialOwners().size());
+        summary.setPolicyCount(policies.size());
+        summary.setProductCount((int) policies.stream()
+                .map(row -> stringValue(row, "productId"))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .count());
+        summary.setTransactionCount(transactions.size());
+        summary.setAlertCount(alerts.size());
+        summary.setCaseCount(cases.size());
+        summary.setStrReportCount(strReports.size());
+        summary.setWatchlistHitCount(screeningResults.size());
+        summary.setRiskSignalCount(alerts.size() + screeningResults.size()
+                + (Boolean.TRUE.equals(customerVO.getIsPep()) ? 1 : 0)
+                + (Boolean.TRUE.equals(customerVO.getIsSanctioned()) ? 1 : 0));
+        summary.setTotalTransactionAmount(transactions.stream()
+                .map(row -> decimalValue(row, "amount"))
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    private List<String> buildGraphInsights(CustomerVO customerVO, CustomerRelationshipGraphVO.Summary summary) {
+        List<String> insights = new ArrayList<>();
+        insights.add("已串联客户、受益关系、保单产品、交易行为与处置链路，共 " + summary.getNodeCount() + " 个节点、" + summary.getLinkCount() + " 条关系。");
+        if (summary.getWatchlistHitCount() > 0 || Boolean.TRUE.equals(customerVO.getIsPep()) || Boolean.TRUE.equals(customerVO.getIsSanctioned())) {
+            insights.add("名单与敏感身份是主要风险来源之一，建议重点核对筛查复核结论和身份背景资料。");
+        }
+        if (summary.getTransactionCount() > 0) {
+            insights.add("近 " + summary.getTransactionCount() + " 笔交易金额合计 " + summary.getTotalTransactionAmount().stripTrailingZeros().toPlainString() + "，可结合交易对手与保单节点识别资金路径。");
+        }
+        if (summary.getAlertCount() > 0 || summary.getCaseCount() > 0 || summary.getStrReportCount() > 0) {
+            insights.add("处置链路已覆盖预警、案件与 STR 报告，可一眼追踪从风险触发到调查报送的闭环状态。");
+        }
+        if (summary.getPolicyCount() == 0 && summary.getTransactionCount() == 0 && summary.getAlertCount() == 0) {
+            insights.add("当前客户暂无保单、交易或处置数据，图谱将随业务数据进入后自动扩展。");
+        }
+        return insights;
+    }
+
+    private void addNode(Map<String, CustomerRelationshipGraphVO.Node> nodes, CustomerRelationshipGraphVO.Node node) {
+        nodes.putIfAbsent(node.getId(), node);
+    }
+
+    private CustomerRelationshipGraphVO.Link link(String source, String target, String label, BigDecimal value, String riskLevel) {
+        CustomerRelationshipGraphVO.Link link = new CustomerRelationshipGraphVO.Link();
+        link.setSource(source);
+        link.setTarget(target);
+        link.setLabel(label);
+        link.setValue(value);
+        link.setRiskLevel(riskLevel);
+        return link;
+    }
+
+    private NodeBuilder node(String id, String label, String type, String category) {
+        return new NodeBuilder(id, firstNonBlank(label, category), type, category);
+    }
+
+    private static class NodeBuilder {
+        private final CustomerRelationshipGraphVO.Node node = new CustomerRelationshipGraphVO.Node();
+
+        NodeBuilder(String id, String label, String type, String category) {
+            node.setId(id);
+            node.setLabel(label);
+            node.setType(type);
+            node.setCategory(category);
+        }
+
+        NodeBuilder status(String status) {
+            node.setStatus(status);
+            return this;
+        }
+
+        NodeBuilder riskLevel(String riskLevel) {
+            node.setRiskLevel(riskLevel);
+            return this;
+        }
+
+        NodeBuilder riskScore(Integer riskScore) {
+            node.setRiskScore(riskScore);
+            return this;
+        }
+
+        NodeBuilder amount(BigDecimal amount) {
+            node.setAmount(amount);
+            return this;
+        }
+
+        NodeBuilder detail(Map<String, Object> detail) {
+            node.setDetail(detail == null ? new LinkedHashMap<>() : new LinkedHashMap<>(detail));
+            return this;
+        }
+
+        CustomerRelationshipGraphVO.Node build() {
+            return node;
+        }
+    }
+
+    private Map<String, Object> copyDetail(Map<String, Object> row) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        row.forEach((key, value) -> {
+            if (value != null) {
+                detail.put(key, value);
+            }
+        });
+        return detail;
+    }
+
+    private String stringValue(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private Integer intValue(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal decimalValue(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+            return null;
+        }
+        try {
+            return new BigDecimal(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private boolean booleanValue(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        return "true".equalsIgnoreCase(String.valueOf(value)) || "1".equals(String.valueOf(value));
+    }
+
+    private List<String> splitIds(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(raw.split("[,;\\s]+"))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .toList();
+    }
+
+    private String normalizeId(String value) {
+        return value == null ? "" : value.trim().replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", "-");
+    }
+
+    private String nullToBlank(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return "";
     }
 
     // ==================== 私有方法 ====================

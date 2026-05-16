@@ -1,7 +1,9 @@
 package com.insurance.aml.module.case_.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.insurance.aml.common.exception.BusinessException;
+import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.common.enums.CaseStatus;
 import com.insurance.aml.common.enums.ReportStatus;
@@ -15,6 +17,8 @@ import com.insurance.aml.module.case_.model.entity.Case;
 import com.insurance.aml.module.case_.model.entity.StrReport;
 import com.insurance.aml.module.case_.service.CaseService;
 import com.insurance.aml.module.case_.service.StrReportService;
+import com.insurance.aml.module.kyc.mapper.CustomerMapper;
+import com.insurance.aml.module.kyc.model.entity.Customer;
 import com.insurance.aml.module.reporting.mapper.ReportSubmitLogMapper;
 import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
 import com.insurance.aml.module.reporting.service.XmlGeneratorService;
@@ -24,8 +28,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 可疑交易报告（STR）服务实现
@@ -38,11 +49,25 @@ public class StrReportServiceImpl implements StrReportService {
 
     private final StrReportMapper strReportMapper;
     private final CaseMapper caseMapper;
+    private final CustomerMapper customerMapper;
     private final IdGenerator idGenerator;
     private final XmlGeneratorService xmlGeneratorService;
     private final ReportSubmitLogMapper reportSubmitLogMapper;
     @Lazy
     private final CaseService caseService;
+
+    @Override
+    public PageResult<StrReport> pageQuery(Integer page, Integer size, String status) {
+        LambdaQueryWrapper<StrReport> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(status)) {
+            wrapper.eq(StrReport::getReportStatus, status);
+        }
+        wrapper.orderByDesc(StrReport::getCreatedTime);
+
+        Page<StrReport> result = strReportMapper.selectPage(new Page<>(page, size), wrapper);
+        enrichReports(result.getRecords());
+        return PageResult.from(result);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -205,6 +230,7 @@ public class StrReportServiceImpl implements StrReportService {
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "报告不存在，reportId=" + reportId);
         }
 
+        enrichReports(Collections.singletonList(report));
         return report;
     }
 
@@ -218,5 +244,96 @@ public class StrReportServiceImpl implements StrReportService {
                 submittedBy == null ? "system" : submittedBy,
                 LocalDateTime.now()
         );
+    }
+
+    private void enrichReports(List<StrReport> reports) {
+        if (reports == null || reports.isEmpty()) {
+            return;
+        }
+
+        List<Long> caseIds = reports.stream()
+                .map(StrReport::getCaseId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        List<Long> customerIds = reports.stream()
+                .map(StrReport::getCustomerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, Case> caseMap = loadCaseMap(caseIds);
+        Map<Long, String> customerNameMap = loadCustomerNameMap(customerIds);
+
+        reports.forEach(report -> enrichReport(report, caseMap, customerNameMap));
+    }
+
+    private Map<Long, Case> loadCaseMap(Collection<Long> caseIds) {
+        if (caseIds == null || caseIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Case> cases = caseMapper.selectBatchIds(caseIds);
+        if (cases == null) {
+            return Collections.emptyMap();
+        }
+        return cases.stream()
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(Case::getId, item -> item, (first, second) -> first));
+    }
+
+    private Map<Long, String> loadCustomerNameMap(Collection<Long> customerIds) {
+        if (customerIds == null || customerIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Customer> customers = customerMapper.selectBatchIds(customerIds);
+        if (customers == null) {
+            return Collections.emptyMap();
+        }
+        return customers.stream()
+                .filter(item -> item.getId() != null && StringUtils.hasText(item.getName()))
+                .collect(Collectors.toMap(Customer::getId, Customer::getName, (first, second) -> first));
+    }
+
+    private void enrichReport(StrReport report, Map<Long, Case> caseMap, Map<Long, String> customerNameMap) {
+        Case caseEntity = caseMap.get(report.getCaseId());
+        if (!hasBusinessText(report.getReportContent())) {
+            report.setReportContent(buildReportContent(report, caseEntity, customerNameMap));
+        }
+        if (!hasBusinessText(report.getAnalysisOpinion())) {
+            report.setAnalysisOpinion("客户身份资料、交易行为和资金来源说明存在不一致，建议按可疑交易持续跟踪。");
+        }
+        if (!hasBusinessText(report.getMeasuresTaken())) {
+            report.setMeasuresTaken("已开展强化尽调，限制高风险交易，并补充资金来源和交易目的核验材料。");
+        }
+    }
+
+    private String buildReportContent(StrReport report, Case caseEntity, Map<Long, String> customerNameMap) {
+        String customerName = customerNameMap.get(report.getCustomerId());
+        if (!StringUtils.hasText(customerName) && caseEntity != null) {
+            customerName = caseEntity.getCustomerName();
+        }
+        if (!StringUtils.hasText(customerName)) {
+            customerName = report.getCustomerId() == null ? "相关客户" : "客户ID " + report.getCustomerId();
+        }
+
+        String caseSummary = caseEntity == null ? "" : caseEntity.getSummary();
+        if (!hasBusinessText(caseSummary)) {
+            caseSummary = "存在异常交易行为、身份背景或资金来源说明不足等可疑线索";
+        }
+
+        return "可疑交易报告：客户 " + customerName + " 涉及" + caseSummary
+                + "。需结合客户尽职调查资料、交易流水、名单筛查和人工复核结论进行持续监测并按要求报送。";
+    }
+
+    private boolean hasBusinessText(String value) {
+        return StringUtils.hasText(value) && !isMojibakeText(value);
+    }
+
+    private boolean isMojibakeText(String value) {
+        if (value == null) {
+            return false;
+        }
+        return value.contains("å") || value.contains("æ") || value.contains("è")
+                || value.contains("é") || value.contains("ç") || value.contains("ä");
     }
 }

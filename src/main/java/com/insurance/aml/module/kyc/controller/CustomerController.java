@@ -89,6 +89,18 @@ public class CustomerController {
     }
 
     /**
+     * 获取客户关系图谱
+     */
+    @GetMapping("/{id}/relationship-graph")
+    @Operation(summary = "客户关系图谱", description = "汇聚客户、受益人、保单、产品、交易、预警、案件、STR 和名单风险线索")
+    public Result<CustomerRelationshipGraphVO> getCustomerRelationshipGraph(
+            @Parameter(description = "客户ID", required = true) @PathVariable Long id) {
+        log.debug("接收到客户关系图谱请求，客户ID：{}", id);
+        CustomerRelationshipGraphVO result = customerService.getCustomerRelationshipGraph(id);
+        return Result.success(result);
+    }
+
+    /**
      * 触发客户风险评估
      */
     @PostMapping("/{id}/risk-assessment")

@@ -107,6 +107,8 @@ FROM t_customer
 WHERE LEFT(name, LENGTH(@prefix)) = @prefix
    OR LEFT(customer_no, LENGTH(@prefix)) = @prefix
    OR LOCATE(LOWER(@prefix), LOWER(COALESCE(email, ''))) > 0
+   OR LOWER(COALESCE(email, '')) LIKE 'rbac-viewer-%@test.local'
+   OR LOWER(COALESCE(email, '')) LIKE 'rbac-investigator-%@test.local'
    OR ${LEGACY_FILTER};
 
 DROP TEMPORARY TABLE IF EXISTS e2e_watchlist_source_ids;
