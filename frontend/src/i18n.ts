@@ -8,16 +8,11 @@ function isSupportedLocale(value: string | null): value is SupportedLocale {
   return value === 'zh-CN' || value === 'en'
 }
 
-// 从 localStorage 获取语言设置，默认中文
+// 从 localStorage 获取语言设置；未设置时固定默认中文，避免浏览器语言影响业务系统入口。
 function getDefaultLocale(): SupportedLocale {
   const saved = localStorage.getItem('aml_locale')
   if (isSupportedLocale(saved)) {
     return saved
-  }
-  // 检测浏览器语言
-  const browserLang = navigator.language
-  if (browserLang.startsWith('en')) {
-    return 'en'
   }
   return 'zh-CN'
 }
