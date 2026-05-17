@@ -10,6 +10,7 @@ import {
   ElCheckbox,
   ElCheckboxGroup,
   ElCol,
+  ElConfigProvider,
   ElContainer,
   ElDatePicker,
   ElDescriptions,
@@ -50,13 +51,11 @@ import {
   ElTag,
   ElTimeline,
   ElTimelineItem,
-  ElTooltip,
-  provideGlobalConfig
+  ElTooltip
 } from 'element-plus'
 import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './assets/theme.css'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
@@ -75,6 +74,7 @@ const elementComponents = [
   ElCheckbox,
   ElCheckboxGroup,
   ElCol,
+  ElConfigProvider,
   ElContainer,
   ElDatePicker,
   ElDescriptions,
@@ -124,8 +124,6 @@ for (const component of elementComponents) {
 
 // 只注册项目实际使用的图标，避免把整套图标库打进主包。
 registerIcons(app)
-
-provideGlobalConfig({ locale: zhCn }, app, true)
 
 // 注册权限指令: v-perm="'code'" 或 v-perm:role="'ROLE_ADMIN'"
 app.directive('perm', permDirective)

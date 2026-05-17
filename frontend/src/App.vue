@@ -1,7 +1,16 @@
 <template>
-  <router-view />
+  <el-config-provider :locale="elementLocale">
+    <router-view />
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
-// 根组件 — 主题由 ThemeToggle 组件管理
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import en from 'element-plus/es/locale/lang/en'
+
+// 根组件负责让 Element Plus 语言跟随系统语言。
+const { locale } = useI18n()
+const elementLocale = computed(() => locale.value === 'en' ? en : zhCn)
 </script>

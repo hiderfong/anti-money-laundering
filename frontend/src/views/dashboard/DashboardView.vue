@@ -2,18 +2,18 @@
   <div class="dashboard">
     <section class="dashboard-header">
       <div>
-        <h1>仪表盘</h1>
-        <div class="dashboard-meta">反洗钱运营态势</div>
+        <h1>{{ t('dashboard.title') }}</h1>
+        <div class="dashboard-meta">{{ t('dashboard.subtitle') }}</div>
       </div>
-      <el-tag size="large" type="primary" effect="plain">近 30 天</el-tag>
+      <el-tag size="large" type="primary" effect="plain">{{ t('dashboard.last30Days') }}</el-tag>
     </section>
 
     <el-row :gutter="16" class="stat-grid">
-      <el-col v-for="card in statCards" :key="card.title" :xs="24" :sm="12" :lg="6">
+      <el-col v-for="card in statCards" :key="card.key" :xs="24" :sm="12" :lg="6">
         <el-card shadow="never" class="metric-card">
           <div class="metric-content">
             <div>
-              <div class="metric-label">{{ card.title }}</div>
+              <div class="metric-label">{{ t(card.titleKey) }}</div>
               <div class="metric-value">{{ card.value }}</div>
             </div>
             <div class="metric-icon" :style="{ color: card.color, background: card.bg }">
@@ -29,8 +29,8 @@
         <el-card shadow="never" class="panel-card">
           <template #header>
             <div class="panel-title">
-              <span>预警趋势（近30天）</span>
-              <span class="panel-subtitle">按生成日期汇总</span>
+              <span>{{ t('dashboard.alertTrend30Days') }}</span>
+              <span class="panel-subtitle">{{ t('dashboard.alertTrendSummary') }}</span>
             </div>
           </template>
           <div ref="trendChart" class="chart chart-large"></div>
@@ -40,8 +40,8 @@
         <el-card shadow="never" class="panel-card">
           <template #header>
             <div class="panel-title">
-              <span>预警类型分布</span>
-              <span class="panel-subtitle">命中类型结构</span>
+              <span>{{ t('dashboard.alertTypeDistribution') }}</span>
+              <span class="panel-subtitle">{{ t('dashboard.alertTypeSummary') }}</span>
             </div>
           </template>
           <div ref="pieChart" class="chart chart-small"></div>
@@ -52,8 +52,8 @@
     <el-card shadow="never" class="panel-card">
       <template #header>
         <div class="table-header">
-          <span>最近预警</span>
-          <el-button link type="primary" @click="$router.push('/alerts')">查看全部</el-button>
+          <span>{{ t('dashboard.recentAlerts') }}</span>
+          <el-button link type="primary" @click="$router.push('/alerts')">{{ t('dashboard.viewAll') }}</el-button>
         </div>
       </template>
       <el-table
@@ -61,35 +61,36 @@
         stripe
         v-loading="loading"
         row-key="id"
-        empty-text="暂无预警数据"
+        :empty-text="t('dashboard.noRecentAlerts')"
         :scrollbar-always-on="true"
         style="width: 100%"
       >
-        <el-table-column prop="alertNo" label="预警编号" width="180" />
-        <el-table-column prop="customerName" label="客户" width="120" />
-        <el-table-column prop="alertType" label="类型" width="120">
+        <el-table-column prop="alertNo" :label="t('dashboard.alertNo')" width="180" />
+        <el-table-column prop="customerName" :label="t('dashboard.customer')" width="120" />
+        <el-table-column prop="alertType" :label="t('dashboard.type')" width="120">
           <template #default="{ row }">
             <el-tag size="small">{{ row.alertType }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="riskLevel" label="风险等级" width="100">
+        <el-table-column prop="riskLevel" :label="t('dashboard.riskLevel')" width="100">
           <template #default="{ row }">
             <el-tag :type="riskTagType(row.riskLevel)" size="small">{{ row.riskLevel }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="t('dashboard.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="生成时间" />
+        <el-table-column prop="createdTime" :label="t('dashboard.createdTime')" />
       </el-table>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, reactive, onMounted, onUnmounted } from 'vue'
+import { nextTick, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import request from '@/utils/request'
 
 type EchartsModule = typeof import('echarts/core')
@@ -101,14 +102,17 @@ const resizeHandlers: (() => void)[] = []
 const trendChart = ref<HTMLElement | null>(null)
 const pieChart = ref<HTMLElement | null>(null)
 const recentAlerts = ref<any[]>([])
+const trendSeries = ref<any[]>([])
+const pieSeries = ref<any[]>([])
 let echartsModule: EchartsModule | null = null
 let isMounted = false
+const { locale, t } = useI18n()
 
 const statCards = reactive([
-  { title: '客户总数', value: 0, icon: 'User', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
-  { title: '活跃预警', value: 0, icon: 'Bell', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
-  { title: '进行中案件', value: 0, icon: 'FolderOpened', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
-  { title: '待报送报告', value: 0, icon: 'Document', color: '#059669', bg: 'rgba(5, 150, 105, 0.11)' }
+  { key: 'totalCustomers', titleKey: 'dashboard.totalCustomers', value: 0, icon: 'User', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
+  { key: 'activeAlerts', titleKey: 'dashboard.activeAlerts', value: 0, icon: 'Bell', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
+  { key: 'activeCases', titleKey: 'dashboard.activeCases', value: 0, icon: 'FolderOpened', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
+  { key: 'pendingReports', titleKey: 'dashboard.pendingReports', value: 0, icon: 'Document', color: '#059669', bg: 'rgba(5, 150, 105, 0.11)' }
 ])
 
 function riskTagType(level: string) {
@@ -128,7 +132,7 @@ function normalizeTrendData(data: any[]) {
 
 function normalizePieData(data: any[]) {
   return data.map((d: any) => ({
-    name: d.alertType || d.name || d.type || '未知类型',
+    name: d.alertType || d.name || d.type || t('dashboard.unknownType'),
     value: Number(d.count ?? d.value ?? 0)
   }))
 }
@@ -171,6 +175,20 @@ async function getEcharts() {
   return echartsModule
 }
 
+function disposeCharts() {
+  charts.forEach(c => c.dispose())
+  charts.splice(0)
+  resizeHandlers.forEach(h => window.removeEventListener('resize', h))
+  resizeHandlers.splice(0)
+}
+
+async function renderCharts() {
+  disposeCharts()
+  await nextTick()
+  await initTrendChart(trendSeries.value)
+  await initPieChart(pieSeries.value)
+}
+
 onMounted(async () => {
   isMounted = true
   loading.value = true
@@ -178,14 +196,14 @@ onMounted(async () => {
     const res: any = await request.get('/dashboard/overview')
     const data = res.data || {}
     const activeAlerts = toNumber(data.activeAlerts ?? (toNumber(data.newAlerts) + toNumber(data.processingAlerts)))
-    const valuesByTitle: Record<string, number> = {
-      客户总数: toNumber(data.totalCustomers),
-      活跃预警: activeAlerts,
-      进行中案件: toNumber(data.openCases),
-      待报送报告: toNumber(data.pendingReports)
+    const valuesByKey: Record<string, number> = {
+      totalCustomers: toNumber(data.totalCustomers),
+      activeAlerts,
+      activeCases: toNumber(data.openCases),
+      pendingReports: toNumber(data.pendingReports)
     }
     statCards.forEach((card) => {
-      card.value = valuesByTitle[card.title] ?? 0
+      card.value = valuesByKey[card.key] ?? 0
     })
   } catch (e) { /* 使用默认值 */ }
 
@@ -193,13 +211,21 @@ onMounted(async () => {
 
   try {
     const res: any = await request.get('/dashboard/alert-trend', { params: { days: 30 } })
-    await initTrendChart(normalizeTrendData(res.data || []))
-  } catch (e) { await initTrendChart([]) }
+    trendSeries.value = normalizeTrendData(res.data || [])
+    await initTrendChart(trendSeries.value)
+  } catch (e) {
+    trendSeries.value = []
+    await initTrendChart([])
+  }
 
   try {
     const res: any = await request.get('/dashboard/alert-statistics')
-    await initPieChart(normalizePieData(res.data || []))
-  } catch (e) { await initPieChart([]) }
+    pieSeries.value = normalizePieData(res.data || [])
+    await initPieChart(pieSeries.value)
+  } catch (e) {
+    pieSeries.value = []
+    await initPieChart([])
+  }
 
   try {
     const res: any = await request.get('/alerts/page', { params: { page: 1, size: 10 } })
@@ -235,7 +261,7 @@ async function initTrendChart(data: any[]) {
       axisLabel: { color: theme.text }
     },
     series: [{
-      name: '预警数',
+      name: t('dashboard.alertCount'),
       type: 'line',
       data: data.map((d: any) => d.count),
       smooth: true,
@@ -275,10 +301,15 @@ async function initPieChart(data: any[]) {
   window.addEventListener('resize', handler)
 }
 
+watch(locale, () => {
+  if (isMounted) {
+    void renderCharts()
+  }
+})
+
 onUnmounted(() => {
   isMounted = false
-  charts.forEach(c => c.dispose())
-  resizeHandlers.forEach(h => window.removeEventListener('resize', h))
+  disposeCharts()
 })
 </script>
 

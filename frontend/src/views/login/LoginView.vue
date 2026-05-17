@@ -1,6 +1,7 @@
 <template>
   <div class="login-container">
     <div class="theme-toggle-corner">
+      <LanguageSwitcher />
       <ThemeToggle />
     </div>
     <div class="login-card">
@@ -8,19 +9,26 @@
         <div class="login-logo">
           <div class="logo-icon">盾</div>
         </div>
-        <h1>天枢智盾 AML 风控平台</h1>
-        <p>AstraNexus AML Platform</p>
+        <h1>{{ t('login.title') }}</h1>
+        <p>{{ t('login.subtitle') }}</p>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleLogin">
         <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" size="large" />
+          <el-input v-model="form.username" :placeholder="t('login.usernamePlaceholder')" size="large" />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password @keyup.enter="handleLogin" />
+          <el-input
+            v-model="form.password"
+            type="password"
+            :placeholder="t('login.passwordPlaceholder')"
+            size="large"
+            show-password
+            @keyup.enter="handleLogin"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" size="large" :loading="loading" style="width: 100%" @click="handleLogin">
-            登 录
+            {{ t('login.loginButton') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -29,32 +37,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 const formRef = ref()
 const loading = ref(false)
 
 const form = reactive({ username: '', password: '' })
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
-}
+const rules = computed(() => ({
+  username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }]
+}))
 
 async function handleLogin() {
   await formRef.value?.validate()
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
-    ElMessage.success('登录成功')
+    ElMessage.success(t('login.loginSuccess'))
     router.push('/dashboard')
   } catch (e: any) {
-    ElMessage.error(e.message || '登录失败')
+    ElMessage.error(e.message || t('login.loginFailed'))
   } finally {
     loading.value = false
   }
@@ -139,6 +150,9 @@ async function handleLogin() {
   top: 20px;
   right: 20px;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 @media (max-width: 480px) {

@@ -32,6 +32,8 @@ const i18n = createI18n({
   },
 })
 
+document.documentElement.lang = i18n.global.locale.value
+
 export default i18n
 
 // 切换语言

@@ -14,7 +14,7 @@
         <template v-for="item in filteredMenus" :key="item.path">
           <el-menu-item :index="item.path">
             <el-icon><component :is="item.icon" /></el-icon>
-            <template #title>{{ item.title }}</template>
+            <template #title>{{ t(item.titleKey) }}</template>
           </el-menu-item>
         </template>
       </el-menu>
@@ -38,12 +38,12 @@
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-icon><UserFilled /></el-icon>
-              {{ userStore.userInfo?.realName || '用户' }}
+              {{ userStore.userInfo?.realName || t('common.user') }}
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+                <el-dropdown-item command="logout">{{ t('common.logout') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -59,13 +59,14 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 interface MenuItem {
   path: string
-  title: string
+  titleKey: string
   icon: string
   roles?: string[]
   permissions?: string[]
@@ -74,33 +75,42 @@ interface MenuItem {
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 const isCollapse = ref(false)
 const isMobile = ref(false)
 
-const currentRoute = computed(() => route.path)
-const currentTitle = computed(() => (route.meta?.title as string) || '首页')
 const effectiveCollapse = computed(() => isMobile.value || isCollapse.value)
 
 // 菜单配置：定义角色/权限要求
 const menuItems: MenuItem[] = [
-  { path: '/dashboard', title: '仪表盘', icon: 'Odometer' },
-  { path: '/kyc', title: '客户管理', icon: 'User', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['customer:view'] },
-  { path: '/screening', title: '名单筛查', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['screening:view'] },
-  { path: '/monitoring', title: '交易监测', icon: 'Monitor', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['monitoring:view'] },
-  { path: '/alerts', title: '预警管理', icon: 'Bell', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['alert:view'] },
-  { path: '/cases', title: '案件管理', icon: 'FolderOpened', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['case:view'] },
-  { path: '/str-reports', title: 'STR报告', icon: 'Warning', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:str'] },
-  { path: '/reporting', title: '监管报送', icon: 'Document', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:view'] },
-  { path: '/products', title: '产品管理', icon: 'Goods', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_VIEWER'], permissions: ['product:view'] },
-  { path: '/assessment', title: '自评估', icon: 'DataAnalysis', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['assessment:view'] },
-  { path: '/special-prevention', title: '特别预防', icon: 'Operation', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] },
-  { path: '/rectifications', title: '整改中心', icon: 'Check', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] },
-  { path: '/investigations', title: '调查协查', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] },
-  { path: '/models', title: '模型管理', icon: 'DataAnalysis', roles: ['ROLE_ADMIN'], permissions: ['model:view'] },
-  { path: '/regulation-library', title: '法规及资料库', icon: 'Document', roles: ['ROLE_ADMIN'], permissions: ['regulation:view'] },
-  { path: '/notifications', title: '通知中心', icon: 'Notification' },
-  { path: '/system', title: '系统管理', icon: 'Setting', roles: ['ROLE_ADMIN'], permissions: ['system:view'] }
+  { path: '/dashboard', titleKey: 'menu.dashboard', icon: 'Odometer' },
+  { path: '/kyc', titleKey: 'menu.kyc', icon: 'User', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['customer:view'] },
+  { path: '/screening', titleKey: 'menu.screening', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['screening:view'] },
+  { path: '/monitoring', titleKey: 'menu.monitoring', icon: 'Monitor', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['monitoring:view'] },
+  { path: '/alerts', titleKey: 'menu.alerts', icon: 'Bell', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['alert:view'] },
+  { path: '/cases', titleKey: 'menu.cases', icon: 'FolderOpened', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['case:view'] },
+  { path: '/str-reports', titleKey: 'menu.strReports', icon: 'Warning', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:str'] },
+  { path: '/reporting', titleKey: 'menu.reports', icon: 'Document', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['report:view'] },
+  { path: '/products', titleKey: 'menu.products', icon: 'Goods', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_VIEWER'], permissions: ['product:view'] },
+  { path: '/assessment', titleKey: 'menu.assessment', icon: 'DataAnalysis', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], permissions: ['assessment:view'] },
+  { path: '/special-prevention', titleKey: 'menu.specialPrevention', icon: 'Operation', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] },
+  { path: '/rectifications', titleKey: 'menu.rectifications', icon: 'Check', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] },
+  { path: '/investigations', titleKey: 'menu.investigations', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] },
+  { path: '/models', titleKey: 'menu.models', icon: 'DataAnalysis', roles: ['ROLE_ADMIN'], permissions: ['model:view'] },
+  { path: '/regulation-library', titleKey: 'menu.regulationLibrary', icon: 'Document', roles: ['ROLE_ADMIN'], permissions: ['regulation:view'] },
+  { path: '/notifications', titleKey: 'menu.notifications', icon: 'Notification' },
+  { path: '/system', titleKey: 'menu.system', icon: 'Setting', roles: ['ROLE_ADMIN'], permissions: ['system:view'] }
 ]
+
+const activeMenuItem = computed(() => {
+  return menuItems.find(item => route.path === item.path || route.path.startsWith(`${item.path}/`))
+})
+
+const currentRoute = computed(() => activeMenuItem.value?.path || route.path)
+const currentTitle = computed(() => {
+  const titleKey = (route.meta?.titleKey as string | undefined) || activeMenuItem.value?.titleKey || 'menu.dashboard'
+  return t(titleKey)
+})
 
 // 根据用户角色和权限动态过滤菜单
 const filteredMenus = computed(() => {

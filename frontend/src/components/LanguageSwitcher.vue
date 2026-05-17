@@ -1,13 +1,16 @@
 <template>
   <el-dropdown trigger="click" @command="handleCommand">
-    <el-button :icon="LanguageIcon" circle size="small" />
+    <el-button class="language-button" size="small" :aria-label="t('common.language')">
+      <component :is="LanguageIcon" class="language-icon" />
+      <span>{{ currentLabel }}</span>
+    </el-button>
     <template #dropdown>
       <el-dropdown-menu>
         <el-dropdown-item command="zh-CN" :class="{ active: locale === 'zh-CN' }">
-          中文
+          {{ t('common.chinese') }}
         </el-dropdown-item>
         <el-dropdown-item command="en" :class="{ active: locale === 'en' }">
-          English
+          {{ t('common.english') }}
         </el-dropdown-item>
       </el-dropdown-menu>
     </template>
@@ -15,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue'
+import { computed, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
 
@@ -43,16 +46,34 @@ const LanguageIcon = {
   },
 }
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
+
+const currentLabel = computed(() => locale.value === 'en' ? 'EN' : '中文')
 
 function handleCommand(lang: string) {
   if (lang === 'zh-CN' || lang === 'en') {
-    setLocale(lang satisfies SupportedLocale)
+    setLocale(lang as SupportedLocale)
   }
 }
 </script>
 
 <style scoped>
+.language-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 62px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.language-icon {
+  width: 15px;
+  height: 15px;
+}
+
 .active {
   color: var(--el-color-primary);
   font-weight: bold;
