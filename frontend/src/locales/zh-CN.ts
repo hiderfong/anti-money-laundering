@@ -64,8 +64,8 @@ export default {
   login: {
     title: '天枢智盾 AML 风控平台',
     subtitle: '保险行业智能反洗钱风控平台',
-    usernamePlaceholder: '请输入用户名',
-    passwordPlaceholder: '请输入密码',
+    usernamePlaceholder: '用户名',
+    passwordPlaceholder: '密码',
     loginButton: '登 录',
     loginSuccess: '登录成功',
     loginFailed: '登录失败',
