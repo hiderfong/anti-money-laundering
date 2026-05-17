@@ -4,6 +4,7 @@ import com.insurance.aml.module.auth.service.AuthTokenStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 @RequiredArgsConstructor
+@Primary
 @ConditionalOnBean(StringRedisTemplate.class)
 @ConditionalOnProperty(name = "aml.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisAuthTokenStore implements AuthTokenStore {

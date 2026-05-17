@@ -17,6 +17,7 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -75,6 +76,15 @@ public class RedisConfig {
         template.afterPropertiesSet();
         log.info("RedisTemplate 配置完成：Key=String序列化, Value=JSON序列化");
         return template;
+    }
+
+    /**
+     * 配置 StringRedisTemplate，供认证令牌、限流和名单缓存等字符串场景使用。
+     */
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        log.info("初始化 StringRedisTemplate 配置...");
+        return new StringRedisTemplate(connectionFactory);
     }
 
     /**

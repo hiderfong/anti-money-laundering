@@ -1,7 +1,7 @@
 package com.insurance.aml.module.auth.service.impl;
 
 import com.insurance.aml.module.auth.service.AuthTokenStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -9,10 +9,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 本地验收用内存令牌状态存储。
+ * 内存令牌状态存储。
+ *
+ * Redis 令牌仓库不可用或被禁用时作为兜底实现，避免认证链路因外部依赖异常无法启动。
  */
 @Component
-@ConditionalOnProperty(name = "aml.redis.enabled", havingValue = "false")
+@ConditionalOnMissingBean(AuthTokenStore.class)
 public class InMemoryAuthTokenStore implements AuthTokenStore {
 
     private final Map<Long, ExpiringValue> refreshTokens = new ConcurrentHashMap<>();

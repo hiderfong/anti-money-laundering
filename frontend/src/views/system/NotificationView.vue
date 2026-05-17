@@ -52,7 +52,7 @@
             <span class="notification-time">{{ item.createdTime }}</span>
           </div>
           <div class="notification-body">{{ item.content }}</div>
-          <div v-if="item.type === 'CASE'" class="notification-actions">
+          <div v-if="hasBusinessDetail(item)" class="notification-actions">
             <el-button type="primary" plain size="small" @click.stop="openDetail(item)">
               <el-icon><View /></el-icon>查看详情
             </el-button>
@@ -92,8 +92,35 @@
           <el-descriptions-item label="通知时间">{{ selectedNotification.createdTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="阅读时间">{{ selectedNotification.readTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="关联对象">{{ relatedBusinessLabel(selectedNotification) }}</el-descriptions-item>
-          <el-descriptions-item label="案件编号" :span="2">
+          <el-descriptions-item label="案件ID" v-if="selectedNotification.type === 'CASE'">
+            {{ selectedNotification.caseId || selectedNotification.relatedId || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="案件编号" :span="2" v-if="selectedNotification.type === 'CASE'">
             {{ caseReference(selectedNotification) || '未关联案件编号' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="客户名称" v-if="selectedNotification.type === 'CASE'">
+            {{ selectedNotification.caseCustomerName || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="案件状态" v-if="selectedNotification.type === 'CASE'">
+            {{ selectedNotification.caseStatus || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="预警ID" v-if="selectedNotification.type === 'ALERT'">
+            {{ selectedNotification.alertId || selectedNotification.relatedId || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="预警编号" :span="2" v-if="selectedNotification.type === 'ALERT'">
+            {{ alertReference(selectedNotification) || '未关联预警编号' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="客户名称" v-if="selectedNotification.type === 'ALERT'">
+            {{ selectedNotification.alertCustomerName || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="预警类型" v-if="selectedNotification.type === 'ALERT'">
+            {{ selectedNotification.alertType || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="风险等级" v-if="selectedNotification.type === 'ALERT'">
+            {{ selectedNotification.alertRiskLevel || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="预警状态" v-if="selectedNotification.type === 'ALERT'">
+            {{ selectedNotification.alertStatus || '-' }}
           </el-descriptions-item>
         </el-descriptions>
 
@@ -103,6 +130,22 @@
         </section>
       </div>
       <template #footer>
+        <el-button
+          v-if="selectedNotification?.type === 'CASE'"
+          type="primary"
+          :disabled="!caseTargetId(selectedNotification)"
+          @click="openRelatedCase(selectedNotification)"
+        >
+          查看案件
+        </el-button>
+        <el-button
+          v-if="selectedNotification?.type === 'ALERT'"
+          type="danger"
+          :disabled="!alertTargetId(selectedNotification)"
+          @click="openRelatedAlert(selectedNotification)"
+        >
+          查看预警
+        </el-button>
         <el-button type="primary" @click="detailVisible = false">关闭</el-button>
       </template>
     </el-dialog>
@@ -111,6 +154,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import request from '@/utils/request'
@@ -124,6 +168,16 @@ interface Notification {
   readTime?: string
   relatedType?: string
   relatedId?: string
+  caseId?: string | number
+  caseNo?: string
+  caseCustomerName?: string
+  caseStatus?: string
+  alertId?: string | number
+  alertNo?: string
+  alertCustomerName?: string
+  alertType?: string
+  alertRiskLevel?: string
+  alertStatus?: string
   createdTime: string
 }
 
@@ -138,6 +192,7 @@ const selectedNotification = ref<Notification | null>(null)
 
 const filterReadStatus = ref('')
 const filterType = ref('')
+const router = useRouter()
 
 const typeLabelMap: Record<string, string> = {
   SYSTEM: '系统通知',
@@ -235,15 +290,39 @@ function normalizeNotification(raw: any): Notification {
     readTime,
     relatedType: raw.relatedType || '',
     relatedId: raw.relatedId || '',
+    caseId: raw.caseId || '',
+    caseNo: raw.caseNo || '',
+    caseCustomerName: raw.caseCustomerName || '',
+    caseStatus: raw.caseStatus || '',
+    alertId: raw.alertId || '',
+    alertNo: raw.alertNo || '',
+    alertCustomerName: raw.alertCustomerName || '',
+    alertType: raw.alertType || '',
+    alertRiskLevel: raw.alertRiskLevel || '',
+    alertStatus: raw.alertStatus || '',
     createdTime: raw.createdTime || raw.createdAt || ''
   }
 }
 
+function hasBusinessDetail(item: Notification) {
+  return item.type === 'CASE' || item.type === 'ALERT'
+}
+
 function caseReference(item: Notification) {
+  if (item.caseNo) return item.caseNo
   if (item.relatedType === 'CASE' && item.relatedId) {
     return item.relatedId
   }
   const match = String(item.content || '').match(/案件\s*([A-Za-z0-9_-]+)/)
+  return match?.[1] || ''
+}
+
+function alertReference(item: Notification) {
+  if (item.alertNo) return item.alertNo
+  if (item.relatedType === 'ALERT' && item.relatedId) {
+    return item.relatedId
+  }
+  const match = String(`${item.title || ''} ${item.content || ''}`).match(/\b((?:E2E)?(?:ALT|AL)[A-Za-z0-9_-]+)\b/)
   return match?.[1] || ''
 }
 
@@ -256,6 +335,42 @@ function relatedBusinessLabel(item: Notification) {
     REPORT: '报告'
   }
   return `${typeLabel[item.relatedType || ''] || item.relatedType}${item.relatedId ? ` #${item.relatedId}` : ''}`
+}
+
+function caseTargetId(item: Notification | null) {
+  if (!item || item.type !== 'CASE') return ''
+  return String(item.caseId || item.relatedId || '').trim()
+}
+
+function openRelatedCase(item: Notification | null) {
+  const id = caseTargetId(item)
+  if (!id) return
+  detailVisible.value = false
+  router.push({
+    path: '/cases',
+    query: {
+      caseId: id,
+      caseNo: item?.caseNo || caseReference(item!)
+    }
+  })
+}
+
+function alertTargetId(item: Notification | null) {
+  if (!item || item.type !== 'ALERT') return ''
+  return String(item.alertId || item.relatedId || '').trim()
+}
+
+function openRelatedAlert(item: Notification | null) {
+  const id = alertTargetId(item)
+  if (!id) return
+  detailVisible.value = false
+  router.push({
+    path: '/alerts',
+    query: {
+      alertId: id,
+      alertNo: item?.alertNo || alertReference(item!)
+    }
+  })
 }
 
 onMounted(() => {

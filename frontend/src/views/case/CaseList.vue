@@ -304,10 +304,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import request from '@/utils/request'
 import { formatOperatorName } from '@/utils/operatorDisplay'
+
+const route = useRoute()
 
 // ==================== 数据定义 ====================
 
@@ -530,6 +533,12 @@ async function openDetail(row: any) {
   }
 }
 
+async function openDetailFromRoute() {
+  const caseId = Array.isArray(route.query.caseId) ? route.query.caseId[0] : route.query.caseId
+  if (!caseId) return
+  await openDetail({ id: caseId })
+}
+
 // ==================== 创建案件 ====================
 
 function showCreateDialog() {
@@ -642,7 +651,17 @@ async function handleCloseCase() {
 
 // ==================== 初始化 ====================
 
-onMounted(loadData)
+watch(
+  () => route.query.caseId,
+  () => {
+    openDetailFromRoute()
+  }
+)
+
+onMounted(async () => {
+  await loadData()
+  await openDetailFromRoute()
+})
 </script>
 
 <style scoped>

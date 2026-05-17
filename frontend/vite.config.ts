@@ -42,8 +42,7 @@ export default defineConfig({
             {
               name: 'element-plus',
               test: /node_modules[\\/](element-plus|@element-plus)[\\/]/,
-              priority: 20,
-              maxSize: 260 * 1024
+              priority: 20
             },
             {
               name: 'http-vendor',

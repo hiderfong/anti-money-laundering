@@ -1,13 +1,9 @@
-# Local fallback profile for running the API when Elasticsearch and Neo4j are unavailable.
+# Fallback profile for running the API when Elasticsearch is unavailable.
 spring:
   data:
     elasticsearch:
       repositories:
         enabled: false
-  neo4j:
-    uri: bolt://localhost:7687
-    autoconfigure:
-      enabled: false
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
@@ -17,11 +13,3 @@ spring:
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
       - org.springframework.boot.autoconfigure.elasticsearch.ReactiveElasticsearchClientAutoConfiguration
-      - org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.neo4j.Neo4jDataAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.neo4j.Neo4jRepositoriesAutoConfiguration
-
-# Disable Neo4j when not available
-aml:
-  neo4j:
-    enabled: false

@@ -295,7 +295,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Bell, WarningFilled, Loading, CircleCheckFilled } from '@element-plus/icons-vue'
 import request from '@/utils/request'
@@ -417,6 +418,7 @@ const alertList = ref<AlertItem[]>([])
 const total = ref(0)
 const selectedIds = ref<number[]>([])
 const statistics = ref<StatisticsData>({ total: 0, highRisk: 0, processing: 0, completed: 0 })
+const route = useRoute()
 
 const query = reactive({
   page: 1,
@@ -684,6 +686,30 @@ async function openDetail(row: AlertItem) {
   }
 }
 
+async function openDetailFromRoute() {
+  const alertId = route.query.alertId
+  const id = Array.isArray(alertId) ? alertId[0] : alertId
+  const numericId = Number(id)
+  if (!id || Number.isNaN(numericId)) return
+  await openDetail({
+    id: numericId,
+    alertNo: String(route.query.alertNo || ''),
+    customerId: 0,
+    customerName: '',
+    alertType: '',
+    riskScore: 0,
+    riskLevel: '',
+    alertSummary: '',
+    status: '',
+    assignedTo: '',
+    assignedTime: '',
+    processResult: '',
+    processRemark: '',
+    processTime: '',
+    createdTime: ''
+  })
+}
+
 // ===================== 指派弹窗 =====================
 function openAssignDialog(row: AlertItem) {
   assignForm.alertId = row.id
@@ -783,10 +809,18 @@ async function handleBatchProcess() {
 }
 
 // ===================== 初始化 =====================
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadData()
+  await openDetailFromRoute()
   loadStatistics()
 })
+
+watch(
+  () => route.query.alertId,
+  () => {
+    openDetailFromRoute()
+  }
+)
 </script>
 
 <style scoped>
