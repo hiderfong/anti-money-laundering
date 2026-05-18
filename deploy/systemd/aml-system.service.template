@@ -1,0 +1,28 @@
+[Unit]
+Description=AML System Spring Boot API
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+User=@AML_SERVICE_USER@
+Group=@AML_SERVICE_GROUP@
+WorkingDirectory=@AML_WORK_DIR@
+EnvironmentFile=@AML_ENV_FILE@
+Environment=SERVER_ADDRESS=@SERVER_ADDRESS@
+Environment=SERVER_PORT=@SERVER_PORT@
+Environment="JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai"
+ExecStart=@JAVA_BIN@ -jar @AML_JAR_PATH@
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=45
+KillSignal=SIGTERM
+StandardOutput=append:@AML_WORK_DIR@/logs/aml-system.out.log
+StandardError=append:@AML_WORK_DIR@/logs/aml-system.err.log
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
