@@ -95,7 +95,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/seed-e2e-business-data.sh --execute --run-id "$E2E_RUN_ID"
 ```
 
@@ -106,7 +106,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/seed-e2e-business-data.sh --verify --run-id "$E2E_RUN_ID"
 ```
 
@@ -277,4 +277,4 @@ bash scripts/collect-e2e-artifacts.sh
 | `DB_PORT` | `3306` | 数据库端口 |
 | `DB_NAME` | `aml_system` | 数据库名 |
 | `DB_USER` | `root` | 数据库用户 |
-| `DB_PASSWORD` | `aml_dev_123` | 数据库密码 |
+| `DB_PASSWORD` | `CHANGE_ME_DEV_DB_PASSWORD` | 数据库密码 |

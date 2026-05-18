@@ -15,12 +15,12 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-aml_system}"
 DB_USER="${DB_USER:-root}"
-DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
+DB_PASSWORD="${DB_PASSWORD:-CHANGE_ME_DEV_DB_PASSWORD}"
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-}"
 
 NEO4J_CONTAINER="${NEO4J_CONTAINER:-aml-neo4j-dev}"
 NEO4J_USER="${NEO4J_USER:-neo4j}"
-NEO4J_PASSWORD="${NEO4J_PASSWORD:-aml_neo4j_123}"
+NEO4J_PASSWORD="${NEO4J_PASSWORD:-CHANGE_ME_DEV_NEO4J_PASSWORD}"
 
 SOURCE_SYSTEM="E2E-GRAPH-SEED"
 CUSTOMER_ID=""
@@ -52,11 +52,11 @@ Environment:
   DB_PORT                   默认 3306
   DB_NAME                   默认 aml_system
   DB_USER                   默认 root
-  DB_PASSWORD               默认 aml_dev_123
+  DB_PASSWORD               默认 CHANGE_ME_DEV_DB_PASSWORD
   MYSQL_CONTAINER           设置后使用该容器内 mysql 客户端，绕开本机 mysql 插件兼容问题
   NEO4J_CONTAINER           默认 aml-neo4j-dev
   NEO4J_USER                默认 neo4j
-  NEO4J_PASSWORD            默认 aml_neo4j_123
+  NEO4J_PASSWORD            默认 CHANGE_ME_DEV_NEO4J_PASSWORD
 
 Typical:
   docker compose -f docker/docker-compose-dev.yml up -d neo4j

@@ -11,7 +11,7 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-aml_system}"
 DB_USER="${DB_USER:-root}"
-DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
+DB_PASSWORD="${DB_PASSWORD:-CHANGE_ME_DEV_DB_PASSWORD}"
 EXECUTE=false
 VERIFY=false
 
@@ -30,7 +30,7 @@ Environment:
   DB_PORT        Default 3306
   DB_NAME        Default aml_system
   DB_USER        Default root
-  DB_PASSWORD    Default aml_dev_123
+  DB_PASSWORD    Default CHANGE_ME_DEV_DB_PASSWORD
   JAVA_HOME      Optional. Defaults to Homebrew OpenJDK 21 when available.
 EOF
 }

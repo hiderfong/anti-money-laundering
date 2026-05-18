@@ -41,7 +41,8 @@ sleep 15
 # Step 3: 检查服务健康
 echo ""
 echo "[3/5] 检查服务状态..."
-echo -n "  MySQL:        " && docker exec aml-mysql-dev mysqladmin ping -h localhost -u root -paml_dev_123 2>/dev/null && echo "OK" || echo "WAITING..."
+DEV_DB_PASSWORD="${MYSQL_ROOT_PASSWORD:-CHANGE_ME_DEV_DB_PASSWORD}"
+echo -n "  MySQL:        " && docker exec aml-mysql-dev mysqladmin ping -h localhost -u root -p"${DEV_DB_PASSWORD}" 2>/dev/null && echo "OK" || echo "WAITING..."
 echo -n "  Redis:        " && docker exec aml-redis-dev redis-cli ping 2>/dev/null && echo "" || echo "WAITING..."
 echo -n "  Kafka:        " && docker exec aml-kafka-dev /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null && echo "OK" || echo "WAITING..."
 echo -n "  Elasticsearch:" && curl -s http://localhost:9200/_cluster/health | grep -q '"status"' && echo "OK" || echo "WAITING..."
@@ -61,8 +62,9 @@ echo "  访问地址: http://localhost:8080/api"
 echo "  Swagger:  http://localhost:8080/api/doc.html"
 echo "  健康检查: http://localhost:8080/api/system/health"
 echo ""
-echo "  默认账号: admin / Aml@Admin#2026!"
+echo "  本地登录账号请以当前数据库种子数据或测试指引为准"
 echo ""
 echo "  按 Ctrl+C 停止应用"
 echo "=========================================="
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn spring-boot:run -Dspring-boot.run.profiles=dev \
+  -Dspring-boot.run.arguments="--spring.datasource.password=${DEV_DB_PASSWORD}"

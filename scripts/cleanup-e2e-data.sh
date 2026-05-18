@@ -10,7 +10,7 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-aml_system}"
 DB_USER="${DB_USER:-root}"
-DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
+DB_PASSWORD="${DB_PASSWORD:-CHANGE_ME_DEV_DB_PASSWORD}"
 E2E_PREFIX="${E2E_PREFIX:-E2E}"
 EXECUTE=false
 INCLUDE_LEGACY=false
@@ -31,7 +31,7 @@ Environment:
   DB_PORT            默认 3306
   DB_NAME            默认 aml_system
   DB_USER            默认 root
-  DB_PASSWORD        默认 aml_dev_123
+  DB_PASSWORD        默认 CHANGE_ME_DEV_DB_PASSWORD
 EOF
 }
 

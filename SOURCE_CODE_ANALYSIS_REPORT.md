@@ -58,14 +58,14 @@
 
 #### 1. 硬编码敏感信息（严重）
 
-`application-dev.yml` 中存在大量明文密码和密钥：
+早期 `application-dev.yml` 中曾存在开发环境明文密码和密钥：
 
 ```yaml
 jwt:
-  secret: AmlSystem2024JwtSecretKeyForDevEnvironmentOnly
+  secret: <redacted-dev-jwt-secret>
 encryption:
-  key: AmlEncryptKey2024DevEnv!
-spring.datasource.password: aml_dev_123
+  key: <redacted-dev-encryption-key>
+spring.datasource.password: <redacted-dev-db-password>
 ```
 
 **风险**：密钥泄露可导致 JWT 伪造、数据解密。  

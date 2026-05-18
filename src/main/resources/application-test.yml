@@ -69,8 +69,8 @@ aml:
     match-threshold: 85
   minio:
     endpoint: http://localhost:9000
-    access-key: minioadmin
-    secret-key: minioadmin
+    access-key: test-only-minio-access
+    secret-key: test-only-minio-secret
     bucket-name: aml-test
 
 logging:

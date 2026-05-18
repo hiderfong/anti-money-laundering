@@ -27,7 +27,7 @@ public class Neo4jConfig {
     @Value("${spring.neo4j.authentication.username:neo4j}")
     private String username;
 
-    @Value("${spring.neo4j.authentication.password:aml_neo4j_123}")
+    @Value("${spring.neo4j.authentication.password:CHANGE_ME_DEV_NEO4J_PASSWORD}")
     private String password;
 
     @Bean

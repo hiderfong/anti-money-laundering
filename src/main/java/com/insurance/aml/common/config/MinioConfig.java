@@ -19,10 +19,10 @@ public class MinioConfig {
     private String endpoint = "http://localhost:9000";
 
     /** 访问密钥 */
-    private String accessKey = "minioadmin";
+    private String accessKey = "CHANGE_ME_DEV_MINIO_ACCESS";
 
     /** 秘密密钥 */
-    private String secretKey = "minioadmin";
+    private String secretKey = "CHANGE_ME_DEV_MINIO_SECRET";
 
     /** 默认存储桶名称 */
     private String bucketName = "aml-files";

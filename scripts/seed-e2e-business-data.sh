@@ -10,7 +10,7 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-aml_system}"
 DB_USER="${DB_USER:-root}"
-DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
+DB_PASSWORD="${DB_PASSWORD:-CHANGE_ME_DEV_DB_PASSWORD}"
 E2E_PREFIX="${E2E_PREFIX:-E2E}"
 E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
 E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-admin123}"
@@ -48,7 +48,7 @@ Environment:
   DB_PORT            Default 3306
   DB_NAME            Default aml_system
   DB_USER            Default root
-  DB_PASSWORD        Default aml_dev_123
+  DB_PASSWORD        Default CHANGE_ME_DEV_DB_PASSWORD
   SEED_DB_CLIENT     auto, mysql, or jdbc. Default auto.
   MYSQL_CONNECTOR_JAR Path to mysql-connector-j jar for JDBC fallback.
   E2E_PASSWORD_HASH  BCrypt hash for E2E users, default is admin123

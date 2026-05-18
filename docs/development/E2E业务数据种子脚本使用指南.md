@@ -39,7 +39,7 @@ mysql --version
 确认能连接测试库：
 
 ```bash
-MYSQL_PWD=aml_dev_123 mysql -h 127.0.0.1 -P 3306 -uroot aml_system -e "SELECT COUNT(*) FROM t_user;"
+MYSQL_PWD=CHANGE_ME_DEV_DB_PASSWORD mysql -h 127.0.0.1 -P 3306 -uroot aml_system -e "SELECT COUNT(*) FROM t_user;"
 ```
 
 ---
@@ -65,7 +65,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/seed-e2e-business-data.sh --execute --run-id "$E2E_RUN_ID"
 ```
 
@@ -76,7 +76,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/seed-e2e-business-data.sh --verify --run-id "$E2E_RUN_ID"
 ```
 
@@ -87,7 +87,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/seed-e2e-business-data.sh --execute --verify --run-id "$E2E_RUN_ID"
 ```
 
@@ -107,7 +107,7 @@ bash scripts/seed-e2e-business-data.sh --sql-only --run-id "$E2E_RUN_ID" > /tmp/
 交给外部 Agent 执行：
 
 ```bash
-MYSQL_PWD=aml_dev_123 \
+MYSQL_PWD=CHANGE_ME_DEV_DB_PASSWORD \
 mysql -h 127.0.0.1 -P 3306 -uroot aml_system < /tmp/aml-e2e-business-seed.sql
 ```
 
@@ -205,7 +205,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/cleanup-e2e-data.sh --prefix E2E
 ```
 
@@ -216,7 +216,7 @@ DB_HOST=127.0.0.1 \
 DB_PORT=3306 \
 DB_NAME=aml_system \
 DB_USER=root \
-DB_PASSWORD=aml_dev_123 \
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD \
 bash scripts/cleanup-e2e-data.sh --prefix E2E --execute
 ```
 

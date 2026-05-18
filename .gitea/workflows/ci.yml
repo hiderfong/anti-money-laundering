@@ -177,10 +177,10 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: aml_dev_123
+          MYSQL_ROOT_PASSWORD: aml_ci_123
           MYSQL_DATABASE: aml_system
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -paml_dev_123"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -paml_ci_123"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -192,7 +192,7 @@ jobs:
       DB_PORT: "3306"
       DB_NAME: aml_system
       DB_USER: root
-      DB_PASSWORD: aml_dev_123
+      DB_PASSWORD: aml_ci_123
       E2E_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
       E2E_IP: 127.0.0.201
       E2E_LIMIT_IP: 127.0.0.202

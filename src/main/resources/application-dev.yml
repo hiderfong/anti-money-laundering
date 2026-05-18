@@ -7,8 +7,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/aml_system?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: aml_dev_123
+    username: ${AML_DEV_DB_USER:root}
+    password: ${AML_DEV_DB_PASSWORD:CHANGE_ME_DEV_DB_PASSWORD}
     hikari:
       minimum-idle: 5
       maximum-pool-size: 20
@@ -16,10 +16,10 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 30000
   neo4j:
-    uri: bolt://localhost:7687
+    uri: ${AML_DEV_NEO4J_URI:bolt://localhost:7687}
     authentication:
-      username: neo4j
-      password: aml_neo4j_123
+      username: ${AML_DEV_NEO4J_USERNAME:neo4j}
+      password: ${AML_DEV_NEO4J_PASSWORD:CHANGE_ME_DEV_NEO4J_PASSWORD}
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
@@ -50,26 +50,26 @@ spring.elasticsearch:
 
 # ---- MinIO Object Storage ----
 aml.minio:
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket-name: aml-files
+  endpoint: ${AML_DEV_MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${AML_DEV_MINIO_ACCESS_KEY:CHANGE_ME_DEV_MINIO_ACCESS}
+  secret-key: ${AML_DEV_MINIO_SECRET_KEY:CHANGE_ME_DEV_MINIO_SECRET}
+  bucket-name: ${AML_DEV_MINIO_BUCKET:aml-files}
 
 # ---- Neo4j Graph Database ----
 spring.neo4j:
-  uri: bolt://localhost:7687
+  uri: ${AML_DEV_NEO4J_URI:bolt://localhost:7687}
   authentication:
-    username: neo4j
-    password: aml_neo4j_123
+    username: ${AML_DEV_NEO4J_USERNAME:neo4j}
+    password: ${AML_DEV_NEO4J_PASSWORD:CHANGE_ME_DEV_NEO4J_PASSWORD}
 # ---- JWT Authentication ----
 jwt:
-  secret: AmlSystem2024JwtSecretKeyForDevEnvironmentOnly
+  secret: ${AML_DEV_JWT_SECRET:Q0hBTkdFX01FX0xPQ0FMX0RFVl9KV1RfU0VDUkVUXzMyX0JZVEVTX01JTklNVU1fUExBQ0VIT0xERVI=}
   access-token-expire: 7200000      # 2小时 (7200秒 * 1000 = 毫秒)
   refresh-token-expire: 604800000   # 7天 (604800秒 * 1000 = 毫秒)
 
 # ---- Encryption ----
 encryption:
-  key: AmlEncryptKey2024DevEnv!
+  key: ${AML_DEV_ENCRYPTION_KEY:CHANGE_ME_LOCAL_AES_32_BYTE_KEY!}
 
 # ---- AML Business Config ----
 aml:

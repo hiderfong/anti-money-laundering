@@ -83,7 +83,7 @@ mysql -uroot -e "CREATE DATABASE IF NOT EXISTS aml_system DEFAULT CHARACTER SET 
 如果 root 密码为默认开发密码：
 
 ```bash
-mysql -uroot -paml_dev_123 -e "CREATE DATABASE IF NOT EXISTS aml_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -uroot -pCHANGE_ME_DEV_DB_PASSWORD -e "CREATE DATABASE IF NOT EXISTS aml_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
 后端启动时会通过 Flyway 自动执行迁移。
@@ -107,7 +107,7 @@ mvn spring-boot:run \
 env JAVA_HOME=/opt/homebrew/opt/openjdk@21 \
 mvn spring-boot:run \
   -Dspring-boot.run.profiles=dev,no-redis \
-  -Dspring-boot.run.arguments="--spring.datasource.password=aml_dev_123 --aml.kafka.enabled=false"
+  -Dspring-boot.run.arguments="--spring.datasource.password=CHANGE_ME_DEV_DB_PASSWORD --aml.kafka.enabled=false"
 ```
 
 后端成功标志：
@@ -160,7 +160,7 @@ DB_PASSWORD= bash scripts/prepare-rbac-e2e-users.sh --execute
 root 使用默认开发密码：
 
 ```bash
-DB_PASSWORD=aml_dev_123 bash scripts/prepare-rbac-e2e-users.sh --execute
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD bash scripts/prepare-rbac-e2e-users.sh --execute
 ```
 
 准备的账号密码均为 `admin123`：
@@ -334,7 +334,7 @@ Access denied for user 'root'
 处理：
 
 - root 空密码：使用 `--spring.datasource.password=`。
-- root 默认开发密码：使用 `--spring.datasource.password=aml_dev_123`。
+- root 默认开发密码：使用 `--spring.datasource.password=CHANGE_ME_DEV_DB_PASSWORD`。
 - 也可自行覆盖 `--spring.datasource.username=` 和 `--spring.datasource.url=`。
 
 ### 10.4 登录限流影响后续测试
@@ -375,7 +375,7 @@ DB_PASSWORD= bash scripts/cleanup-e2e-data.sh --execute
 如果 MySQL 使用默认开发密码：
 
 ```bash
-DB_PASSWORD=aml_dev_123 bash scripts/cleanup-e2e-data.sh --execute
+DB_PASSWORD=CHANGE_ME_DEV_DB_PASSWORD bash scripts/cleanup-e2e-data.sh --execute
 ```
 
 ---

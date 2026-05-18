@@ -10,7 +10,7 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-aml_system}"
 DB_USER="${DB_USER:-root}"
-DB_PASSWORD="${DB_PASSWORD:-aml_dev_123}"
+DB_PASSWORD="${DB_PASSWORD:-CHANGE_ME_DEV_DB_PASSWORD}"
 E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-admin123}"
 E2E_PASSWORD_HASH="${E2E_PASSWORD_HASH:-\$2a\$10\$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq}"
 EXECUTE=false
@@ -38,7 +38,7 @@ Environment:
   DB_PORT            默认 3306
   DB_NAME            默认 aml_system
   DB_USER            默认 root
-  DB_PASSWORD        默认 aml_dev_123
+  DB_PASSWORD        默认 CHANGE_ME_DEV_DB_PASSWORD
   E2E_PASSWORD_HASH  默认 admin123 的 BCrypt hash；若改密码需同步传入 hash。
 EOF
 }
