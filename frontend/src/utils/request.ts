@@ -3,13 +3,20 @@ import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'a
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
-// 创建 axios 实例
+/**
+ * 创建 axios 实例
+ * 配置基础URL、超时时间和默认请求头
+ */
 const request: AxiosInstance = axios.create({
   baseURL: '/api',
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' }
 })
 
+/**
+ * 将分页响应中的 total 字段从字符串转为数字
+ * 解决后端返回字符串 total 导致分页组件异常的问题
+ */
 function normalizeNumericTotal(container: any) {
   const total = container?.total
   if (typeof total === 'string' && /^\d+$/.test(total)) {
@@ -21,6 +28,10 @@ function normalizeNumericTotal(container: any) {
   return container
 }
 
+/**
+ * 规范化分页响应数据
+ * 同时处理外层和 data 嵌套层的 total 字段
+ */
 function normalizePageTotal(payload: any) {
   const normalizedPayload = normalizeNumericTotal(payload)
   const normalizedData = normalizeNumericTotal(normalizedPayload?.data)
@@ -34,18 +45,26 @@ function normalizePageTotal(payload: any) {
 }
 
 // ========== Token 刷新机制 ==========
+/** 是否正在刷新Token */
 let isRefreshing = false
+/** 等待Token刷新的请求队列 */
 let refreshSubscribers: Array<(token: string) => void> = []
 
+/** 将请求加入等待队列 */
 function subscribeTokenRefresh(cb: (token: string) => void) {
   refreshSubscribers.push(cb)
 }
 
+/** Token刷新完成后，通知队列中的所有请求 */
 function onTokenRefreshed(newToken: string) {
   refreshSubscribers.forEach(cb => cb(newToken))
   refreshSubscribers = []
 }
 
+/**
+ * 执行Token刷新
+ * 使用独立axios实例避免拦截器循环
+ */
 async function doRefreshToken(): Promise<string> {
   const refreshToken = localStorage.getItem('aml_refresh_token')
   if (!refreshToken) {
@@ -140,7 +159,7 @@ request.interceptors.response.use(
       }
     }
 
-    // 非 401 错误
+    // 非 401 错误处理
     if (error.response?.status === 403) {
       ElMessage.error('权限不足')
       router.push('/403')

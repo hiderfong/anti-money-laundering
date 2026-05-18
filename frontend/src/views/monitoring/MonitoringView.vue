@@ -320,6 +320,15 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 交易监测视图
+ * 提供交易数据查询、交易关系图谱可视化、规则管理与规则反馈等功能
+ * 核心能力：
+ * - 交易列表分页查询与详情查看
+ * - 四模式关系图谱：异常网络密度 / 多层转账追踪 / 环形交易检测 / 共同账户检测
+ * - 规则引擎配置：数据库规则 / Drools规则 / Redis Lua规则 / ML异常检测
+ * - 规则反馈闭环：命中规则的人工复核与调优
+ */
 import { nextTick, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -327,17 +336,25 @@ import request from '@/utils/request'
 
 type EchartsModule = typeof import('echarts/core')
 type EChartInstance = import('echarts/core').ECharts
+/** 图谱分析模式 */
 type GraphMode = 'density' | 'trace' | 'ring' | 'shared'
 
+/** 当前激活的Tab页 */
 const activeTab = ref('transactions')
 let isMounted = false
 
 // ==================== 交易监测 ====================
+/** 交易列表加载状态 */
 const txLoading = ref(false)
+/** 交易数据列表 */
 const transactions = ref<any[]>([])
+/** 交易分页 - 当前页 */
 const txPage = ref(1)
+/** 交易分页 - 每页条数 */
 const txSize = ref(10)
+/** 交易分页 - 总条数 */
 const txTotal = ref(0)
+/** 交易类型映射表 */
 const typeMap: Record<string, string> = {
   PREMIUM: '保费缴纳',
   SURRENDER: '退保',
@@ -347,6 +364,7 @@ const typeMap: Record<string, string> = {
   PARTIAL_WITHDRAWAL: '部分领取'
 }
 
+/** 交易查询条件 */
 const txQuery = reactive({
   transactionNo: '',
   transactionType: '',
@@ -354,6 +372,7 @@ const txQuery = reactive({
   dateRange: null as [string, string] | null
 })
 
+/** 图谱分析模式选项 */
 const graphModeOptions: Array<{ label: string; value: GraphMode }> = [
   { label: '异常网络密度', value: 'density' },
   { label: '多层转账追踪', value: 'trace' },
@@ -361,6 +380,7 @@ const graphModeOptions: Array<{ label: string; value: GraphMode }> = [
   { label: '共同账户检测', value: 'shared' }
 ]
 
+/** 图谱查询参数 */
 const graphQuery = reactive({
   customerId: '',
   mode: 'density' as GraphMode,
@@ -368,11 +388,17 @@ const graphQuery = reactive({
   densityThreshold: 10
 })
 
+/** 图谱加载状态 */
 const graphLoading = ref(false)
+/** 图谱提示信息 */
 const graphNotice = ref('')
+/** 图谱提示类型 */
 const graphNoticeType = ref<'success' | 'warning' | 'info' | 'error'>('info')
+/** 图谱是否已有数据 */
 const graphHasData = ref(false)
+/** 图谱洞察文本列表 */
 const graphInsights = ref<string[]>([])
+/** 图谱统计信息 */
 const graphStats = reactive({
   nodes: 0,
   links: 0,
@@ -381,14 +407,22 @@ const graphStats = reactive({
   riskLabel: '待分析',
   source: '未生成'
 })
+/** 关系图谱图表DOM引用 */
 const graphChartRef = ref<HTMLElement | null>(null)
+/** 资金流向图DOM引用 */
 const txFlowChartRef = ref<HTMLElement | null>(null)
+/** 关系图谱ECharts实例 */
 let graphChart: EChartInstance | null = null
+/** 资金流向图ECharts实例 */
 let txFlowChart: EChartInstance | null = null
+/** ECharts模块缓存 */
 let graphEchartsModule: EchartsModule | null = null
+/** 窗口resize事件处理器 */
 let graphResizeHandler: (() => void) | null = null
+/** 图谱是否已完成首次初始化 */
 let graphInitialized = false
 
+/** 图谱节点数据结构 */
 interface GraphChartNode {
   id: string
   name: string
@@ -399,6 +433,7 @@ interface GraphChartNode {
   raw?: Record<string, unknown>
 }
 
+/** 图谱边数据结构 */
 interface GraphChartLink {
   source: string
   target: string
@@ -408,6 +443,7 @@ interface GraphChartLink {
   raw?: Record<string, unknown>
 }
 
+/** 标准化后的图谱数据，包含统计与洞察 */
 interface NormalizedGraph {
   nodes: GraphChartNode[]
   links: GraphChartLink[]
@@ -420,6 +456,7 @@ interface NormalizedGraph {
   insights: string[]
 }
 
+/** 重置交易查询条件 */
 function resetTxQuery() {
   txQuery.transactionNo = ''
   txQuery.transactionType = ''
@@ -429,17 +466,20 @@ function resetTxQuery() {
   loadTransactions()
 }
 
+/** 根据状态返回标签样式类型 */
 function statusTagType(status: string) {
   if (status === 'SUCCESS') return 'success'
   if (status === 'FAILED') return 'danger'
   return 'info'
 }
 
+/** 根据状态返回中文标签文本 */
 function statusLabel(status: string) {
   const map: Record<string, string> = { SUCCESS: '成功', FAILED: '失败', PENDING: '处理中' }
   return map[status] || status
 }
 
+/** 加载交易列表数据 */
 async function loadTransactions() {
   txLoading.value = true
   try {
@@ -458,20 +498,25 @@ async function loadTransactions() {
   } catch (e) { /* handled */ } finally { txLoading.value = false }
 }
 
-// 交易详情
+// ==================== 交易详情弹窗 ====================
+/** 交易详情弹窗显示状态 */
 const txDetailVisible = ref(false)
+/** 当前查看的交易详情数据 */
 const txDetail = ref<any>(null)
 
+/** 打开交易详情弹窗 */
 function openTxDetail(row: any) {
   txDetail.value = row
   txDetailVisible.value = true
 }
 
+/** 销毁资金流向图ECharts实例 */
 function disposeTransactionFlowChart() {
   txFlowChart?.dispose()
   txFlowChart = null
 }
 
+/** 调度资金流向图渲染（使用双requestAnimationFrame确保DOM就绪） */
 function scheduleTransactionFlowRender() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => renderTransactionFlow())
@@ -493,6 +538,7 @@ watch(txDetail, () => {
   }
 })
 
+/** 计算交易的风险等级标签与样式 */
 function transactionFlowRisk(row: any): { label: string; type: 'success' | 'warning' | 'danger' | 'info' } {
   const amount = toAmount(row?.amount)
   if (row?.status === 'FAILED') return { label: '失败交易', type: 'danger' }
@@ -501,6 +547,7 @@ function transactionFlowRisk(row: any): { label: string; type: 'success' | 'warn
   return { label: '常规交易', type: 'success' }
 }
 
+/** 生成交易资金流向的洞察文本 */
 function transactionFlowInsights(row: any) {
   const amount = toAmount(row?.amount)
   const insights = [
@@ -520,11 +567,13 @@ function transactionFlowInsights(row: any) {
   return insights
 }
 
+/** 截断长文本，超过18字符显示省略号 */
 function compactLabel(value: unknown, fallback: string) {
   const text = safeText(value, fallback)
   return text.length > 18 ? `${text.slice(0, 18)}...` : text
 }
 
+/** 渲染交易资金流向桑基图 */
 async function renderTransactionFlow() {
   await nextTick()
   const row = txDetail.value
@@ -619,6 +668,7 @@ async function renderTransactionFlow() {
   txFlowChart.resize()
 }
 
+/** 从交易行跳转至关系图谱 */
 function openGraphFromTx(row: any) {
   if (!row?.customerId) {
     ElMessage.warning('该交易缺少客户ID，无法生成图谱')
@@ -628,6 +678,7 @@ function openGraphFromTx(row: any) {
   refreshGraph()
 }
 
+/** 准备默认图谱客户ID（取交易列表第一个客户） */
 function prepareDefaultGraphCustomer() {
   const firstCustomerId = transactions.value.find(row => row?.customerId)?.customerId
   if (!graphQuery.customerId && firstCustomerId) {
@@ -639,6 +690,7 @@ function prepareDefaultGraphCustomer() {
   }
 }
 
+/** 懒加载并初始化ECharts模块 */
 async function getGraphEcharts() {
   if (!graphEchartsModule) {
     const [core, charts, components, renderers] = await Promise.all([
@@ -659,16 +711,19 @@ async function getGraphEcharts() {
   return graphEchartsModule
 }
 
+/** 根据模式获取中文标签 */
 function graphModeLabel(mode: GraphMode) {
   return graphModeOptions.find(item => item.value === mode)?.label || '图谱分析'
 }
 
+/** 格式化金额为人民币字符串 */
 function formatCurrency(value: unknown) {
   const amount = Number(value || 0)
   if (!Number.isFinite(amount)) return '¥0.00'
   return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+/** 根据风险标签返回Element标签类型 */
 function graphRiskTagType(label: string) {
   if (label.includes('高') || label.includes('异常') || label.includes('可疑')) return 'danger'
   if (label.includes('关注') || label.includes('中')) return 'warning'
@@ -676,6 +731,7 @@ function graphRiskTagType(label: string) {
   return 'success'
 }
 
+/** 根据节点类型返回分类索引（用于图谱配色） */
 function categoryIndex(type?: string) {
   const normalized = String(type || '').toLowerCase()
   if (normalized.includes('account')) return 1
@@ -684,21 +740,28 @@ function categoryIndex(type?: string) {
   return 0
 }
 
+/** 安全获取文本，空值时返回fallback */
 function safeText(value: unknown, fallback: string) {
   const text = String(value ?? '').trim()
   return text || fallback
 }
 
+/** 安全转换为金额数字 */
 function toAmount(value: unknown) {
   const amount = Number(value ?? 0)
   return Number.isFinite(amount) ? amount : 0
 }
 
+/**
+ * 创建图谱构建器
+ * 提供去重的节点和边管理能力
+ */
 function createGraphBuilder() {
   const nodes = new Map<string, GraphChartNode>()
   const links: GraphChartLink[] = []
   const linkSet = new Set<string>()
 
+  /** 添加节点（自动合并重复节点并取最大尺寸） */
   function addNode(node: GraphChartNode) {
     if (!node.id) return
     const existing = nodes.get(node.id)
@@ -711,6 +774,7 @@ function createGraphBuilder() {
     nodes.set(node.id, node)
   }
 
+  /** 添加边（自动去重） */
   function addLink(link: GraphChartLink) {
     if (!link.source || !link.target) return
     const key = `${link.source}->${link.target}:${link.label || ''}`
@@ -728,11 +792,16 @@ function createGraphBuilder() {
   }
 }
 
+/** 根据金额计算节点大小（对数缩放，范围 base~74） */
 function amountNodeSize(amount: unknown, base = 34) {
   const value = Math.abs(toAmount(amount))
   return Math.min(74, base + Math.log10(value + 1) * 7)
 }
 
+/**
+ * 将后端返回的图谱数据标准化为统一格式
+ * 根据模式分发到不同的解析器
+ */
 function normalizeGraphPayload(payload: any, mode: GraphMode, customerId: string): NormalizedGraph {
   if (Array.isArray(payload?.nodes) && Array.isArray(payload?.edges || payload?.links)) {
     return normalizeGenericGraph(payload, mode)
@@ -743,6 +812,7 @@ function normalizeGraphPayload(payload: any, mode: GraphMode, customerId: string
   return normalizeDensityGraph(payload, customerId)
 }
 
+/** 解析通用图谱格式（nodes + edges/links） */
 function normalizeGenericGraph(payload: any, mode: GraphMode): NormalizedGraph {
   const builder = createGraphBuilder()
   const edges = payload.edges || payload.links || []
@@ -782,6 +852,7 @@ function normalizeGenericGraph(payload: any, mode: GraphMode): NormalizedGraph {
   }
 }
 
+/** 解析环形交易检测结果 */
 function normalizeRingGraph(payload: any, customerId: string): NormalizedGraph {
   const builder = createGraphBuilder()
   const pathNodes = Array.isArray(payload?.pathNodes) ? payload.pathNodes : []
@@ -832,6 +903,7 @@ function normalizeRingGraph(payload: any, customerId: string): NormalizedGraph {
   }
 }
 
+/** 解析多层转账追踪结果 */
 function normalizeTraceGraph(payload: any, customerId: string): NormalizedGraph {
   const builder = createGraphBuilder()
   const startId = `Customer:${safeText(payload?.startCustomerId, customerId)}`
@@ -895,6 +967,7 @@ function normalizeTraceGraph(payload: any, customerId: string): NormalizedGraph 
   }
 }
 
+/** 解析共同账户检测结果 */
 function normalizeSharedAccountGraph(payload: any, customerId: string): NormalizedGraph {
   const builder = createGraphBuilder()
   const sourceId = `Customer:${safeText(payload?.customerId, customerId)}`
@@ -941,6 +1014,7 @@ function normalizeSharedAccountGraph(payload: any, customerId: string): Normaliz
   }
 }
 
+/** 解析异常网络密度检测结果 */
 function normalizeDensityGraph(payload: any, customerId: string): NormalizedGraph {
   const builder = createGraphBuilder()
   const sourceId = `Customer:${safeText(payload?.customerId, customerId)}`
@@ -987,6 +1061,7 @@ function normalizeDensityGraph(payload: any, customerId: string): NormalizedGrap
   }
 }
 
+/** 从交易备注中解析复杂关联链路参与方 */
 function parseChainParties(row: any) {
   const remark = String(row?.remark || '')
   const match = remark.match(/复杂关联链路(?:第\d+跳|回流跳)?[:：]\s*(.+?)\s*->\s*(.+?)(?:\s+\d{8,}|\s*$)/)
@@ -998,10 +1073,12 @@ function parseChainParties(row: any) {
   }
 }
 
+/** 生成参与方节点ID */
 function partyNodeId(name: string) {
   return `Party:${name}`
 }
 
+/** 获取交易的资金来源节点 */
 function txSourceNode(row: any, parties: ReturnType<typeof parseChainParties>) {
   if (parties?.sourceName) {
     return { id: partyNodeId(parties.sourceName), name: parties.sourceName }
@@ -1010,11 +1087,16 @@ function txSourceNode(row: any, parties: ReturnType<typeof parseChainParties>) {
   return { id: `Customer:${customerId}`, name: `客户 ${customerId}` }
 }
 
+/** 获取交易的资金目标节点 */
 function txTargetNode(row: any, parties: ReturnType<typeof parseChainParties>, index: number) {
   const name = safeText(parties?.targetName || row.counterpartyName || row.counterpartyAccount, '交易对手待补充')
   return { id: partyNodeId(name || String(index)), name }
 }
 
+/**
+ * 从交易列表中挑选与客户相关的行
+ * 优先选择包含复杂链路的交易，并扩展关联节点
+ */
 function pickFallbackRows(customerId: string) {
   const rowContexts = transactions.value.slice(0, 30).map((row, index) => ({
     row,
@@ -1054,6 +1136,10 @@ function pickFallbackRows(customerId: string) {
     .slice(0, 24)
 }
 
+/**
+ * 当图数据库不可用时，基于当前交易列表构建回退图谱
+ * 用于保证用户体验，避免页面空白
+ */
 function buildFallbackGraphFromTransactions(customerId: string): NormalizedGraph {
   const builder = createGraphBuilder()
   const relatedRows = pickFallbackRows(customerId)
@@ -1147,6 +1233,7 @@ function buildFallbackGraphFromTransactions(customerId: string): NormalizedGraph
   }
 }
 
+/** 重置图谱状态 */
 function resetGraphState() {
   graphStats.nodes = 0
   graphStats.links = 0
@@ -1159,6 +1246,7 @@ function resetGraphState() {
   graphChart?.clear()
 }
 
+/** 从后端获取图谱原始数据 */
 async function fetchGraphPayload() {
   const customerId = graphQuery.customerId.trim()
   const mode = graphQuery.mode
@@ -1178,6 +1266,10 @@ async function fetchGraphPayload() {
   return res.data || {}
 }
 
+/**
+ * 刷新关系图谱
+ * @param silent 为true时不弹出无客户ID警告（用于初始化自动加载）
+ */
 async function refreshGraph(silent = false) {
   const customerId = graphQuery.customerId.trim()
   if (!customerId) {
@@ -1219,6 +1311,7 @@ async function refreshGraph(silent = false) {
   }
 }
 
+/** 渲染关系图谱（力导向图） */
 async function renderGraph(normalized: NormalizedGraph) {
   await nextTick()
   const container = graphChartRef.value
@@ -1331,14 +1424,21 @@ async function renderGraph(normalized: NormalizedGraph) {
 }
 
 // ==================== 规则管理 ====================
+/** 规则列表加载状态 */
 const ruleLoading = ref(false)
+/** 规则数据列表 */
 const rules = ref<any[]>([])
+/** 规则分页 - 当前页 */
 const rulePage = ref(1)
+/** 规则分页 - 每页条数 */
 const ruleSize = ref(10)
+/** 规则分页 - 总条数 */
 const ruleTotal = ref(0)
 
+/** 规则查询条件 */
 const ruleQuery = reactive({ keyword: '', ruleCategory: '' })
 
+/** 重置规则查询条件 */
 function resetRuleQuery() {
   ruleQuery.keyword = ''
   ruleQuery.ruleCategory = ''
@@ -1346,6 +1446,7 @@ function resetRuleQuery() {
   loadRules()
 }
 
+/** 规则类型中文映射 */
 function ruleCategoryLabel(type: string) {
   const map: Record<string, string> = {
     LARGE_TXN: '大额交易',
@@ -1357,10 +1458,12 @@ function ruleCategoryLabel(type: string) {
   return map[type] || type
 }
 
+/** 判断规则是否启用 */
 function isRuleEnabled(row: any) {
   return row.status === 'ENABLED'
 }
 
+/** 加载规则列表数据 */
 async function loadRules() {
   ruleLoading.value = true
   try {
@@ -1373,7 +1476,11 @@ async function loadRules() {
   } catch (e) { /* handled */ } finally { ruleLoading.value = false }
 }
 
-// 启用/禁用规则
+// ==================== 规则启用/禁用 ====================
+/**
+ * 切换规则启用/禁用状态
+ * 操作前弹出确认对话框
+ */
 async function toggleRule(row: any) {
   const nextEnabled = !isRuleEnabled(row)
   const action = nextEnabled ? '启用' : '禁用'
@@ -1390,11 +1497,16 @@ async function toggleRule(row: any) {
   }
 }
 
-// 规则创建/编辑弹窗
+// ==================== 规则创建/编辑弹窗 ====================
+/** 规则弹窗显示状态 */
 const ruleDialogVisible = ref(false)
+/** 规则弹窗模式：create / edit */
 const ruleDialogMode = ref<'create' | 'edit'>('create')
+/** 规则提交中状态 */
 const ruleSubmitting = ref(false)
+/** 规则表单引用 */
 const ruleFormRef = ref<FormInstance>()
+/** 规则表单数据 */
 const ruleForm = reactive({
   id: null as number | null,
   ruleCode: '',
@@ -1406,6 +1518,7 @@ const ruleForm = reactive({
   status: 'DISABLED'
 })
 
+/** 规则表单校验规则 */
 const ruleFormRules: FormRules = {
   ruleCode: [{ required: true, message: '请输入规则编码', trigger: 'blur' }],
   ruleName: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
@@ -1414,6 +1527,7 @@ const ruleFormRules: FormRules = {
   riskWeight: [{ required: true, message: '请设置风险权重', trigger: 'change' }]
 }
 
+/** 打开规则创建/编辑弹窗 */
 function openRuleDialog(mode: 'create' | 'edit', row?: any) {
   ruleDialogMode.value = mode
   if (mode === 'edit' && row) {
@@ -1438,6 +1552,7 @@ function openRuleDialog(mode: 'create' | 'edit', row?: any) {
   ruleDialogVisible.value = true
 }
 
+/** 提交规则表单（创建或更新） */
 async function submitRule() {
   if (!ruleFormRef.value) return
   await ruleFormRef.value.validate()
@@ -1465,11 +1580,15 @@ async function submitRule() {
   } catch (e) { /* handled */ } finally { ruleSubmitting.value = false }
 }
 
-// 版本历史
+// ==================== 版本历史弹窗 ====================
+/** 版本历史弹窗显示状态 */
 const versionDialogVisible = ref(false)
+/** 版本列表加载状态 */
 const versionLoading = ref(false)
+/** 规则版本数据列表 */
 const versions = ref<any[]>([])
 
+/** 打开规则版本历史弹窗 */
 async function openVersionHistory(row: any) {
   versionDialogVisible.value = true
   versionLoading.value = true
@@ -1479,13 +1598,15 @@ async function openVersionHistory(row: any) {
   } catch (e) { /* handled */ } finally { versionLoading.value = false }
 }
 
-// ==================== 初始化 ====================
+// ==================== 生命周期钩子 ====================
+/** 组件挂载：加载交易列表和规则列表 */
 onMounted(() => {
   isMounted = true
   loadTransactions()
   loadRules()
 })
 
+/** 组件卸载：清理图表实例和事件监听 */
 onUnmounted(() => {
   isMounted = false
   if (graphResizeHandler) {

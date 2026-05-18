@@ -32,14 +32,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 调查协查中心服务实现。
+ * 调查协查中心服务实现类
+ * 处理监管/执法机关调查请求的登记、处理、协查行动及状态流转
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class InvestigationServiceImpl implements InvestigationService {
 
+    /** 活跃状态列表（未完结） */
     private static final List<String> ACTIVE_STATUSES = List.of("RECEIVED", "PROCESSING", "WAITING_APPROVAL", "RETURNED");
+    /** 历史客户名称映射（用于E2E测试数据规范化） */
     private static final List<String> LEGACY_CUSTOMER_NAMES = List.of(
             "张晨曦",
             "李若宁",
@@ -55,6 +58,10 @@ public class InvestigationServiceImpl implements InvestigationService {
     private final CaseMapper caseMapper;
     private final IdGenerator idGenerator;
 
+    /**
+     * 获取调查协查概览统计
+     * 统计待处理、处理中、即将到期、已逾期、已结案数量
+     */
     @Override
     public InvestigationOverviewVO overview() {
         LocalDate today = LocalDate.now();
@@ -83,6 +90,10 @@ public class InvestigationServiceImpl implements InvestigationService {
                 .build();
     }
 
+    /**
+     * 创建调查请求
+     * 校验客户和关联案件是否存在，自动生成请求编号
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public InvestigationRequest createRequest(InvestigationRequestCreateRequest request) {
@@ -120,6 +131,10 @@ public class InvestigationServiceImpl implements InvestigationService {
         return entity;
     }
 
+    /**
+     * 分页查询调查请求
+     * 支持按状态、请求类型、机关名称筛选
+     */
     @Override
     public PageResult<InvestigationRequest> pageRequests(PageQuery pageQuery, String status, String requestType, String authorityName) {
         LambdaQueryWrapper<InvestigationRequest> wrapper = new LambdaQueryWrapper<>();
@@ -139,6 +154,10 @@ public class InvestigationServiceImpl implements InvestigationService {
         return PageResult.from(page);
     }
 
+    /**
+     * 更新调查请求状态
+     * 状态变为 RESPONDED 时记录完成时间，CLOSED 时记录关闭时间
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(Long id, InvestigationStatusUpdateRequest request) {
@@ -161,6 +180,10 @@ public class InvestigationServiceImpl implements InvestigationService {
         addSystemAction(id, "OTHER", "更新调查协查状态为 " + request.getStatus(), request.getResponseSummary(), entity.getHandler());
     }
 
+    /**
+     * 添加协查行动记录
+     * 如果调查请求状态为 RECEIVED，自动变更为 PROCESSING
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public InvestigationAction addAction(Long requestId, InvestigationActionRequest request) {
@@ -183,6 +206,9 @@ public class InvestigationServiceImpl implements InvestigationService {
         return action;
     }
 
+    /**
+     * 分页查询协查行动记录
+     */
     @Override
     public PageResult<InvestigationAction> pageActions(Long requestId, PageQuery pageQuery) {
         loadRequest(requestId);
@@ -194,6 +220,9 @@ public class InvestigationServiceImpl implements InvestigationService {
         return PageResult.from(page);
     }
 
+    /**
+     * 加载调查请求，不存在则抛出异常
+     */
     private InvestigationRequest loadRequest(Long id) {
         InvestigationRequest entity = requestMapper.selectById(id);
         if (entity == null) {
@@ -202,6 +231,9 @@ public class InvestigationServiceImpl implements InvestigationService {
         return entity;
     }
 
+    /**
+     * 添加系统自动生成的协查行动记录
+     */
     private void addSystemAction(Long requestId, String actionType, String content, String result, String operator) {
         InvestigationAction action = new InvestigationAction();
         action.setRequestId(requestId);
@@ -214,6 +246,10 @@ public class InvestigationServiceImpl implements InvestigationService {
         actionMapper.insert(action);
     }
 
+    /**
+     * 规范化历史客户名称
+     * 将E2E测试生成的客户名映射为预设的真实企业/个人名称
+     */
     private String normalizeLegacyCustomerName(String customerName, Long seed) {
         if (!StringUtils.hasText(customerName) || !customerName.startsWith("E2E客户")) {
             return customerName;

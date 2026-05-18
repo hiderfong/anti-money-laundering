@@ -46,7 +46,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 特别预防措施中心服务实现。
+ * 特别预防措施中心服务实现类
+ * 涵盖名单更新、回溯筛查、特别措施、查冻扣、筛查结果升级等功能
  */
 @Service
 @Slf4j
@@ -66,6 +67,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
     private final CaseService caseService;
     private final IdGenerator idGenerator;
 
+    /**
+     * 获取特别预防措施概览统计
+     * 统计活跃措施、查冻扣记录、待审核筛查结果、进行中回溯任务
+     */
     @Override
     public SpecialPreventionOverviewVO overview() {
         long activeMeasures = specialMeasureMapper.selectCount(
@@ -85,6 +90,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
                 .build();
     }
 
+    /**
+     * 创建名单更新任务
+     * 更新指定名单源或全部名单源的数据
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public WatchlistUpdateJob createWatchlistUpdateJob(WatchlistSyncRequest request) {
@@ -125,6 +134,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return job;
     }
 
+    /**
+     * 分页查询名单更新任务
+     */
     @Override
     public PageResult<WatchlistUpdateJob> pageWatchlistUpdateJobs(PageQuery pageQuery, String status) {
         LambdaQueryWrapper<WatchlistUpdateJob> wrapper = new LambdaQueryWrapper<>();
@@ -136,6 +148,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return PageResult.from(page);
     }
 
+    /**
+     * 创建回溯筛查任务
+     * 根据客户范围（指定ID/高风险/活跃客户）执行批量回溯筛查
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RetrospectiveScreeningJob createRetrospectiveJob(RetrospectiveScreeningJobRequest request) {
@@ -161,6 +177,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return job;
     }
 
+    /**
+     * 分页查询回溯筛查任务
+     */
     @Override
     public PageResult<RetrospectiveScreeningJob> pageRetrospectiveJobs(PageQuery pageQuery, String status) {
         LambdaQueryWrapper<RetrospectiveScreeningJob> wrapper = new LambdaQueryWrapper<>();
@@ -172,6 +191,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return PageResult.from(page);
     }
 
+    /**
+     * 创建特别预防措施
+     * 针对高风险客户采取增强型尽职调查、限制交易等控制措施
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SpecialMeasure createSpecialMeasure(SpecialMeasureRequest request) {
@@ -195,6 +218,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return measure;
     }
 
+    /**
+     * 分页查询特别预防措施
+     */
     @Override
     public PageResult<SpecialMeasure> pageSpecialMeasures(PageQuery pageQuery, Long customerId, String status) {
         LambdaQueryWrapper<SpecialMeasure> wrapper = new LambdaQueryWrapper<>();
@@ -209,6 +235,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return PageResult.from(page);
     }
 
+    /**
+     * 更新特别预防措施状态
+     * 支持关闭措施并记录关闭原因
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateSpecialMeasureStatus(Long id, String status, String reason) {
@@ -221,6 +251,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         specialMeasureMapper.updateById(measure);
     }
 
+    /**
+     * 创建查冻扣记录
+     * 记录司法机关对客户账户的冻结、扣押、扣划操作
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FreezeSeizureDeduction createFreezeRecord(FreezeSeizureDeductionRequest request) {
@@ -244,6 +278,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return record;
     }
 
+    /**
+     * 分页查询查冻扣记录
+     */
     @Override
     public PageResult<FreezeSeizureDeduction> pageFreezeRecords(PageQuery pageQuery, Long customerId, String status) {
         LambdaQueryWrapper<FreezeSeizureDeduction> wrapper = new LambdaQueryWrapper<>();
@@ -258,6 +295,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return PageResult.from(page);
     }
 
+    /**
+     * 更新查冻扣记录状态
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateFreezeRecordStatus(Long id, String status, String remark) {
@@ -272,6 +312,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         freezeMapper.updateById(record);
     }
 
+    /**
+     * 将筛查结果升级为预警
+     * 命中名单的筛查结果可手动升级为预警，进入处置流程
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Alert escalateScreeningResultToAlert(Long resultId, String reason) {
@@ -289,6 +333,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return created;
     }
 
+    /**
+     * 从筛查结果创建案件
+     * 先升级为预警，确认可疑后自动创建案件
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Case createCaseFromScreeningResult(Long resultId, String reason) {
@@ -308,6 +356,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return caseService.createCase(req);
     }
 
+    /**
+     * 根据范围类型统计客户数量
+     */
     private int countCustomersByScope(RetrospectiveScreeningJobRequest request) {
         if ("CUSTOMER_IDS".equals(request.getScopeType()) && StringUtils.hasText(request.getCustomerIds())) {
             return (int) java.util.Arrays.stream(request.getCustomerIds().split(","))
@@ -324,6 +375,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return Math.toIntExact(customerMapper.selectCount(wrapper));
     }
 
+    /**
+     * 加载客户信息，不存在则抛出异常
+     */
     private Customer loadCustomer(Long customerId) {
         Customer customer = customerMapper.selectById(customerId);
         if (customer == null) {
@@ -332,6 +386,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return customer;
     }
 
+    /**
+     * 加载筛查结果，不存在则抛出异常
+     */
     private ScreeningResult loadScreeningResult(Long resultId) {
         ScreeningResult result = screeningResultMapper.selectById(resultId);
         if (result == null) {
@@ -340,6 +397,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return result;
     }
 
+    /**
+     * 根据筛查结果构建预警对象
+     */
     private Alert buildAlert(ScreeningResult result, String reason) {
         Alert alert = new Alert();
         alert.setCustomerId(result.getCustomerId());
@@ -354,6 +414,9 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return alert;
     }
 
+    /**
+     * 根据筛查结果构建预警规则明细
+     */
     private AlertRuleDetail buildAlertRuleDetail(ScreeningResult result) {
         AlertRuleDetail detail = new AlertRuleDetail();
         detail.setRuleCode("WATCHLIST_SCREENING");
@@ -364,6 +427,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return detail;
     }
 
+    /**
+     * 根据匹配分数解析风险等级
+     * ≥95分为极高风险，否则为高风险
+     */
     private String resolveRiskLevel(BigDecimal score) {
         if (score == null) {
             return RiskLevel.HIGH.getCode();
@@ -374,6 +441,10 @@ public class SpecialPreventionServiceImpl implements SpecialPreventionService {
         return RiskLevel.HIGH.getCode();
     }
 
+    /**
+     * 根据匹配分数解析案件优先级
+     * ≥95分优先级为5（最高），否则为4
+     */
     private int resolveCasePriority(BigDecimal score) {
         if (score != null && score.compareTo(BigDecimal.valueOf(95)) >= 0) {
             return 5;

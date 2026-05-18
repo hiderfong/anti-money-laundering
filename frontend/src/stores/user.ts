@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import request from '@/utils/request'
 
+/** 用户信息数据结构 */
 interface UserInfo {
   userId: number | string
   username: string
@@ -10,6 +11,10 @@ interface UserInfo {
   permissions?: string[]
 }
 
+/**
+ * 规范化字符串列表
+ * 支持数组和逗号分隔字符串两种输入
+ */
 function normalizeStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
@@ -22,6 +27,10 @@ function normalizeStringList(value: unknown): string[] {
   return []
 }
 
+/**
+ * 从JWT Token中解析角色列表
+ * 处理Base64URL编码并提取roles字段
+ */
 function decodeJwtRoles(accessToken: string): string[] {
   try {
     const payload = accessToken.split('.')[1]
@@ -37,40 +46,58 @@ function decodeJwtRoles(accessToken: string): string[] {
   }
 }
 
+/**
+ * 用户状态管理 Store
+ * 管理登录态、用户信息、角色权限，支持持久化到 localStorage
+ */
 export const useUserStore = defineStore('user', () => {
+  /** 访问令牌 */
   const token = ref<string>(localStorage.getItem('aml_token') || '')
+  /** 用户信息 */
   const userInfo = ref<UserInfo | null>(null)
+  /** 角色列表 */
   const roles = ref<string[]>(JSON.parse(localStorage.getItem('aml_roles') || '[]'))
+  /** 权限列表 */
   const permissions = ref<string[]>(JSON.parse(localStorage.getItem('aml_permissions') || '[]'))
 
+  /** 是否已登录 */
   const isLoggedIn = computed(() => !!token.value)
 
-  // 判断是否为管理员
+  /** 是否为管理员角色 */
   const isAdmin = computed(() => roles.value.includes('ROLE_ADMIN'))
 
-  // 检查是否有某个权限
+  /**
+   * 检查是否拥有指定权限
+   * 管理员自动拥有所有权限
+   */
   function hasPermission(code: string): boolean {
     if (isAdmin.value) return true
     return permissions.value.includes(code)
   }
 
-  // 检查是否有某个角色
+  /** 检查是否拥有指定角色 */
   function hasRole(role: string): boolean {
     return roles.value.includes(role)
   }
 
-  // 检查是否有任意一个权限
+  /**
+   * 检查是否拥有任意一个指定权限
+   * 管理员自动拥有所有权限
+   */
   function hasAnyPermission(codes: string[]): boolean {
     if (isAdmin.value) return true
     return codes.some(code => permissions.value.includes(code))
   }
 
-  // 检查是否有任意一个角色
+  /** 检查是否拥有任意一个指定角色 */
   function hasAnyRole(list: string[]): boolean {
     return list.some(role => roles.value.includes(role))
   }
 
-  // 登录
+  /**
+   * 用户登录
+   * 成功后保存token、用户信息、角色权限到localStorage
+   */
   async function login(username: string, password: string) {
     const res: any = await request.post('/auth/login', { username, password })
     const data = res.data
@@ -91,7 +118,10 @@ export const useUserStore = defineStore('user', () => {
     return data
   }
 
-  // 登出
+  /**
+   * 用户登出
+   * 调用后端登出接口并清除所有本地状态
+   */
   async function logout() {
     try {
       await request.post('/auth/logout')
@@ -109,7 +139,10 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('aml_permissions')
   }
 
-  // 获取当前用户信息
+  /**
+   * 获取当前用户信息
+   * 用于页面刷新后恢复用户状态
+   */
   async function getUserInfo() {
     const res: any = await request.get('/auth/me')
     const data = res.data
@@ -128,7 +161,10 @@ export const useUserStore = defineStore('user', () => {
     return userInfo.value
   }
 
-  // 初始化：从 localStorage 恢复
+  /**
+   * 从 localStorage 恢复用户状态
+   * 页面刷新时自动调用
+   */
   function initFromStorage() {
     const saved = localStorage.getItem('aml_user')
     if (saved) {

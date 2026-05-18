@@ -295,6 +295,11 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 预警列表视图
+ * 展示反洗钱系统生成的各类预警，支持筛选、指派、处理、批量操作
+ * 核心流程：预警生成 → 分派 → 人工复核 → 确认可疑/排除误报 → 案件升级
+ */
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -302,6 +307,7 @@ import { Search, Refresh, Bell, WarningFilled, Loading, CircleCheckFilled } from
 import request from '@/utils/request'
 
 // ===================== 类型定义 =====================
+/** 预警数据项 */
 interface AlertItem {
   id: number
   alertNo: string
@@ -323,6 +329,7 @@ interface AlertItem {
   ruleDetails?: any[]
 }
 
+/** 预警统计卡片数据 */
 interface StatisticsData {
   total: number
   highRisk: number
@@ -330,11 +337,13 @@ interface StatisticsData {
   completed: number
 }
 
+/** 用户选项 */
 interface UserOption {
   id: string | number
   name: string
 }
 
+/** 处置链路步骤 */
 interface ChainStep {
   key?: string
   title?: string
@@ -344,6 +353,7 @@ interface ChainStep {
   state?: string
 }
 
+/** 预警处置链路完整数据 */
 interface DispositionChain {
   summary?: {
     transactionCount?: number
@@ -358,6 +368,7 @@ interface DispositionChain {
 }
 
 // ===================== 常量映射 =====================
+/** 预警类型中文映射 */
 const typeMap: Record<string, string> = {
   LARGE_TXN: '大额交易',
   SUSPICIOUS: '可疑交易',
@@ -366,6 +377,7 @@ const typeMap: Record<string, string> = {
   MANUAL: '人工创建'
 }
 
+/** 风险等级中文映射 */
 const riskLevelMap: Record<string, string> = {
   LOW: '低',
   MEDIUM: '中',
@@ -373,6 +385,7 @@ const riskLevelMap: Record<string, string> = {
   CRITICAL: '极高'
 }
 
+/** 预警状态中文映射 */
 const statusMap: Record<string, string> = {
   NEW: '新建',
   ASSIGNED: '已分配',
@@ -382,6 +395,7 @@ const statusMap: Record<string, string> = {
   ESCALATED: '已升级'
 }
 
+/** 处理结果中文映射 */
 const processResultMap: Record<string, string> = {
   CONFIRMED: '确认可疑',
   CONFIRMED_SUSPICIOUS: '确认可疑',
@@ -389,6 +403,7 @@ const processResultMap: Record<string, string> = {
   ESCALATED: '升级处理'
 }
 
+/** 案件状态中文映射 */
 const caseStatusMap: Record<string, string> = {
   DRAFT: '草稿',
   INVESTIGATING: '调查中',
@@ -397,6 +412,7 @@ const caseStatusMap: Record<string, string> = {
   CLOSED: '已结案'
 }
 
+/** 报告状态中文映射 */
 const reportStatusMap: Record<string, string> = {
   DRAFT: '草稿',
   PENDING_REVIEW: '待审核',
@@ -405,21 +421,29 @@ const reportStatusMap: Record<string, string> = {
   SUBMITTED: '已报送'
 }
 
+/** 报送结果中文映射 */
 const submitResultMap: Record<string, string> = {
   SUBMIT_SUCCESS: '报送成功',
   SUCCESS: '成功',
   E2E_MOCK_ACCEPTED: '模拟报送成功'
 }
 
-// ===================== 状态 =====================
+// ===================== 响应式状态 =====================
+/** 列表加载状态 */
 const loading = ref(false)
+/** 表单提交中状态 */
 const submitting = ref(false)
+/** 预警数据列表 */
 const alertList = ref<AlertItem[]>([])
+/** 分页总条数 */
 const total = ref(0)
+/** 表格选中行的ID列表 */
 const selectedIds = ref<number[]>([])
+/** 统计卡片数据 */
 const statistics = ref<StatisticsData>({ total: 0, highRisk: 0, processing: 0, completed: 0 })
 const route = useRoute()
 
+/** 查询条件 */
 const query = reactive({
   page: 1,
   size: 10,
@@ -429,11 +453,16 @@ const query = reactive({
   assignedTo: ''
 })
 
-// 详情弹窗
+// ===================== 详情弹窗状态 =====================
+/** 详情弹窗显示状态 */
 const detailVisible = ref(false)
+/** 当前查看的预警详情 */
 const detailData = ref<Partial<AlertItem>>({})
+/** 处置链路加载状态 */
 const chainLoading = ref(false)
+/** 处置链路数据 */
 const dispositionChain = ref<DispositionChain | null>(null)
+/** 处置链路证据卡片数据 */
 const chainEvidence = computed(() => {
   const chain = dispositionChain.value
   if (!chain) return []
@@ -464,9 +493,12 @@ const chainEvidence = computed(() => {
   ]
 })
 
-// 指派弹窗
+// ===================== 指派弹窗状态 =====================
+/** 指派弹窗显示状态 */
 const assignVisible = ref(false)
+/** 指派表单数据 */
 const assignForm = reactive({ alertId: 0, alertNo: '', assignTo: '' })
+/** 可选处理人列表 */
 const userList = ref<UserOption[]>([
   { id: 'analyst1', name: '分析师A' },
   { id: 'analyst2', name: '分析师B' },
@@ -474,28 +506,36 @@ const userList = ref<UserOption[]>([
   { id: 'manager1', name: '主管A' }
 ])
 
-// 处理弹窗
+// ===================== 处理弹窗状态 =====================
+/** 处理弹窗显示状态 */
 const processVisible = ref(false)
+/** 处理表单数据 */
 const processForm = reactive({ alertId: 0, alertNo: '', processResult: 'CONFIRMED', processRemark: '' })
 
-// 批量处理弹窗
+// ===================== 批量处理弹窗状态 =====================
+/** 批量处理弹窗显示状态 */
 const batchProcessVisible = ref(false)
+/** 批量处理表单数据 */
 const batchForm = reactive({ processResult: 'CONFIRMED', processRemark: '' })
 
-// ===================== Tag类型辅助 =====================
+// ===================== 辅助函数 =====================
+/** 从映射表中获取中文标签 */
 function mapLabel(map: Record<string, string>, value: unknown) {
   const key = typeof value === 'string' ? value : ''
   return map[key] || key || '-'
 }
 
+/** 获取预警风险分数 */
 function alertRiskScore(alert: Partial<AlertItem>) {
   return alert.riskScore ?? 0
 }
 
+/** 从对象中安全获取数值 */
 function countFrom(map: Record<string, unknown> | undefined, key: string) {
   return Number(map?.[key] ?? 0)
 }
 
+/** 根据风险等级返回标签样式类型 */
 function riskLevelTagType(level: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
   const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
     LOW: 'success',
@@ -507,6 +547,7 @@ function riskLevelTagType(level: unknown): '' | 'success' | 'warning' | 'danger'
   return map[key] || 'info'
 }
 
+/** 根据状态返回标签样式类型 */
 function statusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' | 'info' {
   const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
     NEW: 'danger',
@@ -519,6 +560,7 @@ function statusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' |
   return map[key] || 'info'
 }
 
+/** 将逗号/空格/分号分隔的ID字符串拆分为数组 */
 function splitIds(value: unknown) {
   return String(value || '')
     .split(/[,\s;]+/)
@@ -526,6 +568,7 @@ function splitIds(value: unknown) {
     .filter(Boolean)
 }
 
+/** 将文本数组拼接为字符串，超出limit显示"等N项" */
 function joinText(values: unknown[], separator = '、', limit = 3) {
   const filtered = values.map(item => String(item || '').trim()).filter(Boolean)
   if (!filtered.length) return '-'
@@ -533,11 +576,16 @@ function joinText(values: unknown[], separator = '、', limit = 3) {
   return filtered.length > limit ? `${text} 等${filtered.length}项` : text
 }
 
+/** 统一的状态码中文解析（按优先级查找各映射表） */
 function chainStatusLabel(value: unknown) {
   const key = String(value || '').trim()
   return processResultMap[key] || statusMap[key] || caseStatusMap[key] || reportStatusMap[key] || submitResultMap[key] || key
 }
 
+/**
+ * 构建预警处置链路节点
+ * 优先使用后端返回的steps，否则基于预警状态本地生成
+ */
 function alertChainNodes(alert: Partial<AlertItem> & Record<string, any>) {
   const serverSteps = dispositionChain.value?.steps || []
   if (serverSteps.length) {
@@ -596,6 +644,7 @@ function alertChainNodes(alert: Partial<AlertItem> & Record<string, any>) {
 }
 
 // ===================== 数据加载 =====================
+/** 加载预警分页列表 */
 async function loadData() {
   loading.value = true
   try {
@@ -615,6 +664,7 @@ async function loadData() {
   }
 }
 
+/** 加载预警统计数据 */
 async function loadStatistics() {
   try {
     const res: any = await request.get('/alerts/statistics')
@@ -636,11 +686,13 @@ async function loadStatistics() {
 }
 
 // ===================== 搜索/重置 =====================
+/** 执行搜索 */
 function handleSearch() {
   query.page = 1
   loadData()
 }
 
+/** 重置查询条件 */
 function handleReset() {
   query.alertType = ''
   query.riskLevel = ''
@@ -650,17 +702,20 @@ function handleReset() {
   loadData()
 }
 
+/** 分页大小变化 */
 function handleSizeChange() {
   query.page = 1
   loadData()
 }
 
 // ===================== 表格选择 =====================
+/** 表格多选变化事件 */
 function handleSelectionChange(rows: AlertItem[]) {
   selectedIds.value = rows.map(r => r.id)
 }
 
 // ===================== 详情弹窗 =====================
+/** 打开预警详情弹窗 */
 async function openDetail(row: AlertItem) {
   detailVisible.value = true
   detailData.value = row
@@ -686,6 +741,7 @@ async function openDetail(row: AlertItem) {
   }
 }
 
+/** 从路由参数打开详情（用于其他页面跳转） */
 async function openDetailFromRoute() {
   const alertId = route.query.alertId
   const id = Array.isArray(alertId) ? alertId[0] : alertId
@@ -711,6 +767,7 @@ async function openDetailFromRoute() {
 }
 
 // ===================== 指派弹窗 =====================
+/** 打开指派弹窗 */
 function openAssignDialog(row: AlertItem) {
   assignForm.alertId = row.id
   assignForm.alertNo = row.alertNo
@@ -718,6 +775,7 @@ function openAssignDialog(row: AlertItem) {
   assignVisible.value = true
 }
 
+/** 提交指派 */
 async function handleAssign() {
   if (!assignForm.assignTo) {
     ElMessage.warning('请选择处理人')
@@ -738,6 +796,7 @@ async function handleAssign() {
 }
 
 // ===================== 处理弹窗 =====================
+/** 打开处理弹窗 */
 function openProcessDialog(row: AlertItem) {
   processForm.alertId = row.id
   processForm.alertNo = row.alertNo
@@ -746,6 +805,7 @@ function openProcessDialog(row: AlertItem) {
   processVisible.value = true
 }
 
+/** 提交处理结果 */
 async function handleProcess() {
   if (!processForm.processResult) {
     ElMessage.warning('请选择处理结果')
@@ -770,12 +830,14 @@ async function handleProcess() {
 }
 
 // ===================== 批量处理 =====================
+/** 打开批量处理弹窗 */
 function openBatchProcessDialog() {
   batchForm.processResult = 'CONFIRMED'
   batchForm.processRemark = ''
   batchProcessVisible.value = true
 }
 
+/** 提交批量处理 */
 async function handleBatchProcess() {
   if (!batchForm.processResult) {
     ElMessage.warning('请选择处理结果')
@@ -808,13 +870,15 @@ async function handleBatchProcess() {
   }
 }
 
-// ===================== 初始化 =====================
+// ===================== 生命周期钩子 =====================
+/** 组件挂载：加载列表、统计和路由详情 */
 onMounted(async () => {
   await loadData()
   await openDetailFromRoute()
   loadStatistics()
 })
 
+/** 监听路由alertId变化，自动打开对应详情 */
 watch(
   () => route.query.alertId,
   () => {

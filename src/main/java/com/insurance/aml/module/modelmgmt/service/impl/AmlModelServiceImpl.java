@@ -29,23 +29,35 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 反洗钱模型管理服务实现。
+ * 反洗钱模型管理服务实现类
+ * 覆盖模型全生命周期管理：创建、测试、部署、监控、迭代、归档
+ * 支持模型性能指标跟踪和漂移检测
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.service.AmlModelService {
 
+    /** 草稿状态 */
     private static final String STATUS_DRAFT = "DRAFT";
+    /** 测试通过状态 */
     private static final String STATUS_TEST_PASSED = "TEST_PASSED";
+    /** 已部署状态 */
     private static final String STATUS_DEPLOYED = "DEPLOYED";
+    /** 监控中状态 */
     private static final String STATUS_MONITORING = "MONITORING";
+    /** 迭代中状态 */
     private static final String STATUS_ITERATING = "ITERATING";
+    /** 已归档状态 */
     private static final String STATUS_ARCHIVED = "ARCHIVED";
 
     private final AmlModelMapper modelMapper;
     private final AmlModelLifecycleLogMapper lifecycleLogMapper;
 
+    /**
+     * 获取模型管理概览统计
+     * 统计各生命周期状态模型数量及需要关注的模型
+     */
     @Override
     public ModelOverviewVO overview() {
         List<AmlModel> models = modelMapper.selectList(new LambdaQueryWrapper<>());
@@ -77,6 +89,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
                 .build();
     }
 
+    /**
+     * 分页查询模型列表
+     * 支持按关键词、模型类型、应用场景、生命周期状态、风险等级筛选
+     */
     @Override
     public PageResult<AmlModel> pageModels(ModelQueryRequest request) {
         LambdaQueryWrapper<AmlModel> wrapper = new LambdaQueryWrapper<>();
@@ -96,11 +112,18 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return PageResult.from(page);
     }
 
+    /**
+     * 根据ID获取模型详情
+     */
     @Override
     public AmlModel getModel(Long id) {
         return loadModel(id);
     }
 
+    /**
+     * 创建新模型
+     * 自动生成版本号、治理等级和风险等级默认值
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel createModel(ModelCreateRequest request) {
@@ -117,6 +140,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 更新模型基础信息
+     * 已归档模型不允许修改
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel updateModel(Long id, ModelCreateRequest request) {
@@ -133,6 +160,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 模型测试
+     * 记录测试结果和验证数据集，更新性能指标
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel testModel(Long id, ModelLifecycleRequest request) {
@@ -151,6 +182,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 模型部署
+     * 将模型部署到指定环境（默认UAT），开始监控
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel deployModel(Long id, ModelLifecycleRequest request) {
@@ -168,6 +203,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 模型监控
+     * 刷新监控指标，根据漂移分数和误报率推断监控状态
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel monitorModel(Long id, ModelLifecycleRequest request) {
@@ -185,6 +224,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 模型迭代
+     * 进入迭代优化阶段，自动升级补丁版本号
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel iterateModel(Long id, ModelLifecycleRequest request) {
@@ -201,6 +244,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 模型归档
+     * 下线模型并记录归档原因，停止监控
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmlModel archiveModel(Long id, ModelLifecycleRequest request) {
@@ -216,6 +263,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 分页查询模型生命周期日志
+     */
     @Override
     public PageResult<AmlModelLifecycleLog> pageLifecycleLogs(Long modelId, PageQuery pageQuery) {
         loadModel(modelId);
@@ -227,6 +277,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return PageResult.from(page);
     }
 
+    /**
+     * 将创建请求的属性复制到模型实体
+     */
     private void applyRequest(AmlModel model, ModelCreateRequest request) {
         BeanUtils.copyProperties(request, model);
         if (!StringUtils.hasText(model.getVersion())) {
@@ -240,6 +293,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         }
     }
 
+    /**
+     * 加载模型，不存在则抛出异常
+     */
     private AmlModel loadModel(Long id) {
         AmlModel model = modelMapper.selectById(id);
         if (model == null) {
@@ -248,12 +304,18 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return model;
     }
 
+    /**
+     * 确保模型未归档，已归档模型禁止变更
+     */
     private void ensureNotArchived(AmlModel model) {
         if (STATUS_ARCHIVED.equals(model.getLifecycleStatus())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "已归档模型不能继续变更");
         }
     }
 
+    /**
+     * 确保模型编码唯一
+     */
     private void ensureModelCodeUnique(String modelCode, Long excludeId) {
         LambdaQueryWrapper<AmlModel> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(AmlModel::getModelCode, modelCode);
@@ -265,6 +327,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         }
     }
 
+    /**
+     * 应用性能指标到模型
+     */
     private void applyMetrics(AmlModel model, ModelLifecycleRequest request) {
         model.setPrecisionRate(firstMetric(request.getPrecisionRate(), model.getPrecisionRate(), "0.9000"));
         model.setRecallRate(firstMetric(request.getRecallRate(), model.getRecallRate(), "0.8500"));
@@ -272,11 +337,17 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         model.setDriftScore(firstMetric(request.getDriftScore(), model.getDriftScore(), "0.0500"));
     }
 
+    /**
+     * 添加生命周期日志（使用当前用户作为操作人）
+     */
     private void addLog(AmlModel model, String actionType, String fromStatus, String toStatus,
                         String summary, String resultMetric, String artifactRef) {
         addLog(model, actionType, fromStatus, toStatus, summary, resultMetric, artifactRef, null);
     }
 
+    /**
+     * 添加生命周期日志
+     */
     private void addLog(AmlModel model, String actionType, String fromStatus, String toStatus,
                         String summary, String resultMetric, String artifactRef, String operator) {
         AmlModelLifecycleLog log = new AmlModelLifecycleLog();
@@ -293,6 +364,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         lifecycleLogMapper.insert(log);
     }
 
+    /**
+     * 根据指标推断监控状态
+     * 漂移分数≥0.15标记为DRIFTED，误报率≥0.20标记为ATTENTION
+     */
     private String inferMonitorStatus(ModelLifecycleRequest request) {
         if (exceeds(request.getDriftScore(), "0.1500")) {
             return "DRIFTED";
@@ -303,6 +378,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return "NORMAL";
     }
 
+    /**
+     * 将模型指标序列化为JSON字符串
+     */
     private String metricsJson(AmlModel model) {
         return String.format(
                 "{\"precisionRate\":%s,\"recallRate\":%s,\"falsePositiveRate\":%s,\"driftScore\":%s,\"version\":\"%s\"}",
@@ -313,18 +391,30 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
                 model.getVersion());
     }
 
+    /**
+     * 将BigDecimal格式化为4位小数字符串
+     */
     private String numberOrNull(BigDecimal value) {
         return value == null ? "null" : value.setScale(4, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /**
+     * 统计指定状态的模型数量
+     */
     private long countStatus(List<AmlModel> models, String status) {
         return models.stream().filter(model -> status.equals(model.getLifecycleStatus())).count();
     }
 
+    /**
+     * 判断数值是否超过阈值
+     */
     private boolean exceeds(BigDecimal value, String threshold) {
         return value != null && value.compareTo(new BigDecimal(threshold)) >= 0;
     }
 
+    /**
+     * 计算BigDecimal列表平均值
+     */
     private BigDecimal average(List<BigDecimal> values) {
         List<BigDecimal> present = values.stream().filter(Objects::nonNull).toList();
         if (present.isEmpty()) {
@@ -334,6 +424,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return total.divide(BigDecimal.valueOf(present.size()), 4, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 获取第一个非空文本值
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -343,6 +436,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return null;
     }
 
+    /**
+     * 获取第一个非空指标值，否则返回默认值
+     */
     private BigDecimal firstMetric(BigDecimal requested, BigDecimal existing, String fallback) {
         if (requested != null) {
             return requested;
@@ -353,6 +449,9 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         return new BigDecimal(fallback);
     }
 
+    /**
+     * 升级补丁版本号（如 1.0.0 → 1.0.1）
+     */
     private String bumpPatchVersion(String version) {
         if (!StringUtils.hasText(version)) {
             return "1.0.1";

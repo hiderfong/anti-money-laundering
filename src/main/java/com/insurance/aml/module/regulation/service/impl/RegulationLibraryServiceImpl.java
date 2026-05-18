@@ -25,22 +25,33 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 法规及资料库服务实现。
+ * 法规及资料库服务实现类
+ * 管理法规分类、法规文档的全生命周期：创建、发布、归档、查询
+ * 支持分类名称同步更新到关联文档
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class RegulationLibraryServiceImpl implements RegulationLibraryService {
 
+    /** 启用状态 */
     private static final String STATUS_ENABLED = "ENABLED";
+    /** 已发布状态 */
     private static final String STATUS_PUBLISHED = "PUBLISHED";
+    /** 已归档状态 */
     private static final String STATUS_ARCHIVED = "ARCHIVED";
+    /** 监管更新文档类型 */
     private static final String DOC_TYPE_REGULATORY_UPDATE = "REGULATORY_UPDATE";
+    /** 行业更新文档类型 */
     private static final String DOC_TYPE_INDUSTRY_UPDATE = "INDUSTRY_UPDATE";
 
     private final RegulationCategoryMapper categoryMapper;
     private final RegulationDocumentMapper documentMapper;
 
+    /**
+     * 获取法规库概览统计
+     * 统计文档总数、各类型数量、已发布数量、重要文档数量及分类数
+     */
     @Override
     public RegulationOverviewVO overview() {
         List<RegulationDocument> documents = documentMapper.selectList(new LambdaQueryWrapper<>());
@@ -60,6 +71,10 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
                 .build();
     }
 
+    /**
+     * 查询法规分类列表
+     * 支持按状态筛选，按排序号和创建时间升序排列
+     */
     @Override
     public List<RegulationCategory> listCategories(String status) {
         LambdaQueryWrapper<RegulationCategory> wrapper = new LambdaQueryWrapper<>();
@@ -69,6 +84,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return categoryMapper.selectList(wrapper);
     }
 
+    /**
+     * 创建法规分类
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationCategory createCategory(RegulationCategoryRequest request) {
@@ -79,6 +97,10 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return category;
     }
 
+    /**
+     * 更新法规分类
+     * 更新后同步分类名称到关联的所有文档
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationCategory updateCategory(Long id, RegulationCategoryRequest request) {
@@ -90,6 +112,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return category;
     }
 
+    /**
+     * 分页查询法规文档
+     */
     @Override
     public PageResult<RegulationDocument> pageDocuments(RegulationDocumentQueryRequest request) {
         LambdaQueryWrapper<RegulationDocument> wrapper = buildDocumentWrapper(request);
@@ -97,6 +122,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return PageResult.from(page);
     }
 
+    /**
+     * 分页查询法规更新记录（监管更新和行业更新）
+     */
     @Override
     public PageResult<RegulationDocument> pageUpdates(RegulationDocumentQueryRequest request) {
         LambdaQueryWrapper<RegulationDocument> wrapper = buildDocumentWrapper(request)
@@ -105,6 +133,10 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return PageResult.from(page);
     }
 
+    /**
+     * 获取法规文档详情
+     * 自动增加浏览次数
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationDocument getDocument(Long id) {
@@ -114,6 +146,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return document;
     }
 
+    /**
+     * 创建法规文档
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationDocument createDocument(RegulationDocumentRequest request) {
@@ -124,6 +159,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return document;
     }
 
+    /**
+     * 更新法规文档
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationDocument updateDocument(Long id, RegulationDocumentRequest request) {
@@ -134,6 +172,10 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return document;
     }
 
+    /**
+     * 发布法规文档
+     * 首次发布时自动设置发布日期
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationDocument publishDocument(Long id) {
@@ -146,6 +188,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return document;
     }
 
+    /**
+     * 归档法规文档
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegulationDocument archiveDocument(Long id) {
@@ -155,6 +200,10 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return document;
     }
 
+    /**
+     * 构建法规文档查询条件
+     * 支持关键词全文检索、文档类型、分类、状态、来源类型、重要标记筛选
+     */
     private LambdaQueryWrapper<RegulationDocument> buildDocumentWrapper(RegulationDocumentQueryRequest request) {
         LambdaQueryWrapper<RegulationDocument> wrapper = new LambdaQueryWrapper<>();
         wrapper.and(StringUtils.hasText(request.getKeyword()), query -> query
@@ -178,6 +227,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return wrapper;
     }
 
+    /**
+     * 应用分类请求到实体
+     */
     private void applyCategory(RegulationCategory category, RegulationCategoryRequest request) {
         BeanUtils.copyProperties(request, category);
         if (!StringUtils.hasText(category.getCategoryType())) {
@@ -194,6 +246,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         }
     }
 
+    /**
+     * 应用文档请求到实体
+     */
     private void applyDocument(RegulationDocument document, RegulationDocumentRequest request) {
         BeanUtils.copyProperties(request, document);
         RegulationCategory category = request.getCategoryId() == null ? null : loadCategory(request.getCategoryId());
@@ -212,6 +267,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         }
     }
 
+    /**
+     * 加载分类，不存在则抛出异常
+     */
     private RegulationCategory loadCategory(Long id) {
         RegulationCategory category = categoryMapper.selectById(id);
         if (category == null) {
@@ -220,6 +278,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return category;
     }
 
+    /**
+     * 加载文档，不存在则抛出异常
+     */
     private RegulationDocument loadDocument(Long id) {
         RegulationDocument document = documentMapper.selectById(id);
         if (document == null) {
@@ -228,6 +289,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         return document;
     }
 
+    /**
+     * 确保分类编码唯一
+     */
     private void ensureCategoryCodeUnique(String categoryCode, Long excludeId) {
         LambdaQueryWrapper<RegulationCategory> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RegulationCategory::getCategoryCode, categoryCode);
@@ -239,6 +303,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         }
     }
 
+    /**
+     * 确保文档编码唯一
+     */
     private void ensureDocCodeUnique(String docCode, Long excludeId) {
         LambdaQueryWrapper<RegulationDocument> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RegulationDocument::getDocCode, docCode);
@@ -250,6 +317,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         }
     }
 
+    /**
+     * 同步分类名称到关联文档
+     */
     private void syncCategoryName(RegulationCategory category) {
         LambdaQueryWrapper<RegulationDocument> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RegulationDocument::getCategoryId, category.getId());
@@ -260,6 +330,9 @@ public class RegulationLibraryServiceImpl implements RegulationLibraryService {
         }
     }
 
+    /**
+     * 统计指定文档类型的数量
+     */
     private long countType(List<RegulationDocument> documents, String docType) {
         return documents.stream().filter(doc -> docType.equals(doc.getDocType())).count();
     }

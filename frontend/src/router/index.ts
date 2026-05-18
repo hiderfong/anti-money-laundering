@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
+/**
+ * 创建 Vue Router 实例
+ * 使用 history 模式，配置所有业务模块路由及权限控制元数据
+ */
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -49,7 +53,11 @@ const router = createRouter({
   ]
 })
 
-// 路由守卫
+// ========== 路由守卫 ==========
+/**
+ * 全局前置守卫
+ * 处理登录校验、角色权限校验和页面标题
+ */
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('aml_token')
 
