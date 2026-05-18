@@ -28,6 +28,8 @@ git ls-files -z \
   ':!:scripts/cleanup-e2e-data.sh' \
   ':!:scripts/replace-legacy-mock-data.sh' \
   ':!:scripts/seed-neo4j-graph-data.sh' \
+  ':!:src/main/resources/db/migration/V002__init_data.sql' \
+  ':!:src/main/resources/db/migration/V004__fix_admin_password_hash.sql' \
   ':!:src/test/**' \
   ':!:frontend/scripts/frontend-browser-e2e.mjs' \
   ':!:docs/development/**' \
