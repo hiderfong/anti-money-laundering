@@ -22,8 +22,9 @@ connection_ttl="${MAVEN_HTTP_CONNECTION_TTL_SECONDS:-120}"
 settings_file="${CI_MAVEN_SETTINGS_FILE:-}"
 default_mirror_enabled="${CI_MAVEN_USE_DEFAULT_MIRROR:-true}"
 default_mirror_url="${CI_MAVEN_MIRROR_URL:-https://maven.aliyun.com/repository/public}"
+fallback_to_central="${CI_MAVEN_FALLBACK_TO_CENTRAL:-true}"
 
-maven_args=(
+base_maven_args=(
     -B
     -ntp
     "-Dmaven.wagon.http.retryHandler.count=${retry_count}"
@@ -32,6 +33,8 @@ maven_args=(
     "-Daether.connector.requestTimeout=${read_timeout}"
     "-Dmaven.wagon.httpconnectionManager.ttlSeconds=${connection_ttl}"
 )
+maven_args=("${base_maven_args[@]}")
+using_generated_default_mirror="false"
 
 if [ -n "$settings_file" ]; then
     maven_args+=(-s "$settings_file")
@@ -50,6 +53,7 @@ elif [ "$default_mirror_enabled" = "true" ]; then
 </settings>
 EOF
     maven_args+=(-s "$generated_settings")
+    using_generated_default_mirror="true"
     trap 'rm -f "$generated_settings"' EXIT
 fi
 
@@ -65,22 +69,45 @@ run_maven() {
     fi
 }
 
-for attempt in $(seq 1 "$attempts"); do
-    echo "Maven attempt ${attempt}/${attempts} (${attempt_timeout}s timeout): mvn ${maven_args[*]} $*"
-    set +e
-    run_maven "$@"
-    status=$?
-    set -e
+run_with_retries() {
+    local label="$1"
+    local status=0
+    shift
 
-    if [ "$status" -eq 0 ]; then
+    for attempt in $(seq 1 "$attempts"); do
+        echo "Maven ${label} attempt ${attempt}/${attempts} (${attempt_timeout}s timeout): mvn ${maven_args[*]} $*"
+        set +e
+        run_maven "$@"
+        status=$?
+        set -e
+
+        if [ "$status" -eq 0 ]; then
+            return 0
+        fi
+
+        if [ "$attempt" -lt "$attempts" ]; then
+            echo "Maven ${label} attempt ${attempt} failed with exit code ${status}; cleaning partial transfer markers before retry."
+            find "${HOME}/.m2/repository" -name "*.lastUpdated" -delete 2>/dev/null || true
+            sleep $((base_delay * attempt))
+        fi
+    done
+
+    return "$status"
+}
+
+if run_with_retries "primary" "$@"; then
+    exit 0
+fi
+
+initial_status=$?
+if [ "$using_generated_default_mirror" = "true" ] && [ "$fallback_to_central" = "true" ]; then
+    echo "Generated Maven mirror failed; retrying against Maven Central without the generated mirror."
+    find "${HOME}/.m2/repository" -name "*.lastUpdated" -delete 2>/dev/null || true
+    maven_args=("${base_maven_args[@]}")
+    if run_with_retries "central fallback" "$@"; then
         exit 0
     fi
+    exit "$?"
+fi
 
-    if [ "$attempt" -ge "$attempts" ]; then
-        exit "$status"
-    fi
-
-    echo "Maven attempt ${attempt} failed with exit code ${status}; cleaning partial transfer markers before retry."
-    find "${HOME}/.m2/repository" -name "*.lastUpdated" -delete 2>/dev/null || true
-    sleep $((base_delay * attempt))
-done
+exit "$initial_status"
