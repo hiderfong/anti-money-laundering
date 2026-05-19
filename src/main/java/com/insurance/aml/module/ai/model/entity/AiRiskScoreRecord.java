@@ -5,6 +5,7 @@ import com.insurance.aml.common.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -39,6 +40,6 @@ public class AiRiskScoreRecord extends BaseEntity {
     private String manualReviewComment;
     private String reviewedBy;
     private LocalDateTime reviewedAt;
-    private java.math.BigDecimal modelProbability;
+    private BigDecimal modelProbability;
     private String modelLabelPredicted;
 }
