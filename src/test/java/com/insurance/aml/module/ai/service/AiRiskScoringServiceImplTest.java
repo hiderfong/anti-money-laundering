@@ -7,7 +7,10 @@ import com.insurance.aml.module.ai.mapper.AiRiskScoreRecordMapper;
 import com.insurance.aml.module.ai.service.impl.AiRiskScoringServiceImpl;
 import com.insurance.aml.module.ai.service.support.AiRiskFactorEvaluator;
 import com.insurance.aml.module.ai.service.support.AiRiskFeatureBuilder;
+import com.insurance.aml.module.ai.service.support.AiRiskFeatureVectorizer;
+import com.insurance.aml.module.ai.service.support.AiRiskModelTrainingService;
 import com.insurance.aml.module.ai.service.support.AiRiskReviewService;
+import com.insurance.aml.module.ai.service.support.AiRiskSupervisedModel;
 import com.insurance.aml.module.alert.mapper.AlertMapper;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.modelmgmt.mapper.AmlModelMapper;
@@ -60,6 +63,12 @@ class AiRiskScoringServiceImplTest {
     AiRiskFactorEvaluator factorEvaluator;
     @Mock
     AiRiskReviewService reviewService;
+    @Mock
+    AiRiskSupervisedModel supervisedModel;
+    @Mock
+    AiRiskFeatureVectorizer featureVectorizer;
+    @Mock
+    AiRiskModelTrainingService trainingService;
 
     @InjectMocks
     AiRiskScoringServiceImpl service;

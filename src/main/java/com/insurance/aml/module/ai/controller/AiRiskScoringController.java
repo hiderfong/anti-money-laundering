@@ -3,6 +3,7 @@ package com.insurance.aml.module.ai.controller;
 import com.insurance.aml.common.result.Result;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.module.ai.model.dto.AiRiskModelStatusVO;
+import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolItemVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolOverviewVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolQueryRequest;
@@ -49,6 +50,20 @@ public class AiRiskScoringController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:view') or hasAuthority('monitoring:view')")
     public Result<AiRiskModelStatusVO> getModelStatus() {
         return Result.success(aiRiskScoringService.getModelStatus());
+    }
+
+    @PostMapping("/model/retrain")
+    @Operation(summary = "触发监督模型重训练")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:manage')")
+    public Result<AiRiskTrainingResultVO> retrainModel() {
+        return Result.success(aiRiskScoringService.retrainModel());
+    }
+
+    @GetMapping("/model/training-status")
+    @Operation(summary = "查询监督模型训练状态")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:view') or hasAuthority('monitoring:view')")
+    public Result<AiRiskTrainingResultVO> trainingStatus() {
+        return Result.success(aiRiskScoringService.trainingStatus());
     }
 
     @GetMapping("/review-pool/overview")

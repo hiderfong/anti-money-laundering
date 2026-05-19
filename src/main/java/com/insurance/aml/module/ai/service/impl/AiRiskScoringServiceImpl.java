@@ -16,11 +16,15 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolQueryRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
+import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
 import com.insurance.aml.module.ai.model.entity.AiRiskScoreRecord;
 import com.insurance.aml.module.ai.service.AiRiskScoringService;
 import com.insurance.aml.module.ai.service.support.AiRiskFactorEvaluator;
 import com.insurance.aml.module.ai.service.support.AiRiskFeatureBuilder;
+import com.insurance.aml.module.ai.service.support.AiRiskFeatureVectorizer;
+import com.insurance.aml.module.ai.service.support.AiRiskModelTrainingService;
 import com.insurance.aml.module.ai.service.support.AiRiskReviewService;
+import com.insurance.aml.module.ai.service.support.AiRiskSupervisedModel;
 import com.insurance.aml.module.alert.mapper.AlertMapper;
 import com.insurance.aml.module.alert.model.entity.Alert;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
@@ -69,6 +73,9 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     private final AiRiskFeatureBuilder featureBuilder;
     private final AiRiskFactorEvaluator factorEvaluator;
     private final AiRiskReviewService reviewService;
+    private final AiRiskSupervisedModel supervisedModel;
+    private final AiRiskFeatureVectorizer featureVectorizer;
+    private final AiRiskModelTrainingService trainingService;
 
     @Override
     public AiRiskScoreVO scoreCustomer(Long customerId) {
@@ -163,6 +170,16 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     @Override
     public byte[] exportReviewPool(AiRiskReviewPoolQueryRequest request) {
         return reviewService.exportReviewPool(request);
+    }
+
+    @Override
+    public AiRiskTrainingResultVO retrainModel() {
+        return trainingService.retrain();
+    }
+
+    @Override
+    public AiRiskTrainingResultVO trainingStatus() {
+        return trainingService.trainingStatus();
     }
 
     @Override
@@ -269,6 +286,7 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
         record.setEvidenceSnapshotJson(toJson(result.getEvidence()));
         record.setRecommendationJson(toJson(result.getRecommendations()));
         record.setScoredAt(result.getScoredAt());
+        applyShadowModelScore(record, result.getFeatureSummary());
         scoreRecordMapper.insert(record);
 
         result.setRecordId(record.getId());
@@ -280,6 +298,25 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
         int suffix = ThreadLocalRandom.current().nextInt(1000, 10000);
         return "AIRISK" + timestamp + suffix;
+    }
+
+    /**
+     * 影子写入监督模型概率分。失败仅告警，绝不影响规则评分与落库。
+     */
+    private void applyShadowModelScore(AiRiskScoreRecord record, AiRiskFeatureSummaryVO features) {
+        try {
+            if (features == null || !supervisedModel.isReady()) {
+                return;
+            }
+            supervisedModel.predictProbability(featureVectorizer.toVector(features))
+                    .ifPresent(prob -> {
+                        record.setModelProbability(
+                                new java.math.BigDecimal(prob).setScale(4, java.math.RoundingMode.HALF_UP));
+                        record.setModelLabelPredicted(prob >= 0.5 ? "SUSPICIOUS" : "NORMAL");
+                    });
+        } catch (Exception e) {
+            log.warn("AI监督模型影子评分失败，不影响规则评分: {}", e.getMessage());
+        }
     }
 
     private String buildFactorSummary(AiRiskScoreVO result) {

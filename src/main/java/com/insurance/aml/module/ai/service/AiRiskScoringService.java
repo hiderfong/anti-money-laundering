@@ -7,6 +7,7 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolQueryRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
+import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
 import com.insurance.aml.common.result.PageResult;
 
 import java.util.List;
@@ -33,4 +34,8 @@ public interface AiRiskScoringService {
     byte[] exportReviewPool(AiRiskReviewPoolQueryRequest request);
 
     AiRiskModelStatusVO getModelStatus();
+
+    AiRiskTrainingResultVO retrainModel();
+
+    AiRiskTrainingResultVO trainingStatus();
 }
