@@ -40,8 +40,8 @@ Anti-money-Laundering/
 │       ├── service/                 # 服务层单元测试
 │       ├── controller/              # 控制器测试
 │       └── integration/             # 集成测试
+├── src/main/resources/db/migration/ # Flyway 数据库版本迁移脚本（权威位置）
 ├── sql/
-│   ├── migration/                   # 数据库版本迁移脚本
 │   └── scripts/                     # 数据库维护脚本
 ├── scripts/                         # 部署和运维脚本
 ├── config/                          # 环境配置文件
