@@ -3,7 +3,7 @@ package com.insurance.aml.module.prevention.service;
 import com.insurance.aml.common.result.PageQuery;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.module.alert.model.entity.Alert;
-import com.insurance.aml.module.case_.model.entity.Case;
+import com.insurance.aml.module.casemgmt.model.entity.Case;
 import com.insurance.aml.module.prevention.model.dto.*;
 import com.insurance.aml.module.prevention.model.entity.FreezeSeizureDeduction;
 import com.insurance.aml.module.prevention.model.entity.RetrospectiveScreeningJob;

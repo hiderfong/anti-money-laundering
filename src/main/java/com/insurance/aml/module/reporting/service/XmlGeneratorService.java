@@ -1,7 +1,7 @@
 package com.insurance.aml.module.reporting.service;
 
 import com.insurance.aml.module.reporting.model.entity.LargeTxnReport;
-import com.insurance.aml.module.case_.model.entity.StrReport;
+import com.insurance.aml.module.casemgmt.model.entity.StrReport;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.kyc.model.entity.Customer;
 import lombok.extern.slf4j.Slf4j;
