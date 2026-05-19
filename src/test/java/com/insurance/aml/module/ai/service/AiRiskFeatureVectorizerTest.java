@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DisplayName("AI风险特征向量化器测试")
 class AiRiskFeatureVectorizerTest {
@@ -32,15 +33,30 @@ class AiRiskFeatureVectorizerTest {
     }
 
     @Test
-    @DisplayName("特征值按固定顺序映射")
-    void toVector_mapsKnownPositions() {
+    @DisplayName("特征值按固定顺序映射(全12位)")
+    void toVector_mapsAllPositions() {
         AiRiskFeatureSummaryVO f = new AiRiskFeatureSummaryVO();
-        f.setTransactionCount90d(7);
-        f.setTotalAmount90d(BigDecimal.valueOf(1234.5));
-        f.setKycCompleteness(80);
+        f.setTransactionCount90d(1);                 // 0
+        f.setTotalAmount90d(BigDecimal.valueOf(2));  // 1
+        f.setMaxAmount90d(BigDecimal.valueOf(3));    // 2
+        f.setCashTransactionCount90d(4);             // 3
+        f.setCrossBorderTransactionCount90d(5);      // 4
+        f.setHighAmountTransactionCount90d(6);       // 5
+        f.setDistinctCounterpartyCount90d(7);        // 6
+        f.setActiveAlertCount(8);                    // 7
+        f.setHighRiskAlertCount(9);                  // 8
+        f.setConfirmedSuspiciousAlertCount(10);      // 9
+        f.setKycCompleteness(11);                    // 10
+        f.setWatchlistHitCount(12);                  // 11
         double[] v = vectorizer.toVector(f);
-        assertEquals(7.0, v[0], 0.0001);
-        assertEquals(1234.5, v[1], 0.0001);
-        assertEquals(80.0, v[10], 0.0001);
+        for (int i = 0; i < AiRiskFeatureVectorizer.FEATURE_DIM; i++) {
+            assertEquals(i + 1.0, v[i], 0.0001, "position " + i);
+        }
+    }
+
+    @Test
+    @DisplayName("null输入抛IllegalArgumentException")
+    void toVector_nullInput_throws() {
+        assertThrows(IllegalArgumentException.class, () -> vectorizer.toVector(null));
     }
 }

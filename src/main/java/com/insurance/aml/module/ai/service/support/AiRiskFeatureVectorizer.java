@@ -19,6 +19,9 @@ public class AiRiskFeatureVectorizer {
     public static final int FEATURE_DIM = 12;
 
     public double[] toVector(AiRiskFeatureSummaryVO f) {
+        if (f == null) {
+            throw new IllegalArgumentException("AiRiskFeatureSummaryVO must not be null");
+        }
         return new double[]{
                 f.getTransactionCount90d(),                 // 0
                 d(f.getTotalAmount90d()),                    // 1
