@@ -703,6 +703,60 @@ export interface ModelLifecycleLog {
   artifactRef: string
 }
 
+export interface AiRiskReviewPoolParams extends PageParams {
+  subjectType?: string
+  riskLevel?: string
+  autoLabel?: string
+  minScore?: number
+  modelCode?: string
+  pendingOnly?: boolean
+}
+
+export interface AiRiskReviewPoolItem {
+  id: string
+  scoreNo: string
+  subjectType: string
+  subjectId: string
+  subjectName: string
+  modelCode: string
+  modelName: string
+  modelVersion: string
+  score: number
+  riskLevel: string
+  confidence: number
+  autoLabel: string
+  autoLabelText: string
+  reviewStatus: string
+  priorityLevel: string
+  verificationBasis: string
+  factorSummary: string
+  scoredAt: string
+  manualReviewLabel?: string
+  manualReviewLabelText?: string
+  manualReviewComment?: string
+  reviewedBy?: string
+  reviewedAt?: string
+}
+
+export interface AiRiskReviewPoolOverview {
+  totalScores: number | string
+  pendingReviewCount: number | string
+  likelyTruePositiveCount: number | string
+  likelyFalsePositiveCount: number | string
+  unconfirmedCount: number | string
+  highOrCriticalCount: number | string
+  corroboratedCount: number | string
+  highScoreNoRuleHitCount: number | string
+  lowScoreWithDispositionCount: number | string
+  latestScoredAt: string
+}
+
+export interface AiRiskReviewRequest {
+  reviewLabel: string
+  reviewComment?: string
+  reviewer?: string
+}
+
 // ===================== 法规及资料库模块 =====================
 
 export interface RegulationCategory {

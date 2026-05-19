@@ -245,6 +245,50 @@
         </el-descriptions-item>
         <el-descriptions-item label="交易时间" :span="2">{{ txDetail.transactionTime }}</el-descriptions-item>
       </el-descriptions>
+      <section v-if="txDetail" class="ai-risk-panel" v-loading="txAiRiskLoading">
+        <div class="ai-risk-header">
+          <div>
+            <div class="ai-risk-title">AI辅助交易研判</div>
+            <div class="ai-risk-subtitle">结合交易金额、历史行为、客户背景、规则预警和账户复用特征</div>
+          </div>
+          <el-tag :type="aiRiskTagType(txAiRisk?.riskLevel)" size="small">
+            {{ aiRiskLevelText(txAiRisk?.riskLevel) }}
+          </el-tag>
+        </div>
+        <div v-if="txAiRisk" class="ai-risk-body">
+          <div class="ai-risk-score-box">
+            <strong>{{ txAiRisk.score ?? 0 }}</strong>
+            <span>AI风险分</span>
+            <em>置信度 {{ txAiRisk.confidence ?? 0 }}%</em>
+            <em>v{{ txAiRisk.modelVersion || '1.0.0' }}</em>
+          </div>
+          <div class="ai-risk-factor-list">
+            <div
+              v-for="factor in (txAiRisk.factors || []).slice(0, 4)"
+              :key="factor.factorCode"
+              class="ai-risk-factor"
+            >
+              <div>
+                <span>{{ factor.factorName }}</span>
+                <strong>+{{ factor.contribution }}</strong>
+              </div>
+              <p>{{ factor.evidence }}</p>
+            </div>
+          </div>
+        </div>
+        <div v-if="txAiRisk?.recommendations?.length" class="ai-risk-recommendations">
+          <div v-for="item in txAiRisk.recommendations" :key="item">{{ item }}</div>
+        </div>
+        <div v-if="txAiRiskHistory.length" class="ai-risk-history">
+          <div class="ai-risk-history-title">最近评分记录</div>
+          <div v-for="record in txAiRiskHistory" :key="record.id" class="ai-risk-history-item">
+            <span>{{ formatAiRiskTime(record.scoredAt) }}</span>
+            <strong>{{ record.score }}</strong>
+            <em>{{ aiRiskLevelText(record.riskLevel) }} · v{{ record.modelVersion || '-' }}</em>
+          </div>
+        </div>
+        <el-empty v-else-if="!txAiRiskLoading && !txAiRisk" description="暂无AI研判结果" :image-size="72" />
+      </section>
       <section v-if="txDetail" class="tx-flow-panel">
         <div class="flow-section-header">
           <div>
@@ -503,11 +547,20 @@ async function loadTransactions() {
 const txDetailVisible = ref(false)
 /** 当前查看的交易详情数据 */
 const txDetail = ref<any>(null)
+/** 当前交易AI风险评分 */
+const txAiRisk = ref<any>(null)
+/** 当前交易AI风险评分加载状态 */
+const txAiRiskLoading = ref(false)
+/** 当前交易AI风险评分历史 */
+const txAiRiskHistory = ref<any[]>([])
 
 /** 打开交易详情弹窗 */
 function openTxDetail(row: any) {
   txDetail.value = row
+  txAiRisk.value = null
+  txAiRiskHistory.value = []
   txDetailVisible.value = true
+  fetchTransactionAiRisk(row)
 }
 
 /** 销毁资金流向图ECharts实例 */
@@ -528,6 +581,8 @@ watch(txDetailVisible, (visible) => {
     scheduleTransactionFlowRender()
   } else {
     disposeTransactionFlowChart()
+    txAiRisk.value = null
+    txAiRiskHistory.value = []
   }
 })
 
@@ -537,6 +592,37 @@ watch(txDetail, () => {
     scheduleTransactionFlowRender()
   }
 })
+
+/** 加载当前交易AI风险评分 */
+async function fetchTransactionAiRisk(row: any) {
+  if (!row?.id) return
+  txAiRiskLoading.value = true
+  try {
+    const res: any = await request.get(`/ai/risk/transactions/${row.id}`)
+    txAiRisk.value = res.data || null
+    const historyRes: any = await request.get(`/ai/risk/transactions/${row.id}/history`, { params: { limit: 5 } })
+    txAiRiskHistory.value = historyRes.data || []
+  } catch (e) {
+    txAiRisk.value = null
+    txAiRiskHistory.value = []
+  } finally {
+    txAiRiskLoading.value = false
+  }
+}
+
+function aiRiskTagType(level: string) {
+  const map: Record<string, string> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger', CRITICAL: 'danger' }
+  return (map[level] || 'info') as any
+}
+
+function aiRiskLevelText(level: string) {
+  const map: Record<string, string> = { LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险', CRITICAL: '极高风险' }
+  return map[level] || level || '待评分'
+}
+
+function formatAiRiskTime(value: string) {
+  return value ? value.replace('T', ' ').slice(0, 16) : '-'
+}
 
 /** 计算交易的风险等级标签与样式 */
 function transactionFlowRisk(row: any): { label: string; type: 'success' | 'warning' | 'danger' | 'info' } {
@@ -1756,6 +1842,150 @@ onUnmounted(() => {
   background: #fbfdff;
 }
 
+.ai-risk-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.ai-risk-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ai-risk-title {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ai-risk-subtitle {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-risk-body {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ai-risk-score-box {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-height: 112px;
+  border: 1px solid #dbeafe;
+  border-radius: 6px;
+  background: #eff6ff;
+}
+
+.ai-risk-score-box strong {
+  color: #1d4ed8;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.ai-risk-score-box span,
+.ai-risk-score-box em {
+  color: #475569;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.ai-risk-factor-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-risk-factor {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.ai-risk-factor div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-risk-factor strong {
+  color: #dc2626;
+}
+
+.ai-risk-factor p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-risk-recommendations {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ai-risk-recommendations div {
+  padding: 8px 10px;
+  border-left: 3px solid #2563eb;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-risk-history {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-risk-history-title {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-risk-history-item {
+  display: grid;
+  grid-template-columns: 120px 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-risk-history-item strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.ai-risk-history-item em {
+  color: #475569;
+  font-style: normal;
+}
+
 .flow-section-header {
   display: flex;
   align-items: flex-start;
@@ -1820,6 +2050,11 @@ onUnmounted(() => {
 
   .graph-insights {
     min-height: auto;
+  }
+
+  .ai-risk-body,
+  .ai-risk-factor-list {
+    grid-template-columns: 1fr;
   }
 }
 

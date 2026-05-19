@@ -61,6 +61,135 @@
       </div>
     </section>
 
+    <section class="ai-review-panel">
+      <div class="ai-review-header">
+        <div>
+          <h2>AI评分监控与待复核池</h2>
+          <p>暂无专职合规复核时，系统基于处置链路生成弱标签，用于风险排序和后续批量抽查</p>
+        </div>
+        <div class="ai-review-header-actions">
+          <el-button :loading="aiReviewExporting" @click="exportAiReviewPool">
+            <el-icon><Download /></el-icon>导出清单
+          </el-button>
+          <el-button @click="refreshAiReview">
+            <el-icon><Refresh /></el-icon>刷新监控
+          </el-button>
+        </div>
+      </div>
+
+      <div class="ai-review-metrics">
+        <div class="ai-review-metric danger">
+          <span>高风险及以上</span>
+          <strong>{{ toNumber(aiReviewOverview.highOrCriticalCount) }}</strong>
+        </div>
+        <div class="ai-review-metric warning">
+          <span>待延后复核</span>
+          <strong>{{ toNumber(aiReviewOverview.pendingReviewCount) }}</strong>
+        </div>
+        <div class="ai-review-metric success">
+          <span>疑似有效风险</span>
+          <strong>{{ toNumber(aiReviewOverview.likelyTruePositiveCount) }}</strong>
+        </div>
+        <div class="ai-review-metric">
+          <span>尚未确认</span>
+          <strong>{{ toNumber(aiReviewOverview.unconfirmedCount) }}</strong>
+        </div>
+        <div class="ai-review-metric danger">
+          <span>高分无规则印证</span>
+          <strong>{{ toNumber(aiReviewOverview.highScoreNoRuleHitCount) }}</strong>
+        </div>
+      </div>
+
+      <div class="ai-review-toolbar">
+        <el-select v-model="aiReviewQuery.subjectType" placeholder="主体类型" clearable @change="loadAiReviewPool">
+          <el-option label="客户" value="CUSTOMER" />
+          <el-option label="交易" value="TRANSACTION" />
+          <el-option label="预警" value="ALERT" />
+        </el-select>
+        <el-select v-model="aiReviewQuery.riskLevel" placeholder="风险等级" clearable @change="loadAiReviewPool">
+          <el-option v-for="item in aiRiskLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <el-select v-model="aiReviewQuery.autoLabel" placeholder="系统弱标签" clearable @change="loadAiReviewPool">
+          <el-option label="疑似有效风险" value="LIKELY_TRUE_POSITIVE" />
+          <el-option label="疑似误报" value="LIKELY_FALSE_POSITIVE" />
+          <el-option label="尚未确认" value="UNCONFIRMED" />
+        </el-select>
+        <el-input-number v-model="aiReviewQuery.minScore" :min="0" :max="100" :step="5" controls-position="right" @change="loadAiReviewPool" />
+        <el-checkbox v-model="aiReviewQuery.pendingOnly" @change="loadAiReviewPool">仅待复核</el-checkbox>
+      </div>
+
+      <el-table :data="aiReviewItems" v-loading="aiReviewLoading" stripe border style="width: 100%">
+        <el-table-column prop="priorityLevel" label="优先级" width="86" fixed="left">
+          <template #default="{ row }">
+            <el-tag :type="priorityType(row.priorityLevel)" size="small">{{ row.priorityLevel }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="主体" min-width="210" fixed="left">
+          <template #default="{ row }">
+            <div class="ai-subject-cell">
+              <strong>{{ row.subjectName || '-' }}</strong>
+              <span>{{ subjectTypeText(row.subjectType) }} · {{ row.subjectId }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="score" label="AI风险分" width="130">
+          <template #default="{ row }">
+            <div class="ai-score-cell">
+              <strong>{{ row.score }}</strong>
+              <el-progress :percentage="Number(row.score || 0)" :show-text="false" :color="scoreColor(row.score)" />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="riskLevel" label="风险等级" width="110">
+          <template #default="{ row }">
+            <el-tag :type="aiRiskType(row.riskLevel)" size="small">{{ aiRiskLevelText(row.riskLevel) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="autoLabelText" label="系统弱标签" width="130">
+          <template #default="{ row }">
+            <el-tag :type="autoLabelType(row.autoLabel)" size="small">{{ row.autoLabelText }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="reviewStatus" label="复核状态" width="130">
+          <template #default="{ row }">
+            <el-tag :type="reviewStatusType(row.reviewStatus)" size="small">{{ reviewStatusText(row.reviewStatus) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="manualReviewLabelText" label="人工确认" width="130">
+          <template #default="{ row }">
+            <el-tag v-if="row.manualReviewLabel" :type="manualReviewLabelType(row.manualReviewLabel)" size="small">
+              {{ row.manualReviewLabelText }}
+            </el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="verificationBasis" label="系统判断依据" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="factorSummary" label="主要贡献因子" min-width="280" show-overflow-tooltip />
+        <el-table-column label="模型版本" width="120">
+          <template #default="{ row }">v{{ row.modelVersion }}</template>
+        </el-table-column>
+        <el-table-column prop="scoredAt" label="评分时间" min-width="170" />
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="openAiReview(row)">
+              {{ row.manualReviewLabel ? '更新复核' : '登记复核' }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        v-model:current-page="aiReviewQuery.page"
+        v-model:page-size="aiReviewQuery.size"
+        :total="aiReviewTotal"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        class="ai-review-pagination"
+        @current-change="loadAiReviewPool"
+        @size-change="aiReviewQuery.page = 1; loadAiReviewPool()"
+      />
+    </section>
+
     <section class="table-panel">
       <div class="toolbar">
         <el-input v-model="query.keyword" placeholder="模型编码 / 名称 / 责任人" clearable @keyup.enter="loadModels" />
@@ -131,6 +260,32 @@
         </el-table-column>
       </el-table>
     </section>
+
+    <el-dialog v-model="aiReviewDialogVisible" title="登记AI评分复核结果" width="560px" destroy-on-close>
+      <el-form :model="aiReviewForm" label-width="96px">
+        <el-form-item label="评分对象">
+          <el-input :model-value="currentAiReviewItem ? `${subjectTypeText(currentAiReviewItem.subjectType)} · ${currentAiReviewItem.subjectName}` : ''" disabled />
+        </el-form-item>
+        <el-form-item label="AI风险分">
+          <el-input :model-value="currentAiReviewItem ? `${currentAiReviewItem.score} / ${aiRiskLevelText(currentAiReviewItem.riskLevel)}` : ''" disabled />
+        </el-form-item>
+        <el-form-item label="系统判断">
+          <el-input :model-value="currentAiReviewItem?.verificationBasis || '-'" type="textarea" :rows="2" disabled />
+        </el-form-item>
+        <el-form-item label="复核标签" required>
+          <el-select v-model="aiReviewForm.reviewLabel" style="width: 100%;">
+            <el-option v-for="item in manualReviewLabelOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="复核备注">
+          <el-input v-model="aiReviewForm.reviewComment" type="textarea" :rows="4" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aiReviewDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="aiReviewSubmitting" @click="submitAiReview">保存复核结果</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="modelDialogVisible" :title="editingModelId ? '编辑模型' : '新增模型'" width="760px" destroy-on-close>
       <el-form :model="modelForm" label-width="110px">
@@ -255,9 +410,9 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import type { ECharts } from 'echarts'
 import { ElMessage } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Download, Plus, Refresh } from '@element-plus/icons-vue'
 import { modelApi } from '@/api/modules'
-import type { AmlModel, ModelLifecycleLog } from '@/api/types'
+import type { AiRiskReviewPoolItem, AiRiskReviewPoolOverview, AmlModel, ModelLifecycleLog } from '@/api/types'
 import { disposeEchart, getEcharts } from '@/utils/echarts'
 
 type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'archive'
@@ -267,6 +422,7 @@ const submitting = ref(false)
 const logLoading = ref(false)
 const models = ref<AmlModel[]>([])
 const logs = ref<ModelLifecycleLog[]>([])
+const aiReviewItems = ref<AiRiskReviewPoolItem[]>([])
 const currentModel = ref<AmlModel | null>(null)
 const currentAction = ref<LifecycleAction>('test')
 const lifecycleChartRef = ref<HTMLElement | null>(null)
@@ -275,6 +431,12 @@ const editingModelId = ref<string>('')
 const modelDialogVisible = ref(false)
 const lifecycleDialogVisible = ref(false)
 const logsDialogVisible = ref(false)
+const aiReviewLoading = ref(false)
+const aiReviewExporting = ref(false)
+const aiReviewSubmitting = ref(false)
+const aiReviewTotal = ref(0)
+const aiReviewDialogVisible = ref(false)
+const currentAiReviewItem = ref<AiRiskReviewPoolItem | null>(null)
 let lifecycleChart: ECharts | null = null
 let healthChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
@@ -290,6 +452,19 @@ const overview = reactive({
   attentionModels: 0,
   averageFalsePositiveRate: 0,
   averageDriftScore: 0
+})
+
+const aiReviewOverview = reactive<AiRiskReviewPoolOverview>({
+  totalScores: 0,
+  pendingReviewCount: 0,
+  likelyTruePositiveCount: 0,
+  likelyFalsePositiveCount: 0,
+  unconfirmedCount: 0,
+  highOrCriticalCount: 0,
+  corroboratedCount: 0,
+  highScoreNoRuleHitCount: 0,
+  lowScoreWithDispositionCount: 0,
+  latestScoredAt: ''
 })
 
 const query = reactive({
@@ -334,6 +509,21 @@ const lifecycleForm = reactive({
   driftScore: 0.05
 })
 
+const aiReviewQuery = reactive({
+  page: 1,
+  size: 10,
+  subjectType: '',
+  riskLevel: '',
+  autoLabel: '',
+  minScore: 65,
+  pendingOnly: true
+})
+
+const aiReviewForm = reactive({
+  reviewLabel: 'TRUE_POSITIVE',
+  reviewComment: ''
+})
+
 const modelTypeOptions = [
   { label: '规则模型', value: 'RULE' },
   { label: '统计模型', value: 'STATISTICAL' },
@@ -374,6 +564,19 @@ const riskOptions = [
   { label: '高', value: 'HIGH' }
 ]
 
+const aiRiskLevelOptions = [
+  { label: '低风险', value: 'LOW' },
+  { label: '中风险', value: 'MEDIUM' },
+  { label: '高风险', value: 'HIGH' },
+  { label: '极高风险', value: 'CRITICAL' }
+]
+
+const manualReviewLabelOptions = [
+  { label: '确认有效风险', value: 'TRUE_POSITIVE' },
+  { label: '确认误报', value: 'FALSE_POSITIVE' },
+  { label: '继续观察', value: 'NEEDS_MONITORING' }
+]
+
 const lifecycleTitle = computed(() => ({
   test: '登记模型测试',
   deploy: '登记模型部署',
@@ -412,6 +615,85 @@ async function loadModels() {
     models.value = res.data?.list || []
   } finally {
     loading.value = false
+  }
+}
+
+async function loadAiReviewOverview() {
+  const res: any = await modelApi.getAiRiskReviewOverview()
+  Object.assign(aiReviewOverview, res.data || {})
+}
+
+async function loadAiReviewPool() {
+  aiReviewLoading.value = true
+  try {
+    const res: any = await modelApi.getAiRiskReviewPool({
+      page: aiReviewQuery.page,
+      size: aiReviewQuery.size,
+      subjectType: aiReviewQuery.subjectType || undefined,
+      riskLevel: aiReviewQuery.riskLevel || undefined,
+      autoLabel: aiReviewQuery.autoLabel || undefined,
+      minScore: aiReviewQuery.minScore,
+      pendingOnly: aiReviewQuery.pendingOnly
+    })
+    aiReviewItems.value = res.data?.list || []
+    aiReviewTotal.value = Number(res.data?.total || 0)
+  } finally {
+    aiReviewLoading.value = false
+  }
+}
+
+async function refreshAiReview() {
+  aiReviewQuery.page = 1
+  await Promise.all([loadAiReviewOverview(), loadAiReviewPool()])
+}
+
+function openAiReview(row: AiRiskReviewPoolItem) {
+  currentAiReviewItem.value = row
+  aiReviewForm.reviewLabel = row.manualReviewLabel || labelFromAutoLabel(row.autoLabel)
+  aiReviewForm.reviewComment = row.manualReviewComment || ''
+  aiReviewDialogVisible.value = true
+}
+
+async function submitAiReview() {
+  if (!currentAiReviewItem.value) return
+  aiReviewSubmitting.value = true
+  try {
+    await modelApi.reviewAiRiskScore(currentAiReviewItem.value.id, {
+      reviewLabel: aiReviewForm.reviewLabel,
+      reviewComment: aiReviewForm.reviewComment || undefined
+    })
+    ElMessage.success('AI评分复核结果已登记')
+    aiReviewDialogVisible.value = false
+    await refreshAiReview()
+  } finally {
+    aiReviewSubmitting.value = false
+  }
+}
+
+async function exportAiReviewPool() {
+  aiReviewExporting.value = true
+  try {
+    const res: any = await modelApi.exportAiRiskReviewPool({
+      page: 1,
+      size: 10000,
+      subjectType: aiReviewQuery.subjectType || undefined,
+      riskLevel: aiReviewQuery.riskLevel || undefined,
+      autoLabel: aiReviewQuery.autoLabel || undefined,
+      minScore: aiReviewQuery.minScore,
+      pendingOnly: aiReviewQuery.pendingOnly
+    })
+    const blob = res instanceof Blob ? res : new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `AI评分待复核清单-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    ElMessage.success('AI评分待复核清单已导出')
+  } finally {
+    aiReviewExporting.value = false
   }
 }
 
@@ -589,6 +871,74 @@ function formatScore(value?: number) {
   return Number(value).toFixed(4)
 }
 
+function toNumber(value: number | string | undefined) {
+  const n = Number(value || 0)
+  return Number.isFinite(n) ? n : 0
+}
+
+function subjectTypeText(value: string) {
+  return { CUSTOMER: '客户', TRANSACTION: '交易', ALERT: '预警' }[value] || value || '-'
+}
+
+function aiRiskLevelText(value: string) {
+  return optionLabel(aiRiskLevelOptions, value)
+}
+
+function aiRiskType(level: string) {
+  if (level === 'CRITICAL' || level === 'HIGH') return 'danger'
+  if (level === 'MEDIUM') return 'warning'
+  if (level === 'LOW') return 'success'
+  return 'info'
+}
+
+function autoLabelType(value: string) {
+  if (value === 'LIKELY_TRUE_POSITIVE') return 'success'
+  if (value === 'LIKELY_FALSE_POSITIVE') return 'info'
+  return 'warning'
+}
+
+function priorityType(value: string) {
+  if (value === 'P0') return 'danger'
+  if (value === 'P1') return 'warning'
+  if (value === 'P2') return 'primary'
+  return 'info'
+}
+
+function reviewStatusText(value: string) {
+  return {
+    PENDING_REVIEW: '待延后复核',
+    DEFERRED_REVIEW: '高优先级留痕',
+    AUTO_WEAK_LABELED: '系统弱标注',
+    MANUAL_REVIEWED: '已人工确认'
+  }[value] || value || '-'
+}
+
+function reviewStatusType(value: string) {
+  if (value === 'MANUAL_REVIEWED') return 'success'
+  if (value === 'PENDING_REVIEW' || value === 'DEFERRED_REVIEW') return 'warning'
+  return 'info'
+}
+
+function manualReviewLabelType(value: string) {
+  if (value === 'TRUE_POSITIVE') return 'danger'
+  if (value === 'FALSE_POSITIVE') return 'info'
+  return 'warning'
+}
+
+function labelFromAutoLabel(value: string) {
+  if (value === 'LIKELY_TRUE_POSITIVE') return 'TRUE_POSITIVE'
+  if (value === 'LIKELY_FALSE_POSITIVE') return 'FALSE_POSITIVE'
+  return 'NEEDS_MONITORING'
+}
+
+function scoreColor(score: number) {
+  const value = Number(score || 0)
+  if (value >= 85) return '#991b1b'
+  if (value >= 65) return '#dc2626'
+  if (value >= 35) return '#d97706'
+  return '#16a34a'
+}
+
 function countModelsByStatus(statuses: string[]) {
   return models.value.filter(item => statuses.includes(item.lifecycleStatus)).length
 }
@@ -732,7 +1082,7 @@ function disposeModelCharts() {
 }
 
 onMounted(() => {
-  Promise.all([loadOverview(), loadModels()]).then(renderModelVisualizations)
+  Promise.all([loadOverview(), loadModels(), loadAiReviewOverview(), loadAiReviewPool()]).then(renderModelVisualizations)
   resizeHandler = () => {
     lifecycleChart?.resize()
     healthChart?.resize()
@@ -858,6 +1208,130 @@ onUnmounted(() => {
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: 8px;
+}
+
+.ai-review-panel {
+  padding: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.ai-review-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.ai-review-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ai-review-header p {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-review-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ai-review-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-review-metric {
+  min-height: 74px;
+  padding: 13px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.ai-review-metric span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-review-metric strong {
+  display: block;
+  margin-top: 7px;
+  color: #111827;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.ai-review-metric.success strong {
+  color: #16a34a;
+}
+
+.ai-review-metric.warning strong {
+  color: #d97706;
+}
+
+.ai-review-metric.danger strong {
+  color: #dc2626;
+}
+
+.ai-review-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-review-toolbar .el-select {
+  width: 150px;
+}
+
+.ai-subject-cell {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ai-subject-cell strong {
+  color: #111827;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-subject-cell span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-score-cell {
+  display: grid;
+  gap: 5px;
+}
+
+.ai-score-cell strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.ai-review-pagination {
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 .toolbar {

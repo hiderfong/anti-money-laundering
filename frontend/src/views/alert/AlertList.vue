@@ -192,6 +192,50 @@
         <el-descriptions-item label="处理时间">{{ detailData.processTime || '-' }}</el-descriptions-item>
         <el-descriptions-item label="生成时间">{{ detailData.createdTime || '-' }}</el-descriptions-item>
       </el-descriptions>
+      <section class="ai-risk-panel" v-loading="alertAiRiskLoading">
+        <div class="ai-risk-header">
+          <div>
+            <div class="ai-risk-title">AI辅助预警研判</div>
+            <div class="ai-risk-subtitle">综合预警自身风险、客户背景、交易链路、案件和STR历史</div>
+          </div>
+          <el-tag :type="aiRiskTagType(alertAiRisk?.riskLevel)" size="small">
+            {{ aiRiskLevelText(alertAiRisk?.riskLevel) }}
+          </el-tag>
+        </div>
+        <div v-if="alertAiRisk" class="ai-risk-body">
+          <div class="ai-risk-score-box">
+            <strong>{{ alertAiRisk.score ?? 0 }}</strong>
+            <span>AI风险分</span>
+            <em>置信度 {{ alertAiRisk.confidence ?? 0 }}%</em>
+            <em>v{{ alertAiRisk.modelVersion || '1.0.0' }}</em>
+          </div>
+          <div class="ai-risk-factor-list">
+            <div
+              v-for="factor in (alertAiRisk.factors || []).slice(0, 4)"
+              :key="factor.factorCode"
+              class="ai-risk-factor"
+            >
+              <div>
+                <span>{{ factor.factorName }}</span>
+                <strong>+{{ factor.contribution }}</strong>
+              </div>
+              <p>{{ factor.evidence }}</p>
+            </div>
+          </div>
+        </div>
+        <div v-if="alertAiRisk?.recommendations?.length" class="ai-risk-recommendations">
+          <div v-for="item in alertAiRisk.recommendations" :key="item">{{ item }}</div>
+        </div>
+        <div v-if="alertAiRiskHistory.length" class="ai-risk-history">
+          <div class="ai-risk-history-title">最近评分记录</div>
+          <div v-for="record in alertAiRiskHistory" :key="record.id" class="ai-risk-history-item">
+            <span>{{ formatAiRiskTime(record.scoredAt) }}</span>
+            <strong>{{ record.score }}</strong>
+            <em>{{ aiRiskLevelText(record.riskLevel) }} · v{{ record.modelVersion || '-' }}</em>
+          </div>
+        </div>
+        <el-empty v-else-if="!alertAiRiskLoading && !alertAiRisk" description="暂无AI研判结果" :image-size="72" />
+      </section>
       <section class="alert-chain-panel" v-loading="chainLoading">
         <div class="chain-header">
           <div>
@@ -462,6 +506,12 @@ const detailData = ref<Partial<AlertItem>>({})
 const chainLoading = ref(false)
 /** 处置链路数据 */
 const dispositionChain = ref<DispositionChain | null>(null)
+/** AI预警风险评分 */
+const alertAiRisk = ref<any>(null)
+/** AI预警风险评分加载状态 */
+const alertAiRiskLoading = ref(false)
+/** AI预警风险评分历史 */
+const alertAiRiskHistory = ref<any[]>([])
 /** 处置链路证据卡片数据 */
 const chainEvidence = computed(() => {
   const chain = dispositionChain.value
@@ -558,6 +608,25 @@ function statusTagType(status: unknown): '' | 'success' | 'warning' | 'danger' |
   }
   const key = typeof status === 'string' ? status : ''
   return map[key] || 'info'
+}
+
+function aiRiskTagType(level: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+    LOW: 'success',
+    MEDIUM: 'warning',
+    HIGH: 'danger',
+    CRITICAL: 'danger'
+  }
+  return map[level] || 'info'
+}
+
+function aiRiskLevelText(level: string) {
+  const map: Record<string, string> = { LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险', CRITICAL: '极高风险' }
+  return map[level] || level || '待评分'
+}
+
+function formatAiRiskTime(value: string) {
+  return value ? value.replace('T', ' ').slice(0, 16) : '-'
 }
 
 /** 将逗号/空格/分号分隔的ID字符串拆分为数组 */
@@ -720,11 +789,15 @@ async function openDetail(row: AlertItem) {
   detailVisible.value = true
   detailData.value = row
   dispositionChain.value = null
+  alertAiRisk.value = null
+  alertAiRiskHistory.value = []
   chainLoading.value = true
+  alertAiRiskLoading.value = true
   try {
-    const [detailResult, chainResult] = await Promise.allSettled([
+    const [detailResult, chainResult, aiRiskResult] = await Promise.allSettled([
       request.get(`/alerts/${row.id}`),
-      request.get(`/alerts/${row.id}/disposition-chain`)
+      request.get(`/alerts/${row.id}/disposition-chain`),
+      request.get(`/ai/risk/alerts/${row.id}`)
     ])
     if (detailResult.status === 'fulfilled') {
       const res: any = detailResult.value
@@ -734,10 +807,17 @@ async function openDetail(row: AlertItem) {
       const res: any = chainResult.value
       dispositionChain.value = res.data || null
     }
+    if (aiRiskResult.status === 'fulfilled') {
+      const res: any = aiRiskResult.value
+      alertAiRisk.value = res.data || null
+      const historyRes: any = await request.get(`/ai/risk/alerts/${row.id}/history`, { params: { limit: 5 } })
+      alertAiRiskHistory.value = historyRes.data || []
+    }
   } catch (e) {
     console.error('加载预警详情失败', e)
   } finally {
     chainLoading.value = false
+    alertAiRiskLoading.value = false
   }
 }
 
@@ -966,6 +1046,150 @@ watch(
   justify-content: flex-end;
 }
 
+.ai-risk-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.ai-risk-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ai-risk-title {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ai-risk-subtitle {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-risk-body {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ai-risk-score-box {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-height: 112px;
+  border: 1px solid #dbeafe;
+  border-radius: 6px;
+  background: #eff6ff;
+}
+
+.ai-risk-score-box strong {
+  color: #1d4ed8;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.ai-risk-score-box span,
+.ai-risk-score-box em {
+  color: #475569;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.ai-risk-factor-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-risk-factor {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.ai-risk-factor div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-risk-factor strong {
+  color: #dc2626;
+}
+
+.ai-risk-factor p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-risk-recommendations {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ai-risk-recommendations div {
+  padding: 8px 10px;
+  border-left: 3px solid #2563eb;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-risk-history {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-risk-history-title {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-risk-history-item {
+  display: grid;
+  grid-template-columns: 120px 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-risk-history-item strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.ai-risk-history-item em {
+  color: #475569;
+  font-style: normal;
+}
+
 .alert-chain-panel {
   margin-top: 16px;
   padding: 14px;
@@ -1129,6 +1353,11 @@ watch(
   }
 
   .chain-evidence-list {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-risk-body,
+  .ai-risk-factor-list {
     grid-template-columns: 1fr;
   }
 

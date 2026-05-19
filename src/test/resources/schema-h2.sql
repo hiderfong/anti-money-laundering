@@ -551,6 +551,30 @@ CREATE TABLE IF NOT EXISTS t_case_attachment (
   upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_str_report (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  report_no VARCHAR(32) NOT NULL,
+  case_id BIGINT,
+  customer_id BIGINT NOT NULL,
+  report_type VARCHAR(32),
+  report_status VARCHAR(32) DEFAULT 'DRAFT',
+  report_content CLOB,
+  analysis_opinion CLOB,
+  measures_taken CLOB,
+  writer_id BIGINT,
+  writer_time TIMESTAMP,
+  reviewer_id BIGINT,
+  reviewer_opinion CLOB,
+  reviewer_time TIMESTAMP,
+  approver_id BIGINT,
+  approver_opinion CLOB,
+  approver_time TIMESTAMP,
+  submit_time TIMESTAMP,
+  submit_result VARCHAR(2048),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS t_large_txn_report (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   report_no VARCHAR(32) NOT NULL,
@@ -727,6 +751,38 @@ CREATE TABLE IF NOT EXISTS t_aml_model_lifecycle_log (
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_ai_risk_score_record (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  score_no VARCHAR(64) NOT NULL,
+  subject_type VARCHAR(32) NOT NULL,
+  subject_id BIGINT NOT NULL,
+  subject_name VARCHAR(256),
+  customer_id BIGINT,
+  transaction_id BIGINT,
+  alert_id BIGINT,
+  model_id BIGINT,
+  model_code VARCHAR(64) NOT NULL,
+  model_name VARCHAR(256),
+  model_version VARCHAR(32) NOT NULL,
+  score INT NOT NULL,
+  risk_level VARCHAR(16) NOT NULL,
+  confidence INT DEFAULT 0,
+  factor_summary VARCHAR(1024),
+  feature_snapshot_json CLOB,
+  factor_snapshot_json CLOB,
+  evidence_snapshot_json CLOB,
+  recommendation_json CLOB,
+  scored_at TIMESTAMP NOT NULL,
+  manual_review_label VARCHAR(32),
+  manual_review_comment VARCHAR(1024),
+  reviewed_by VARCHAR(64),
+  reviewed_at TIMESTAMP,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS t_regulation_category (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   category_code VARCHAR(64) NOT NULL,
@@ -797,3 +853,18 @@ INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 10);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 11);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 12);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 13);
+
+INSERT INTO t_aml_model (
+  id, model_code, model_name, model_type, scenario, algorithm_type, version, lifecycle_status,
+  owner, governance_level, risk_level, training_dataset, validation_dataset, test_result,
+  deployment_env, monitor_status, precision_rate, recall_rate, false_positive_rate, drift_score,
+  description, config_json, created_by, updated_by
+) VALUES (
+  100, 'AI_AML_RISK_BASELINE_V1', 'AI可解释风险评分基线模型', 'HYBRID', 'CUSTOMER_RISK',
+  'EXPLAINABLE_SCORECARD', '1.0.0', 'MONITORING', '合规智能分析团队', 'L1', 'HIGH',
+  '客户、交易、预警、案件、STR、名单和关系特征实时抽取', 'E2E业务闭环样本与人工复核样本', 'PASS',
+  'TEST', 'NORMAL', 0.8600, 0.8100, 0.1800, 0.0500,
+  '面向客户、交易和预警对象的可解释AI风险评分基线。',
+  '{"subjects":["CUSTOMER","TRANSACTION","ALERT"],"windowDays":90,"explainable":true}',
+  'system', 'system'
+);

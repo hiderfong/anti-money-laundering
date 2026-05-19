@@ -85,6 +85,10 @@ import type {
   ModelCreateParams,
   ModelLifecycleParams,
   ModelLifecycleLog,
+  AiRiskReviewPoolParams,
+  AiRiskReviewPoolItem,
+  AiRiskReviewPoolOverview,
+  AiRiskReviewRequest,
   // 法规及资料库
   RegulationCategory,
   RegulationCategoryParams,
@@ -513,6 +517,22 @@ export const modelApi = {
   /** 生命周期记录 */
   getLogs(id: string, params?: PageParams) {
     return request.get<ApiResponse<PageResult<ModelLifecycleLog>>>(`/models/${id}/logs`, { params })
+  },
+  /** AI评分待复核池概览 */
+  getAiRiskReviewOverview() {
+    return request.get<ApiResponse<AiRiskReviewPoolOverview>>('/ai/risk/review-pool/overview')
+  },
+  /** AI评分待复核池 */
+  getAiRiskReviewPool(params: AiRiskReviewPoolParams) {
+    return request.get<ApiResponse<PageResult<AiRiskReviewPoolItem>>>('/ai/risk/review-pool', { params })
+  },
+  /** 登记AI评分复核结果 */
+  reviewAiRiskScore(recordId: string, data: AiRiskReviewRequest) {
+    return request.post<ApiResponse<AiRiskReviewPoolItem>>(`/ai/risk/review-pool/${recordId}/review`, data)
+  },
+  /** 导出AI评分待复核清单 */
+  exportAiRiskReviewPool(params: AiRiskReviewPoolParams) {
+    return request.get<Blob>('/ai/risk/review-pool/export', { params, responseType: 'blob' })
   },
 }
 

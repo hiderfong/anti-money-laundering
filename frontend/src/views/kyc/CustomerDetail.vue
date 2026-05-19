@@ -221,6 +221,63 @@
           </el-row>
         </el-card>
 
+        <el-card shadow="never" class="ai-risk-card" v-loading="aiRiskLoading">
+          <template #header>
+            <div class="risk-card-header">
+              <div>
+                <span>AI辅助风险识别</span>
+                <span class="section-subtitle">基于身份、交易、名单、预警、案件和图谱特征的可解释评分</span>
+              </div>
+              <el-tag :type="aiRiskTagType(aiRisk?.riskLevel)" size="large">
+                {{ aiRiskLevelText(aiRisk?.riskLevel) }}
+              </el-tag>
+            </div>
+          </template>
+          <div v-if="aiRisk" class="ai-risk-grid">
+            <div class="ai-risk-score">
+              <el-progress
+                type="dashboard"
+                :percentage="aiRisk.score || 0"
+                :color="aiRiskProgressColor(aiRisk.score || 0)"
+              />
+              <div class="ai-risk-score-meta">
+                <strong>{{ aiRisk.score ?? 0 }}</strong>
+                <span>置信度 {{ aiRisk.confidence ?? 0 }}%</span>
+                <span>v{{ aiRisk.modelVersion || '1.0.0' }}</span>
+              </div>
+            </div>
+            <div class="ai-risk-content">
+              <div class="ai-risk-factors">
+                <div
+                  v-for="factor in topAiRiskFactors"
+                  :key="factor.factorCode"
+                  class="ai-risk-factor"
+                >
+                  <div class="ai-risk-factor-main">
+                    <span>{{ factor.factorName }}</span>
+                    <strong>+{{ factor.contribution }}</strong>
+                  </div>
+                  <p>{{ factor.evidence }}</p>
+                </div>
+              </div>
+              <div class="ai-risk-suggestions">
+                <div v-for="item in aiRisk.recommendations || []" :key="item" class="ai-risk-suggestion">
+                  {{ item }}
+                </div>
+              </div>
+              <div v-if="aiRiskHistory.length" class="ai-risk-history">
+                <div class="ai-risk-history-title">最近评分记录</div>
+                <div v-for="record in aiRiskHistory" :key="record.id" class="ai-risk-history-item">
+                  <span>{{ formatAiRiskTime(record.scoredAt) }}</span>
+                  <strong>{{ record.score }}</strong>
+                  <em>{{ aiRiskLevelText(record.riskLevel) }} · v{{ record.modelVersion || '-' }}</em>
+                </div>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无AI风险评分" :image-size="72" />
+        </el-card>
+
         <!-- 历史变更记录 -->
         <el-divider content-position="left">历史变更记录</el-divider>
         <el-table :data="riskRatingLogs" border stripe empty-text="暂无风险评级变更记录">
@@ -275,6 +332,9 @@ const relationshipGraphChart = ref<HTMLElement | null>(null)
 const customer360 = ref<any>({})
 const relationshipGraph = ref<any>({ nodes: [], links: [], summary: {}, insights: [] })
 const relationshipLoading = ref(false)
+const aiRisk = ref<any>(null)
+const aiRiskLoading = ref(false)
+const aiRiskHistory = ref<any[]>([])
 let radarChart: EChartInstance | null = null
 let relationChart: EChartInstance | null = null
 let echartsModule: EchartsModule | null = null
@@ -329,7 +389,7 @@ const statusText = computed(() => {
 })
 
 const profileDimensions = computed(() => {
-  const riskScore = clampScore(customer.value.riskScore ?? riskLevelScore(customer.value.riskLevel))
+  const riskScore = clampScore(aiRisk.value?.score ?? customer.value.riskScore ?? riskLevelScore(customer.value.riskLevel))
   const identitySensitivity = clampScore(
     (customer.value.isSanctioned ? 100 : 0)
     || (customer.value.isPep ? 82 : 0)
@@ -395,9 +455,13 @@ const profileDimensions = computed(() => {
 const profileStats = computed(() => [
   { label: '客户类型', value: customerTypeText.value },
   { label: '风险等级', value: riskLevelText.value },
-  { label: 'KYC状态', value: kycStatusText.value },
+  { label: 'AI风险分', value: aiRisk.value ? `${aiRisk.value.score ?? 0}` : '-' },
   { label: '关联预警', value: `${customer360.value.alertCount ?? 0} 条` }
 ])
+
+const topAiRiskFactors = computed(() => {
+  return Array.isArray(aiRisk.value?.factors) ? aiRisk.value.factors.slice(0, 5) : []
+})
 
 const relationshipHasData = computed(() => {
   return Array.isArray(relationshipGraph.value?.nodes) && relationshipGraph.value.nodes.length > 0
@@ -509,6 +573,27 @@ function profileColor(value: number) {
   if (value >= 60) return '#d97706'
   if (value >= 40) return '#2563eb'
   return '#059669'
+}
+
+function aiRiskTagType(level: string): string {
+  const map: Record<string, string> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger', CRITICAL: 'danger' }
+  return (map[level] || 'info') as any
+}
+
+function aiRiskLevelText(level: string): string {
+  const map: Record<string, string> = { LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险', CRITICAL: '极高风险' }
+  return map[level] || level || '待评分'
+}
+
+function aiRiskProgressColor(score: number) {
+  if (score >= 85) return '#991b1b'
+  if (score >= 65) return '#dc2626'
+  if (score >= 35) return '#d97706'
+  return '#059669'
+}
+
+function formatAiRiskTime(value: string) {
+  return value ? value.replace('T', ' ').slice(0, 16) : '-'
 }
 
 function cssVar(name: string, fallback: string) {
@@ -803,11 +888,29 @@ async function fetchCustomerDetail() {
     verificationRecords.value = data.verificationHistory || data.verificationRecords || []
     riskRatingLogs.value = data.riskRatingHistory || data.riskRatingLogs || []
     await renderProfileRadar()
-    await fetchRelationshipGraph()
+    await Promise.allSettled([
+      fetchAiRiskScore(),
+      fetchRelationshipGraph()
+    ])
   } catch (e: any) {
     ElMessage.error('获取客户信息失败：' + (e.message || '未知错误'))
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchAiRiskScore() {
+  aiRiskLoading.value = true
+  try {
+    const res: any = await request.get(`/ai/risk/customers/${customerId.value}`)
+    aiRisk.value = res.data || null
+    const historyRes: any = await request.get(`/ai/risk/customers/${customerId.value}/history`, { params: { limit: 5 } })
+    aiRiskHistory.value = historyRes.data || []
+  } catch (e) {
+    aiRisk.value = null
+    aiRiskHistory.value = []
+  } finally {
+    aiRiskLoading.value = false
   }
 }
 
@@ -1140,6 +1243,138 @@ onUnmounted(() => {
   color: #303133;
 }
 
+.ai-risk-card {
+  margin-bottom: 20px;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.ai-risk-card :deep(.el-card__header) {
+  padding: 14px 16px;
+}
+
+.ai-risk-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.ai-risk-score {
+  position: relative;
+  display: grid;
+  justify-items: center;
+}
+
+.ai-risk-score-meta {
+  position: absolute;
+  top: 52px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.ai-risk-score-meta strong {
+  color: #111827;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.ai-risk-score-meta span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-risk-content {
+  min-width: 0;
+}
+
+.ai-risk-factors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-risk-factor {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.ai-risk-factor-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-risk-factor-main strong {
+  color: #dc2626;
+}
+
+.ai-risk-factor p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-risk-suggestions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ai-risk-suggestion {
+  padding: 9px 11px;
+  border-left: 3px solid #2563eb;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-risk-history {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.ai-risk-history-title {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-risk-history-item {
+  display: grid;
+  grid-template-columns: 120px 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-risk-history-item strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.ai-risk-history-item em {
+  color: #475569;
+  font-style: normal;
+}
+
 @media (max-width: 1200px) {
   .profile-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1150,6 +1385,10 @@ onUnmounted(() => {
   }
 
   .relationship-content {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-risk-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1172,7 +1411,8 @@ onUnmounted(() => {
 
   .profile-summary,
   .profile-dimensions,
-  .relationship-summary {
+  .relationship-summary,
+  .ai-risk-factors {
     grid-template-columns: 1fr;
   }
 
