@@ -50,6 +50,7 @@ public class AiRiskModelTrainingService {
     }
 
     public AiRiskTrainingResultVO retrain() {
+        // MVP: loads all labeled rows. TODO(perf): cap with a recency window (e.g. ORDER BY reviewed_at DESC LIMIT N) once the labeled corpus grows.
         List<AiRiskScoreRecord> records = scoreRecordMapper.selectList(
                 new LambdaQueryWrapper<AiRiskScoreRecord>()
                         .isNotNull(AiRiskScoreRecord::getManualReviewLabel)

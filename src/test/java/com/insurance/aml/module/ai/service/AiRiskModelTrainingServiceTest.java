@@ -12,8 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -21,11 +19,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("AI监督模型训练服务测试")
 class AiRiskModelTrainingServiceTest {
 
@@ -33,6 +31,7 @@ class AiRiskModelTrainingServiceTest {
     AiRiskScoreRecordMapper mapper;
 
     private AiRiskModelTrainingService newService() {
+        // modelPath intentionally unset; AiRiskSupervisedModel.save() NPE is swallowed by design — fine in unit context
         AiRiskModelTrainingService s = new AiRiskModelTrainingService(
                 mapper, new AiRiskFeatureVectorizer(), new AiRiskSupervisedModel(), new ObjectMapper());
         ReflectionTestUtils.setField(s, "minSamples", 4);
@@ -69,6 +68,7 @@ class AiRiskModelTrainingServiceTest {
         AiRiskTrainingResultVO result = newService().retrain();
 
         assertEquals("SKIPPED_SINGLE_CLASS", result.getStatus());
+        assertEquals(4, result.getSampleCount());
     }
 
     @Test
@@ -86,5 +86,7 @@ class AiRiskModelTrainingServiceTest {
         assertEquals(4, result.getSampleCount());
         assertEquals(2, result.getPositiveCount());
         assertEquals(2, result.getNegativeCount());
+        assertTrue(result.isModelReady());
+        assertTrue(result.getAuc() >= 0.0 && result.getAuc() <= 1.0);
     }
 }
