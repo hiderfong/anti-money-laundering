@@ -777,6 +777,8 @@ CREATE TABLE IF NOT EXISTS t_ai_risk_score_record (
   manual_review_comment VARCHAR(1024),
   reviewed_by VARCHAR(64),
   reviewed_at TIMESTAMP,
+  model_probability DECIMAL(5,4) DEFAULT NULL,
+  model_label_predicted VARCHAR(16) DEFAULT NULL,
   created_by VARCHAR(64),
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by VARCHAR(64),

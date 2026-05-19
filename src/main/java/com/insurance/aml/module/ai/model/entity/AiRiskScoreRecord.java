@@ -39,4 +39,6 @@ public class AiRiskScoreRecord extends BaseEntity {
     private String manualReviewComment;
     private String reviewedBy;
     private LocalDateTime reviewedAt;
+    private java.math.BigDecimal modelProbability;
+    private String modelLabelPredicted;
 }
