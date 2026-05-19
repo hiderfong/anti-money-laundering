@@ -49,8 +49,8 @@ public class HealthController {
 
         // 检查数据库连通性
         try (Connection connection = dataSource.getConnection()) {
+            connection.isValid(2);
             healthInfo.put("database", "UP");
-            healthInfo.put("databaseUrl", connection.getMetaData().getURL());
         } catch (Exception e) {
             log.error("数据库健康检查失败：{}", e.getMessage());
             healthInfo.put("database", "DOWN");

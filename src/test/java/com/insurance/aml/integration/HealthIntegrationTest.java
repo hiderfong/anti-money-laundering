@@ -23,7 +23,9 @@ public class HealthIntegrationTest extends BaseIntegrationTest {
         // MockMvc 默认不带context-path，直接用servletPath
         mockMvc.perform(get("/system/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").exists());
+                .andExpect(jsonPath("$.code").exists())
+                .andExpect(jsonPath("$.data.database").value("UP"))
+                .andExpect(jsonPath("$.data.databaseUrl").doesNotExist());
     }
 
     @Test
