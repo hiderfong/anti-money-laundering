@@ -311,7 +311,7 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
             supervisedModel.predictProbability(featureVectorizer.toVector(features))
                     .ifPresent(prob -> {
                         record.setModelProbability(
-                                new java.math.BigDecimal(prob).setScale(4, java.math.RoundingMode.HALF_UP));
+                                java.math.BigDecimal.valueOf(prob).setScale(4, java.math.RoundingMode.HALF_UP));
                         record.setModelLabelPredicted(prob >= 0.5 ? "SUSPICIOUS" : "NORMAL");
                     });
         } catch (Exception e) {

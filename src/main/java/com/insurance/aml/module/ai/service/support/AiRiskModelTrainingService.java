@@ -116,16 +116,17 @@ public class AiRiskModelTrainingService {
     }
 
     public AiRiskTrainingResultVO trainingStatus() {
+        boolean ready = supervisedModel.isReady();
         return AiRiskTrainingResultVO.builder()
-                .status(supervisedModel.isReady() ? "TRAINED" : "NOT_TRAINED")
-                .modelReady(supervisedModel.isReady())
+                .status(ready ? "TRAINED" : "NOT_TRAINED")
+                .modelReady(ready)
                 .sampleCount(supervisedModel.getSampleCount())
                 .positiveCount(supervisedModel.getPositiveCount())
                 .negativeCount(supervisedModel.getNegativeCount())
                 .accuracy(supervisedModel.getAccuracy())
                 .auc(supervisedModel.getAuc())
                 .trainedAt(supervisedModel.getTrainedAt())
-                .message(supervisedModel.isReady() ? "模型就绪" : "模型尚未训练")
+                .message(ready ? "模型就绪" : "模型尚未训练")
                 .build();
     }
 
