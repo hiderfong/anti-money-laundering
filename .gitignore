@@ -33,9 +33,13 @@ nbproject/
 
 # ---- OS Files ----
 .DS_Store
+._*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# ---- Backups / Local Operational Artifacts (DB dumps, hashes, build snapshots) ----
+backups/
 
 # ---- Logs ----
 logs/
