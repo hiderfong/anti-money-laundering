@@ -14,6 +14,7 @@ import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Properties;
@@ -88,20 +89,23 @@ public class AiRiskSupervisedModel {
             this.auc = auc;
             this.trainedAt = LocalDateTime.now();
             this.ready = true;
-            save();
         } finally {
             lock.writeLock().unlock();
         }
+        save();
     }
 
     private void save() {
         try {
             Path dir = Paths.get(modelPath);
             Files.createDirectories(dir);
+            Path modelTmp = dir.resolve(MODEL_FILE + ".tmp");
             try (ObjectOutputStream oos = new ObjectOutputStream(
-                    new BufferedOutputStream(Files.newOutputStream(dir.resolve(MODEL_FILE))))) {
+                    new BufferedOutputStream(Files.newOutputStream(modelTmp)))) {
                 oos.writeObject(model);
             }
+            Files.move(modelTmp, dir.resolve(MODEL_FILE),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             Properties props = new Properties();
             props.setProperty("sampleCount", String.valueOf(sampleCount));
             props.setProperty("positiveCount", String.valueOf(positiveCount));
@@ -109,9 +113,12 @@ public class AiRiskSupervisedModel {
             props.setProperty("accuracy", String.valueOf(accuracy));
             props.setProperty("auc", String.valueOf(auc));
             props.setProperty("trainedAt", trainedAt.toString());
-            try (var w = Files.newBufferedWriter(dir.resolve(META_FILE))) {
+            Path metaTmp = dir.resolve(META_FILE + ".tmp");
+            try (var w = Files.newBufferedWriter(metaTmp)) {
                 props.store(w, "ai-risk supervised model meta");
             }
+            Files.move(metaTmp, dir.resolve(META_FILE),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             log.info("[AI-ML] 监督模型已保存: {}", dir.toAbsolutePath());
         } catch (Exception e) {
             log.error("[AI-ML] 监督模型保存失败: {}", e.getMessage(), e);
