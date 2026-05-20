@@ -274,7 +274,10 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
                 .andReturn();
         JsonNode rb = objectMapper.readTree(retrain.getResponse().getContentAsString()).path("data");
         assertEquals("TRAINED", rb.path("status").asText(), "训练应返回TRAINED状态");
-        assertTrue(rb.path("sampleCount").asInt() >= 4, "训练样本量应至少达到 min-samples");
+        // 下界断言防止parseVector静默丢样本；允许前序测试遗留的已复核记录被一并消费。
+        assertTrue(rb.path("sampleCount").asInt() >= 30, "训练应至少消费30条种子样本");
+        assertTrue(rb.path("positiveCount").asInt() >= 15, "正样本应至少15条");
+        assertTrue(rb.path("negativeCount").asInt() >= 15, "负样本应至少15条");
         assertTrue(rb.path("modelReady").asBoolean(), "训练后模型应就绪");
 
         // 3) 训练状态接口应反映已就绪。
