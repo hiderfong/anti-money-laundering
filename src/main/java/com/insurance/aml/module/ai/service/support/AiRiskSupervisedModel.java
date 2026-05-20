@@ -46,6 +46,16 @@ public class AiRiskSupervisedModel {
     @Getter private volatile double accuracy;
     @Getter private volatile double auc;
     @Getter private volatile LocalDateTime trainedAt;
+    @Getter private volatile String lastTrainStatus;
+    @Getter private volatile String lastTrainError;
+
+    /**
+     * 记录最近一次训练尝试的结果与错误信息。不改变 ready / model 引用。
+     */
+    public void recordOutcome(String status, String errorMessage) {
+        this.lastTrainStatus = status;
+        this.lastTrainError = errorMessage;
+    }
 
     public boolean isReady() {
         return ready;

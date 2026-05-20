@@ -56,14 +56,30 @@ public class AiRiskModelTrainingService {
     public AiRiskTrainingResultVO retrain() {
         if (!trainingInProgress.compareAndSet(false, true)) {
             log.warn("[AI-ML] 已有训练正在进行，跳过重复触发");
-            return AiRiskTrainingResultVO.builder()
+            AiRiskTrainingResultVO skipped = AiRiskTrainingResultVO.builder()
                     .status("SKIPPED_IN_PROGRESS")
                     .modelReady(supervisedModel.isReady())
                     .message("训练正在进行中")
                     .build();
+            supervisedModel.recordOutcome(skipped.getStatus(), null);
+            return skipped;
         }
         try {
-            return doRetrain();
+            AiRiskTrainingResultVO result;
+            try {
+                result = doRetrain();
+            } catch (Exception e) {
+                log.error("[AI-ML] 监督模型训练失败: {}", e.getMessage(), e);
+                result = AiRiskTrainingResultVO.builder()
+                        .status("FAILED")
+                        .modelReady(supervisedModel.isReady())
+                        .message(e.getClass().getSimpleName() + ": " + e.getMessage())
+                        .build();
+            }
+            supervisedModel.recordOutcome(
+                    result.getStatus(),
+                    "FAILED".equals(result.getStatus()) ? result.getMessage() : null);
+            return result;
         } finally {
             trainingInProgress.set(false);
         }
@@ -146,7 +162,7 @@ public class AiRiskModelTrainingService {
                 .accuracy(supervisedModel.getAccuracy())
                 .auc(supervisedModel.getAuc())
                 .trainedAt(supervisedModel.getTrainedAt())
-                .message(ready ? "模型就绪" : "模型尚未训练")
+                .message(buildStatusMessage(ready))
                 .build();
     }
 
@@ -183,5 +199,17 @@ public class AiRiskModelTrainingService {
             log.warn("[AI-ML] 特征快照解析失败，跳过该样本: {}", e.getMessage());
             return null;
         }
+    }
+
+    private String buildStatusMessage(boolean ready) {
+        String last = supervisedModel.getLastTrainStatus();
+        String err = supervisedModel.getLastTrainError();
+        if (last == null) {
+            return ready ? "模型就绪" : "模型尚未训练";
+        }
+        if ("FAILED".equals(last) && err != null) {
+            return "上次训练失败: " + err;
+        }
+        return ready ? "模型就绪 (上次: " + last + ")" : "模型尚未训练 (上次: " + last + ")";
     }
 }

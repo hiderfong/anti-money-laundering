@@ -89,4 +89,21 @@ class AiRiskModelTrainingServiceTest {
         assertTrue(result.isModelReady());
         assertTrue(result.getAuc() >= 0.0 && result.getAuc() <= 1.0);
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("retrain 外层异常时返回FAILED并 recordOutcome")
+    void retrain_innerException_returnsFailed() {
+        AiRiskScoreRecordMapper mapper = org.mockito.Mockito.mock(AiRiskScoreRecordMapper.class);
+        when(mapper.selectList(any())).thenThrow(new RuntimeException("db down"));
+        AiRiskSupervisedModel realModel = new AiRiskSupervisedModel();
+        AiRiskModelTrainingService s = new AiRiskModelTrainingService(
+                mapper, new AiRiskFeatureVectorizer(), realModel, new com.fasterxml.jackson.databind.ObjectMapper());
+        org.springframework.test.util.ReflectionTestUtils.setField(s, "minSamples", 4);
+
+        AiRiskTrainingResultVO result = s.retrain();
+
+        assertEquals("FAILED", result.getStatus());
+        assertEquals("FAILED", realModel.getLastTrainStatus());
+        org.junit.jupiter.api.Assertions.assertNotNull(realModel.getLastTrainError());
+    }
 }

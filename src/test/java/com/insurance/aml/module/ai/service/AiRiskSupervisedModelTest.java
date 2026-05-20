@@ -54,4 +54,17 @@ class AiRiskSupervisedModelTest {
         assertTrue(reloaded.isReady());
         assertEquals(4, reloaded.getSampleCount());
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("recordOutcome 不动模型，仅写 lastTrainStatus/lastTrainError")
+    void recordOutcome_writesObservableFields() {
+        AiRiskSupervisedModel m = new AiRiskSupervisedModel();
+        m.recordOutcome("FAILED", "boom");
+        assertEquals("FAILED", m.getLastTrainStatus());
+        assertEquals("boom", m.getLastTrainError());
+        assertFalse(m.isReady(), "recordOutcome 不应改变 ready 标记");
+        m.recordOutcome("TRAINED", null);
+        assertEquals("TRAINED", m.getLastTrainStatus());
+        assertEquals(null, m.getLastTrainError(), "TRAINED 时应清空 lastTrainError");
+    }
 }
