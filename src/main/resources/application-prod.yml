@@ -78,6 +78,12 @@ aml:
   slow-query:
     enabled: true
     threshold: ${AML_SLOW_QUERY_THRESHOLD_MS:500}
+  ml:
+    model-path: ${AML_ML_MODEL_PATH:/var/lib/aml/models}
+    ai-risk:
+      model-path: ${AML_ML_AI_RISK_MODEL_PATH:${AML_ML_MODEL_PATH:/var/lib/aml/models}}
+      retrain-cron: "${AML_ML_AI_RISK_RETRAIN_CRON:0 0 3 * * SUN}"
+      min-samples: ${AML_ML_AI_RISK_MIN_SAMPLES:50}
 
 # ---- JWT Authentication ----
 jwt:

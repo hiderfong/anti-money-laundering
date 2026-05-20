@@ -33,7 +33,7 @@ public class AiRiskSupervisedModel {
     private static final String MODEL_FILE = "ai_risk_supervised.model";
     private static final String META_FILE = "ai_risk_supervised.meta";
 
-    @Value("${aml.ml.ai-risk.model-path:./data/models}")
+    @Value("${aml.ml.ai-risk.model-path:${aml.ml.model-path:./data/models}}")
     private String modelPath;
 
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
