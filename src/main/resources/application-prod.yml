@@ -80,6 +80,9 @@ aml:
     threshold: ${AML_SLOW_QUERY_THRESHOLD_MS:500}
   ml:
     model-path: ${AML_ML_MODEL_PATH:/var/lib/aml/models}
+    anomaly:
+      retrain-cron: "${AML_ML_ANOMALY_RETRAIN_CRON:0 30 3 * * SUN}"
+      min-samples: ${AML_ML_ANOMALY_MIN_SAMPLES:100}
     ai-risk:
       model-path: ${AML_ML_AI_RISK_MODEL_PATH:${AML_ML_MODEL_PATH:/var/lib/aml/models}}
       retrain-cron: "${AML_ML_AI_RISK_RETRAIN_CRON:0 0 3 * * SUN}"

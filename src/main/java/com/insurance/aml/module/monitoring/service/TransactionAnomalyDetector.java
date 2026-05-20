@@ -2,12 +2,15 @@ package com.insurance.aml.module.monitoring.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.insurance.aml.common.enums.TransactionStatus;
+import com.insurance.aml.module.ai.model.dto.AnomalyTrainingResultVO;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import smile.anomaly.IsolationForest;
 
@@ -19,6 +22,7 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -61,6 +65,12 @@ public class TransactionAnomalyDetector {
     @Value("${aml.ml.subsample-size:256}")
     private int subsampleSize;
 
+    @Value("${aml.ml.anomaly.retrain-cron:0 30 3 * * SUN}")
+    private String retrainCron;
+
+    @Value("${aml.ml.anomaly.min-samples:100}")
+    private int minSamples;
+
     /** 特征维度 */
     private static final int FEATURE_DIM = 6;
 
@@ -80,6 +90,17 @@ public class TransactionAnomalyDetector {
 
     /** 模型是否已加载/训练 */
     private volatile boolean modelReady = false;
+
+    private final AtomicBoolean trainingInProgress = new AtomicBoolean(false);
+    @Getter private volatile String lastTrainStatus;
+    @Getter private volatile String lastTrainError;
+    @Getter private volatile int lastTrainSampleCount;
+    @Getter private volatile long trainDurationMs;
+    @Getter private volatile LocalDateTime lastTrainedAt;
+
+    public boolean isModelReady() {
+        return modelReady;
+    }
 
     /**
      * 应用启动时尝试加载已保存的模型
@@ -102,6 +123,76 @@ public class TransactionAnomalyDetector {
     // ====================================================================
 
     /**
+     * 治理化训练入口：CAS 串行化 + min-samples 守卫 + 状态记录 + 异常兜底。
+     */
+    public AnomalyTrainingResultVO retrain() {
+        if (!trainingInProgress.compareAndSet(false, true)) {
+            log.warn("[ML] 已有训练正在进行，跳过重复触发");
+            this.lastTrainStatus = "SKIPPED_IN_PROGRESS";
+            return AnomalyTrainingResultVO.builder()
+                    .status("SKIPPED_IN_PROGRESS")
+                    .modelReady(modelReady)
+                    .message("训练正在进行中")
+                    .build();
+        }
+        long start = System.currentTimeMillis();
+        try {
+            int sampleCount;
+            try {
+                sampleCount = doTrain();
+            } catch (Exception e) {
+                log.error("[ML] Isolation Forest 训练失败: {}", e.getMessage(), e);
+                this.lastTrainStatus = "FAILED";
+                this.lastTrainError = e.getClass().getSimpleName() + ": " + e.getMessage();
+                this.trainDurationMs = System.currentTimeMillis() - start;
+                return AnomalyTrainingResultVO.builder()
+                        .status("FAILED")
+                        .modelReady(modelReady)
+                        .message(this.lastTrainError)
+                        .trainDurationMs(this.trainDurationMs)
+                        .build();
+            }
+
+            this.trainDurationMs = System.currentTimeMillis() - start;
+            if (sampleCount < minSamples) {
+                this.lastTrainStatus = "SKIPPED_INSUFFICIENT";
+                return AnomalyTrainingResultVO.builder()
+                        .status("SKIPPED_INSUFFICIENT")
+                        .modelReady(modelReady)
+                        .sampleCount(sampleCount)
+                        .trainDurationMs(this.trainDurationMs)
+                        .message("训练样本不足: " + sampleCount + " < " + minSamples)
+                        .build();
+            }
+            this.lastTrainStatus = "TRAINED";
+            this.lastTrainError = null;
+            this.lastTrainSampleCount = sampleCount;
+            this.lastTrainedAt = LocalDateTime.now();
+            return AnomalyTrainingResultVO.builder()
+                    .status("TRAINED")
+                    .modelReady(modelReady)
+                    .sampleCount(sampleCount)
+                    .trainDurationMs(this.trainDurationMs)
+                    .trainedAt(this.lastTrainedAt)
+                    .message("训练完成")
+                    .build();
+        } finally {
+            trainingInProgress.set(false);
+        }
+    }
+
+    @Scheduled(cron = "${aml.ml.anomaly.retrain-cron:0 30 3 * * SUN}")
+    public void scheduledRetrain() {
+        try {
+            AnomalyTrainingResultVO result = retrain();
+            log.info("[ML-Scheduler] 定时重训完成: status={}, samples={}, duration={}ms",
+                    result.getStatus(), result.getSampleCount(), result.getTrainDurationMs());
+        } catch (Exception e) {
+            log.error("[ML-Scheduler] 定时重训外层异常: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * 从历史交易数据训练Isolation Forest模型
      *
      * 流程:
@@ -113,7 +204,7 @@ public class TransactionAnomalyDetector {
      *
      * @return 训练样本数量
      */
-    public int train() {
+    private int doTrain() {
         log.info("[ML] 开始训练Isolation Forest模型, 训练窗口={}天", trainingDays);
 
         long startTime = System.currentTimeMillis();
@@ -314,8 +405,7 @@ public class TransactionAnomalyDetector {
         wrapper.eq(Transaction::getCustomerId, customerId)
                .ge(Transaction::getTransactionTime, since)
                .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode())
-               .ne(Transaction::getId, excludeTxnId)
-               .select(Transaction::getAmount);
+               .ne(Transaction::getId, excludeTxnId);
 
         List<Transaction> recentTxns = transactionMapper.selectList(wrapper);
 

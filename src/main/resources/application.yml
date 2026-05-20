@@ -81,6 +81,9 @@ aml:
     anomaly-threshold: 0.7
     num-trees: 100
     subsample-size: 256
+    anomaly:
+      retrain-cron: "0 30 3 * * SUN"
+      min-samples: 100
     ai-risk:
       model-path: ./data/models
       retrain-cron: "0 0 3 * * SUN"

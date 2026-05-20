@@ -69,6 +69,8 @@ aml:
   es:
     enabled: false
   ml:
+    anomaly:
+      min-samples: 4
     ai-risk:
       min-samples: 4
 
