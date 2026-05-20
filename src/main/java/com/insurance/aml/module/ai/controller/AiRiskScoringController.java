@@ -10,6 +10,7 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolQueryRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
+import com.insurance.aml.module.ai.model.dto.ModelTrainingStatusVO;
 import com.insurance.aml.module.ai.service.AiRiskScoringService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -64,6 +65,21 @@ public class AiRiskScoringController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:view') or hasAuthority('monitoring:view')")
     public Result<AiRiskTrainingResultVO> trainingStatus() {
         return Result.success(aiRiskScoringService.trainingStatus());
+    }
+
+    @GetMapping("/models/training")
+    @Operation(summary = "列出所有可训练模型的训练状态")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:view') or hasAuthority('monitoring:view')")
+    public Result<List<ModelTrainingStatusVO>> listTrainableModels() {
+        return Result.success(aiRiskScoringService.listTrainableModels());
+    }
+
+    @PostMapping("/models/training/{modelKey}/retrain")
+    @Operation(summary = "按模型键触发训练")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:manage')")
+    public Result<ModelTrainingStatusVO> retrainModelByKey(
+            @PathVariable @Parameter(description = "模型键: supervised | anomaly") String modelKey) {
+        return Result.success(aiRiskScoringService.retrainModelByKey(modelKey));
     }
 
     @GetMapping("/review-pool/overview")

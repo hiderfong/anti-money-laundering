@@ -69,6 +69,8 @@ class AiRiskScoringServiceImplTest {
     AiRiskFeatureVectorizer featureVectorizer;
     @Mock
     AiRiskModelTrainingService trainingService;
+    @Mock
+    com.insurance.aml.module.ai.service.support.ModelTrainingOpsService modelTrainingOpsService;
 
     @InjectMocks
     AiRiskScoringServiceImpl service;

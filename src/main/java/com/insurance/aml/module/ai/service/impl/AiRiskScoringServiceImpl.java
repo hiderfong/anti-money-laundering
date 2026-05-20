@@ -17,6 +17,7 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
+import com.insurance.aml.module.ai.model.dto.ModelTrainingStatusVO;
 import com.insurance.aml.module.ai.model.entity.AiRiskScoreRecord;
 import com.insurance.aml.module.ai.service.AiRiskScoringService;
 import com.insurance.aml.module.ai.service.support.AiRiskFactorEvaluator;
@@ -24,6 +25,7 @@ import com.insurance.aml.module.ai.service.support.AiRiskFeatureBuilder;
 import com.insurance.aml.module.ai.service.support.AiRiskFeatureVectorizer;
 import com.insurance.aml.module.ai.service.support.AiRiskModelTrainingService;
 import com.insurance.aml.module.ai.service.support.AiRiskReviewService;
+import com.insurance.aml.module.ai.service.support.ModelTrainingOpsService;
 import com.insurance.aml.module.ai.service.support.AiRiskSupervisedModel;
 import com.insurance.aml.module.alert.mapper.AlertMapper;
 import com.insurance.aml.module.alert.model.entity.Alert;
@@ -76,6 +78,7 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     private final AiRiskSupervisedModel supervisedModel;
     private final AiRiskFeatureVectorizer featureVectorizer;
     private final AiRiskModelTrainingService trainingService;
+    private final ModelTrainingOpsService modelTrainingOpsService;
 
     @Override
     public AiRiskScoreVO scoreCustomer(Long customerId) {
@@ -180,6 +183,16 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     @Override
     public AiRiskTrainingResultVO trainingStatus() {
         return trainingService.trainingStatus();
+    }
+
+    @Override
+    public List<ModelTrainingStatusVO> listTrainableModels() {
+        return modelTrainingOpsService.listAll();
+    }
+
+    @Override
+    public ModelTrainingStatusVO retrainModelByKey(String modelKey) {
+        return modelTrainingOpsService.retrain(modelKey);
     }
 
     @Override
