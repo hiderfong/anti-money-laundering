@@ -68,6 +68,9 @@ aml:
     enabled: false
   es:
     enabled: false
+  ml:
+    ai-risk:
+      min-samples: 4
 
 logging:
   level:

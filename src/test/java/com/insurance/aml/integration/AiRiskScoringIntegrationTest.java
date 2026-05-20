@@ -14,8 +14,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-import org.springframework.test.context.TestPropertySource;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,7 +26,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AI辅助反洗钱风险评分集成测试。
  */
 @DisplayName("AI风险评分模块集成测试")
-@TestPropertySource(properties = "aml.ml.ai-risk.min-samples=4")
 public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
