@@ -14,6 +14,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import org.springframework.test.context.TestPropertySource;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AI辅助反洗钱风险评分集成测试。
  */
 @DisplayName("AI风险评分模块集成测试")
+@TestPropertySource(properties = "aml.ml.ai-risk.min-samples=4")
 public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
@@ -220,5 +224,82 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
         String csv = exportResult.getResponse().getContentAsString();
         assertTrue(csv.contains("评分流水号"), "导出的复核清单应包含CSV表头");
         assertTrue(csv.contains("确认有效风险"), "导出的复核清单应包含人工复核标签");
+    }
+
+    @Test
+    @Order(2)
+    @DisplayName("复核标注回流-训练-影子评分闭环")
+    void supervisedFeedbackLoop_endToEnd() throws Exception {
+        String token = getAuthToken();
+
+        // 1) 种入带标签的评分记录（正负各15条），喂给监督训练。
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String now = LocalDateTime.now().format(fmt);
+        for (int i = 0; i < 30; i++) {
+            boolean positive = (i % 2 == 0);
+            String label = positive ? "TRUE_POSITIVE" : "FALSE_POSITIVE";
+            String feat = positive
+                    ? "{\"transactionCount90d\":20,\"kycCompleteness\":30,\"highRiskAlertCount\":3}"
+                    : "{\"transactionCount90d\":1,\"kycCompleteness\":95,\"highRiskAlertCount\":0}";
+            jdbcTemplate.update(
+                    "INSERT INTO t_ai_risk_score_record " +
+                    "(score_no, subject_type, subject_id, subject_name, customer_id, " +
+                    "model_code, model_name, model_version, score, risk_level, confidence, " +
+                    "factor_summary, feature_snapshot_json, scored_at, " +
+                    "manual_review_label, reviewed_by, reviewed_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "SEED" + i,
+                    "CUSTOMER",
+                    (long) (1000 + i),
+                    "种子客户" + i,
+                    (long) (1000 + i),
+                    "AI_AML_RISK_BASELINE_V1",
+                    "AI可解释风险评分基线模型",
+                    "1.0.0",
+                    positive ? 80 : 10,
+                    positive ? "HIGH" : "LOW",
+                    70,
+                    "种子样本",
+                    feat,
+                    now,
+                    label,
+                    "admin",
+                    now);
+        }
+
+        // 2) 触发训练。
+        MvcResult retrain = mockMvc.perform(post("/ai/risk/model/retrain")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode rb = objectMapper.readTree(retrain.getResponse().getContentAsString()).path("data");
+        assertEquals("TRAINED", rb.path("status").asText(), "训练应返回TRAINED状态");
+        assertTrue(rb.path("sampleCount").asInt() >= 4, "训练样本量应至少达到 min-samples");
+        assertTrue(rb.path("modelReady").asBoolean(), "训练后模型应就绪");
+
+        // 3) 训练状态接口应反映已就绪。
+        mockMvc.perform(get("/ai/risk/model/training-status")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("TRAINED"))
+                .andExpect(jsonPath("$.data.modelReady").value(true));
+
+        // 4) 对新客户评分，落库记录应带上影子概率分。
+        Long customerId = createCustomer();
+        mockMvc.perform(get("/ai/risk/customers/" + customerId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        Double prob = jdbcTemplate.queryForObject(
+                "SELECT model_probability FROM t_ai_risk_score_record " +
+                "WHERE customer_id = ? ORDER BY id DESC LIMIT 1",
+                Double.class, customerId);
+        assertTrue(prob != null && prob >= 0.0 && prob <= 1.0,
+                "评分落库应包含 [0,1] 区间的影子概率分");
+        String labelPred = jdbcTemplate.queryForObject(
+                "SELECT model_label_predicted FROM t_ai_risk_score_record " +
+                "WHERE customer_id = ? ORDER BY id DESC LIMIT 1",
+                String.class, customerId);
+        assertTrue("SUSPICIOUS".equals(labelPred) || "NORMAL".equals(labelPred),
+                "影子预测标签应为 SUSPICIOUS 或 NORMAL");
     }
 }
