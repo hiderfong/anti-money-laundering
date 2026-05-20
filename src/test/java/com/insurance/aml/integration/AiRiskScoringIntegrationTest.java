@@ -332,9 +332,13 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
         assertTrue("TRAINED".equals(status) || "SKIPPED_INSUFFICIENT".equals(status),
                 "异常检测重训返回状态非预期: " + status);
 
-        // 3) POST 未知 key → 400
-        mockMvc.perform(post("/ai/risk/models/training/unknown-model/retrain")
+        // 3) POST 未知 key → 业务错误 (项目约定: HTTP 200 + body.code == 400)
+        MvcResult unknownResult = mockMvc.perform(post("/ai/risk/models/training/unknown-model/retrain")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode unknownBody = objectMapper.readTree(unknownResult.getResponse().getContentAsString());
+        assertEquals(400, unknownBody.path("code").asInt(),
+                "未知 modelKey 应返回业务错误码 400");
     }
 }
