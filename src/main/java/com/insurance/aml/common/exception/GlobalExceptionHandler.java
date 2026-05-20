@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.propertyeditors.CustomNumberEditor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -62,12 +63,18 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理业务异常
+     * 处理业务异常。HTTP 状态码与 BusinessException.code 联动：
+     * 4xx → 对应 HTTP 状态；其余统一返回 200（业务层内部错误走 body code 区分）。
      */
     @ExceptionHandler(BusinessException.class)
-    public Result<Void> handleBusinessException(BusinessException e, HttpServletRequest request) {
+    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
         log.error("业务异常: uri={}, code={}, message={}", request.getRequestURI(), e.getCode(), e.getMessage());
-        return Result.fail(e.getCode(), e.getMessage());
+        Result<Void> body = Result.fail(e.getCode(), e.getMessage());
+        HttpStatus httpStatus = HttpStatus.resolve(e.getCode());
+        if (httpStatus == null || !httpStatus.is4xxClientError()) {
+            httpStatus = HttpStatus.OK;
+        }
+        return ResponseEntity.status(httpStatus).body(body);
     }
 
     /**

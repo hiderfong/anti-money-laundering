@@ -302,4 +302,39 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
         assertTrue("SUSPICIOUS".equals(labelPred) || "NORMAL".equals(labelPred),
                 "影子预测标签应为 SUSPICIOUS 或 NORMAL");
     }
+
+    @Test
+    @Order(3)
+    @org.junit.jupiter.api.DisplayName("统一训练运维端点 - list + 触发 + 未知key")
+    void trainingOps_listRetrainAndUnknownKey() throws Exception {
+        String token = getAuthToken();
+
+        // 1) GET /ai/risk/models/training 应返回两条 (supervised, anomaly) 顺序固定
+        MvcResult listResult = mockMvc.perform(get("/ai/risk/models/training")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode list = objectMapper.readTree(listResult.getResponse().getContentAsString()).path("data");
+        assertEquals(2, list.size());
+        assertEquals("supervised", list.get(0).path("modelKey").asText());
+        assertEquals("anomaly", list.get(1).path("modelKey").asText());
+
+        // 2) POST /ai/risk/models/training/anomaly/retrain
+        // H2 测试数据集中 t_transaction 通常不足以训练 (anomaly min-samples=4)，
+        // 因此合法返回 SKIPPED_INSUFFICIENT 或 TRAINED；其它状态都不该出现。
+        MvcResult retrainResult = mockMvc.perform(post("/ai/risk/models/training/anomaly/retrain")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(retrainResult.getResponse().getContentAsString()).path("data");
+        assertEquals("anomaly", body.path("modelKey").asText());
+        String status = body.path("status").asText();
+        assertTrue("TRAINED".equals(status) || "SKIPPED_INSUFFICIENT".equals(status),
+                "异常检测重训返回状态非预期: " + status);
+
+        // 3) POST 未知 key → 400
+        mockMvc.perform(post("/ai/risk/models/training/unknown-model/retrain")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().is4xxClientError());
+    }
 }
