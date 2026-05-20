@@ -25,6 +25,19 @@ import static org.mockito.Mockito.when;
 @DisplayName("TransactionAnomalyDetector 训练治理测试")
 class TransactionAnomalyDetectorRetrainTest {
 
+    @org.junit.jupiter.api.BeforeAll
+    static void initMyBatisPlusTableInfo() {
+        // 让 LambdaQueryWrapper.select(Transaction::getAmount) 能在纯单测里解析到列名
+        org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
+        org.apache.ibatis.builder.MapperBuilderAssistant assistant =
+                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, "");
+        assistant.setCurrentNamespace(
+                com.insurance.aml.module.monitoring.mapper.TransactionMapper.class.getName());
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                assistant,
+                com.insurance.aml.module.monitoring.model.entity.Transaction.class);
+    }
+
     @Mock
     TransactionMapper transactionMapper;
 

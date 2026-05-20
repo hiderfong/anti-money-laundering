@@ -405,7 +405,8 @@ public class TransactionAnomalyDetector {
         wrapper.eq(Transaction::getCustomerId, customerId)
                .ge(Transaction::getTransactionTime, since)
                .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode())
-               .ne(Transaction::getId, excludeTxnId);
+               .ne(Transaction::getId, excludeTxnId)
+               .select(Transaction::getAmount);
 
         List<Transaction> recentTxns = transactionMapper.selectList(wrapper);
 
