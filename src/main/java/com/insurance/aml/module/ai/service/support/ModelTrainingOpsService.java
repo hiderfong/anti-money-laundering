@@ -46,22 +46,21 @@ public class ModelTrainingOpsService {
     }
 
     private ModelTrainingStatusVO supervisedStatus() {
-        AiRiskTrainingResultVO s = aiRiskTrainingService.trainingStatus();
-        return ModelTrainingStatusVO.builder()
-                .modelKey(MODEL_KEY_SUPERVISED)
-                .modelName(SUPERVISED_NAME)
-                .modelVersion(SUPERVISED_VERSION)
-                .status(s.getStatus())
-                .modelReady(s.isModelReady())
-                .sampleCount(s.getSampleCount())
-                .trainedAt(s.getTrainedAt())
-                .message(s.getMessage())
-                .build();
+        return toStatus(aiRiskTrainingService.trainingStatus());
     }
 
     private ModelTrainingStatusVO anomalyStatus() {
         String last = anomalyDetector.getLastTrainStatus();
+        String error = anomalyDetector.getLastTrainError();
         boolean ready = anomalyDetector.isModelReady();
+        String message;
+        if ("FAILED".equals(last) && error != null) {
+            message = "上次训练失败: " + error;
+        } else if (last == null) {
+            message = ready ? "模型就绪" : "模型尚未训练";
+        } else {
+            message = ready ? "模型就绪 (上次: " + last + ")" : "模型尚未训练 (上次: " + last + ")";
+        }
         return ModelTrainingStatusVO.builder()
                 .modelKey(MODEL_KEY_ANOMALY)
                 .modelName(ANOMALY_NAME)
@@ -70,7 +69,7 @@ public class ModelTrainingOpsService {
                 .modelReady(ready)
                 .sampleCount(anomalyDetector.getLastTrainSampleCount())
                 .trainedAt(anomalyDetector.getLastTrainedAt())
-                .message(ready ? "模型就绪" : "模型尚未训练")
+                .message(message)
                 .build();
     }
 

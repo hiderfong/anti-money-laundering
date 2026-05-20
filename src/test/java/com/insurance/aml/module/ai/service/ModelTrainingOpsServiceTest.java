@@ -87,4 +87,23 @@ class ModelTrainingOpsServiceTest {
                 () -> service.retrain("not-a-model"));
         assertEquals(ResultCode.BAD_REQUEST.getCode(), ex.getCode());
     }
+
+    @Test
+    @DisplayName("anomaly 上次训练 FAILED 时 message 包含错误详情")
+    void listAll_anomalyFailed_surfacesError() {
+        when(aiRiskTrainingService.trainingStatus()).thenReturn(
+                AiRiskTrainingResultVO.builder().status("NOT_TRAINED").modelReady(false).message("尚未训练").build());
+        when(anomalyDetector.getLastTrainStatus()).thenReturn("FAILED");
+        when(anomalyDetector.getLastTrainError()).thenReturn("RuntimeException: db down");
+        when(anomalyDetector.isModelReady()).thenReturn(false);
+
+        List<ModelTrainingStatusVO> all = service.listAll();
+
+        ModelTrainingStatusVO anomaly = all.get(1);
+        assertEquals("anomaly", anomaly.getModelKey());
+        assertEquals("FAILED", anomaly.getStatus());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                anomaly.getMessage() != null && anomaly.getMessage().contains("db down"),
+                "anomaly message 应包含 lastTrainError 内容");
+    }
 }
