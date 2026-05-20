@@ -153,8 +153,10 @@ public class AiRiskModelTrainingService {
 
     public AiRiskTrainingResultVO trainingStatus() {
         boolean ready = supervisedModel.isReady();
+        String last = supervisedModel.getLastTrainStatus();
+        String reportedStatus = (last != null) ? last : (ready ? "TRAINED" : "NOT_TRAINED");
         return AiRiskTrainingResultVO.builder()
-                .status(ready ? "TRAINED" : "NOT_TRAINED")
+                .status(reportedStatus)
                 .modelReady(ready)
                 .sampleCount(supervisedModel.getSampleCount())
                 .positiveCount(supervisedModel.getPositiveCount())
