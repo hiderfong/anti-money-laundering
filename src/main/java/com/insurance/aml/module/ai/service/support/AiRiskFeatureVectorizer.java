@@ -11,6 +11,12 @@ import java.math.BigDecimal;
  * <p>把 {@link AiRiskFeatureSummaryVO} 映射为固定顺序的数值特征向量，
  * 是训练与在线推理的唯一向量化出口，避免 training-serving skew。
  * 特征顺序一经确定不得调整（会使已存盘模型失配）。</p>
+ *
+ * <p>有意排除的字段（保留在 VO 中供前端展示/导出，但暂不进入模型）：
+ * {@code caseCount}、{@code strReportCount}、{@code beneficialOwnerCount}、
+ * {@code controllingOwnerCount}、{@code highRiskProductCount}、
+ * {@code amountToAverageRatio}、{@code sharedCounterpartyAccountCustomerCount}、
+ * {@code relatedAlertCount}。如需纳入，必须同步重训历史模型。</p>
  */
 @Component
 public class AiRiskFeatureVectorizer {

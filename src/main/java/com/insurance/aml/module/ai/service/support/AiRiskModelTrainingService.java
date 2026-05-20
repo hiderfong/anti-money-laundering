@@ -39,6 +39,10 @@ public class AiRiskModelTrainingService {
     @Value("${aml.ml.ai-risk.min-samples:50}")
     private int minSamples;
 
+    /** 串行化训练，避免 @Scheduled 与手动 POST 并发时产生 .model/.meta 错配。 */
+    private final java.util.concurrent.atomic.AtomicBoolean trainingInProgress =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     @Scheduled(cron = "${aml.ml.ai-risk.retrain-cron:0 0 3 * * SUN}")
     public void scheduledRetrain() {
         try {
@@ -50,6 +54,22 @@ public class AiRiskModelTrainingService {
     }
 
     public AiRiskTrainingResultVO retrain() {
+        if (!trainingInProgress.compareAndSet(false, true)) {
+            log.warn("[AI-ML] 已有训练正在进行，跳过重复触发");
+            return AiRiskTrainingResultVO.builder()
+                    .status("SKIPPED_IN_PROGRESS")
+                    .modelReady(supervisedModel.isReady())
+                    .message("训练正在进行中")
+                    .build();
+        }
+        try {
+            return doRetrain();
+        } finally {
+            trainingInProgress.set(false);
+        }
+    }
+
+    private AiRiskTrainingResultVO doRetrain() {
         // MVP: loads all labeled rows. TODO(perf): cap with a recency window (e.g. ORDER BY reviewed_at DESC LIMIT N) once the labeled corpus grows.
         List<AiRiskScoreRecord> records = scoreRecordMapper.selectList(
                 new LambdaQueryWrapper<AiRiskScoreRecord>()
