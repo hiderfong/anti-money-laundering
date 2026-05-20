@@ -65,9 +65,6 @@ public class TransactionAnomalyDetector {
     @Value("${aml.ml.subsample-size:256}")
     private int subsampleSize;
 
-    @Value("${aml.ml.anomaly.retrain-cron:0 30 3 * * SUN}")
-    private String retrainCron;
-
     @Value("${aml.ml.anomaly.min-samples:100}")
     private int minSamples;
 
@@ -129,6 +126,7 @@ public class TransactionAnomalyDetector {
         if (!trainingInProgress.compareAndSet(false, true)) {
             log.warn("[ML] 已有训练正在进行，跳过重复触发");
             this.lastTrainStatus = "SKIPPED_IN_PROGRESS";
+            this.lastTrainError = null;
             return AnomalyTrainingResultVO.builder()
                     .status("SKIPPED_IN_PROGRESS")
                     .modelReady(modelReady)
@@ -156,6 +154,7 @@ public class TransactionAnomalyDetector {
             this.trainDurationMs = System.currentTimeMillis() - start;
             if (sampleCount < minSamples) {
                 this.lastTrainStatus = "SKIPPED_INSUFFICIENT";
+                this.lastTrainError = null;
                 return AnomalyTrainingResultVO.builder()
                         .status("SKIPPED_INSUFFICIENT")
                         .modelReady(modelReady)
@@ -267,7 +266,7 @@ public class TransactionAnomalyDetector {
         } catch (Exception e) {
             log.error("[ML] Isolation Forest训练失败: {}", e.getMessage(), e);
             modelReady = false;
-            return 0;
+            throw new RuntimeException("Isolation Forest fit failed: " + e.getMessage(), e);
         }
     }
 

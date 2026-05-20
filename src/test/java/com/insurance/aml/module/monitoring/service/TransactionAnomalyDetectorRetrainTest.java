@@ -117,4 +117,22 @@ class TransactionAnomalyDetectorRetrainTest {
         d.scheduledRetrain(); // must not throw
         assertEquals("FAILED", d.getLastTrainStatus());
     }
+
+    @Test
+    @DisplayName("Smile fit 失败时返回FAILED")
+    void retrain_fitFailure_returnsFailed() {
+        List<Transaction> rows = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            rows.add(txn(100.0 + i, i));
+        }
+        when(transactionMapper.selectList(any())).thenReturn(rows);
+        TransactionAnomalyDetector d = newDetector();
+        // numTrees=0 → Smile throws IllegalArgumentException("Invalid number of trees: 0")
+        ReflectionTestUtils.setField(d, "numTrees", 0);
+
+        AnomalyTrainingResultVO result = d.retrain();
+
+        assertEquals("FAILED", result.getStatus());
+        assertEquals("FAILED", d.getLastTrainStatus());
+    }
 }
