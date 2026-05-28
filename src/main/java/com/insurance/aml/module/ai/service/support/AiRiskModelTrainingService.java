@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insurance.aml.module.ai.mapper.AiRiskScoreRecordMapper;
 import com.insurance.aml.module.ai.model.dto.AiRiskFeatureSummaryVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
+import com.insurance.aml.module.ai.model.dto.DistributionSnapshot;
 import com.insurance.aml.module.ai.model.entity.AiRiskScoreRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import smile.classification.LogisticRegression;
 import smile.validation.metric.AUC;
 import smile.validation.metric.Accuracy;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -136,6 +138,12 @@ public class AiRiskModelTrainingService {
         double auc = AUC.of(y, prob);
 
         supervisedModel.replace(model, sampleCount, (int) positive, (int) negative, accuracy, auc);
+        supervisedModel.recordTrainingScoreDistribution(DistributionSnapshot.builder()
+                .bins(10).lo(0.0).hi(1.0)
+                .counts(PsiCalculator.histogram(prob, 10, 0.0, 1.0))
+                .total(prob.length)
+                .capturedAt(LocalDateTime.now())
+                .build());
         log.info("[AI-ML] 监督模型训练完成: samples={}, acc={}, auc={}", sampleCount, accuracy, auc);
 
         return AiRiskTrainingResultVO.builder()

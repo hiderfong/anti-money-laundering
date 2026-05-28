@@ -1,5 +1,7 @@
 package com.insurance.aml.module.ai.service.support;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.insurance.aml.module.ai.model.dto.DistributionSnapshot;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,8 @@ public class AiRiskSupervisedModel {
 
     private static final String MODEL_FILE = "ai_risk_supervised.model";
     private static final String META_FILE = "ai_risk_supervised.meta";
+    private static final String DISTRIBUTION_FILE = "supervised_distribution.json";
+    private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
 
     @Value("${aml.ml.ai-risk.model-path:${aml.ml.model-path:./data/models}}")
     private String modelPath;
@@ -48,6 +52,7 @@ public class AiRiskSupervisedModel {
     @Getter private volatile LocalDateTime trainedAt;
     @Getter private volatile String lastTrainStatus;
     @Getter private volatile String lastTrainError;
+    @Getter private volatile DistributionSnapshot trainingScoreDistribution;
 
     /**
      * 记录最近一次训练尝试的结果与错误信息。不改变 ready / model 引用。
@@ -55,6 +60,36 @@ public class AiRiskSupervisedModel {
     public void recordOutcome(String status, String errorMessage) {
         this.lastTrainStatus = status;
         this.lastTrainError = errorMessage;
+    }
+
+    /**
+     * 记录训练时输出分布作为漂移监控基线，并落盘到旁路 JSON 文件。
+     */
+    public void recordTrainingScoreDistribution(DistributionSnapshot snapshot) {
+        this.trainingScoreDistribution = snapshot;
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get(modelPath);
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Path tmp = dir.resolve(DISTRIBUTION_FILE + ".tmp");
+            JSON.writeValue(tmp.toFile(), snapshot);
+            java.nio.file.Files.move(tmp, dir.resolve(DISTRIBUTION_FILE),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception e) {
+            log.warn("[AI-ML] 监督模型训练分布落盘失败: {}", e.getMessage());
+        }
+    }
+
+    private void loadDistribution() {
+        java.nio.file.Path file = java.nio.file.Paths.get(modelPath, DISTRIBUTION_FILE);
+        if (!java.nio.file.Files.exists(file)) {
+            return;
+        }
+        try {
+            this.trainingScoreDistribution = JSON.readValue(file.toFile(), DistributionSnapshot.class);
+        } catch (Exception e) {
+            log.warn("[AI-ML] 监督模型训练分布加载失败: {}", e.getMessage());
+        }
     }
 
     public boolean isReady() {
@@ -68,6 +103,7 @@ public class AiRiskSupervisedModel {
         } catch (Exception e) {
             log.warn("[AI-ML] 监督模型加载失败，等待训练: {}", e.getMessage());
         }
+        loadDistribution();
     }
 
     public Optional<Double> predictProbability(double[] x) {
