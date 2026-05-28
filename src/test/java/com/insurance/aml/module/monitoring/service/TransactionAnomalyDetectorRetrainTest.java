@@ -135,4 +135,27 @@ class TransactionAnomalyDetectorRetrainTest {
         assertEquals("FAILED", result.getStatus());
         assertEquals("FAILED", d.getLastTrainStatus());
     }
+
+    @Test
+    @DisplayName("训练成功后捕获分布快照，counts 总和等于训练样本数")
+    void retrain_capturesTrainingDistribution() {
+        List<Transaction> rows = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            rows.add(txn(100.0 + i, i));
+        }
+        when(transactionMapper.selectList(any())).thenReturn(rows);
+        TransactionAnomalyDetector d = newDetector();
+
+        AnomalyTrainingResultVO result = d.retrain();
+
+        assertEquals("TRAINED", result.getStatus());
+        com.insurance.aml.module.ai.model.dto.DistributionSnapshot snap =
+                d.getTrainingScoreDistribution();
+        org.junit.jupiter.api.Assertions.assertNotNull(snap, "训练后应有分布快照");
+        int sum = 0;
+        for (int c : snap.getCounts()) {
+            sum += c;
+        }
+        assertEquals(60, sum, "counts 总和应等于训练样本数");
+    }
 }

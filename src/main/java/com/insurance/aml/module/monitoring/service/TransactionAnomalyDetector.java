@@ -14,11 +14,16 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import smile.anomaly.IsolationForest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.insurance.aml.module.ai.model.dto.DistributionSnapshot;
+import com.insurance.aml.module.ai.service.support.PsiCalculator;
+
 import java.io.*;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -71,6 +76,9 @@ public class TransactionAnomalyDetector {
     /** 特征维度 */
     private static final int FEATURE_DIM = 6;
 
+    private static final String DISTRIBUTION_FILE = "anomaly_distribution.json";
+    private static final ObjectMapper DRIFT_JSON = new ObjectMapper().findAndRegisterModules();
+
     /** 特征归一化参数 (从训练数据中计算) */
     private double amountMean = 0.0;
     private double amountStd = 1.0;
@@ -94,6 +102,7 @@ public class TransactionAnomalyDetector {
     @Getter private volatile int lastTrainSampleCount;
     @Getter private volatile long trainDurationMs;
     @Getter private volatile LocalDateTime lastTrainedAt;
+    @Getter private volatile DistributionSnapshot trainingScoreDistribution;
 
     public boolean isModelReady() {
         return modelReady;
@@ -113,6 +122,7 @@ public class TransactionAnomalyDetector {
         } catch (Exception e) {
             log.warn("[ML] 加载模型失败，将等待下次训练: {}", e.getMessage());
         }
+        loadTrainingDistribution();
     }
 
     // ====================================================================
@@ -260,6 +270,7 @@ public class TransactionAnomalyDetector {
 
             // 输出训练集异常分数分布
             logAnomalyDistribution(features);
+            captureTrainingDistribution(features);
 
             return transactions.size();
 
@@ -601,6 +612,46 @@ public class TransactionAnomalyDetector {
 
         } catch (Exception e) {
             log.debug("[ML] 异常分数分布计算失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 捕获训练集异常分分布作为漂移监控基线，并落盘到旁路 JSON 文件。
+     */
+    private void captureTrainingDistribution(double[][] features) {
+        try {
+            double[] scores = new double[features.length];
+            for (int i = 0; i < features.length; i++) {
+                scores[i] = model.score(features[i]);
+            }
+            DistributionSnapshot snapshot = DistributionSnapshot.builder()
+                    .bins(10).lo(0.0).hi(1.0)
+                    .counts(PsiCalculator.histogram(scores, 10, 0.0, 1.0))
+                    .total(scores.length)
+                    .capturedAt(LocalDateTime.now())
+                    .build();
+            this.trainingScoreDistribution = snapshot;
+            Path dir = Paths.get(modelPath);
+            Files.createDirectories(dir);
+            Path tmp = dir.resolve(DISTRIBUTION_FILE + ".tmp");
+            DRIFT_JSON.writeValue(tmp.toFile(), snapshot);
+            Files.move(tmp, dir.resolve(DISTRIBUTION_FILE),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception e) {
+            log.warn("[ML] 异常检测训练分布捕获失败: {}", e.getMessage());
+        }
+    }
+
+    private void loadTrainingDistribution() {
+        Path file = Paths.get(modelPath, DISTRIBUTION_FILE);
+        if (!Files.exists(file)) {
+            return;
+        }
+        try {
+            this.trainingScoreDistribution = DRIFT_JSON.readValue(file.toFile(), DistributionSnapshot.class);
+        } catch (Exception e) {
+            log.warn("[ML] 异常检测训练分布加载失败: {}", e.getMessage());
         }
     }
 
