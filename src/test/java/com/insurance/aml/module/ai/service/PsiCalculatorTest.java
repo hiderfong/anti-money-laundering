@@ -62,4 +62,22 @@ class PsiCalculatorTest {
         assertEquals(3, h[0]);
         assertEquals(0.0, PsiCalculator.psi(h, h), 1e-9);
     }
+
+    @Test
+    @DisplayName("histogram 跳过 NaN/Infinity，不计入任何箱")
+    void histogram_skipsNonFinite() {
+        int[] h = PsiCalculator.histogram(
+                new double[]{0.5, Double.NaN, 0.5, Double.POSITIVE_INFINITY}, 2, 0.0, 1.0);
+        assertEquals(2, h.length);
+        assertEquals(0, h[0]);
+        assertEquals(2, h[1], "仅两个 0.5 落入 bin1，NaN/Inf 被跳过");
+    }
+
+    @Test
+    @DisplayName("hi<=lo (width<=0) 时所有值落入 bin0")
+    void histogram_nonPositiveWidth_allBinZero() {
+        int[] h = PsiCalculator.histogram(new double[]{0.1, 0.9, 0.5}, 10, 1.0, 0.0);
+        assertEquals(10, h.length);
+        assertEquals(3, h[0]);
+    }
 }

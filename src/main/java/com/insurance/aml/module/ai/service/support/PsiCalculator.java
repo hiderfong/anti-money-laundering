@@ -21,6 +21,9 @@ public final class PsiCalculator {
         }
         double width = (hi - lo) / safeBins;
         for (double v : values) {
+            if (!Double.isFinite(v)) {
+                continue;
+            }
             int idx;
             if (width <= 0) {
                 idx = 0;
