@@ -68,21 +68,21 @@ public class AiRiskSupervisedModel {
     public void recordTrainingScoreDistribution(DistributionSnapshot snapshot) {
         this.trainingScoreDistribution = snapshot;
         try {
-            java.nio.file.Path dir = java.nio.file.Paths.get(modelPath);
-            java.nio.file.Files.createDirectories(dir);
-            java.nio.file.Path tmp = dir.resolve(DISTRIBUTION_FILE + ".tmp");
+            Path dir = Paths.get(modelPath);
+            Files.createDirectories(dir);
+            Path tmp = dir.resolve(DISTRIBUTION_FILE + ".tmp");
             JSON.writeValue(tmp.toFile(), snapshot);
-            java.nio.file.Files.move(tmp, dir.resolve(DISTRIBUTION_FILE),
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.move(tmp, dir.resolve(DISTRIBUTION_FILE),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
             log.warn("[AI-ML] 监督模型训练分布落盘失败: {}", e.getMessage());
         }
     }
 
     private void loadDistribution() {
-        java.nio.file.Path file = java.nio.file.Paths.get(modelPath, DISTRIBUTION_FILE);
-        if (!java.nio.file.Files.exists(file)) {
+        Path file = Paths.get(modelPath, DISTRIBUTION_FILE);
+        if (!Files.exists(file)) {
             return;
         }
         try {

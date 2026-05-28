@@ -1,5 +1,6 @@
 package com.insurance.aml.module.ai.service;
 
+import com.insurance.aml.module.ai.model.dto.DistributionSnapshot;
 import com.insurance.aml.module.ai.service.support.AiRiskSupervisedModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import smile.classification.LogisticRegression;
 
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -57,21 +59,20 @@ class AiRiskSupervisedModelTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("训练分布快照 record + save/load 往返")
-    void trainingScoreDistribution_roundTrip(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
-        com.insurance.aml.module.ai.model.dto.DistributionSnapshot snap =
-                com.insurance.aml.module.ai.model.dto.DistributionSnapshot.builder()
-                        .bins(10).lo(0.0).hi(1.0)
-                        .counts(new int[]{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}).total(10)
-                        .capturedAt(java.time.LocalDateTime.now()).build();
+    @DisplayName("训练分布快照 record + save/load 往返")
+    void trainingScoreDistribution_roundTrip(@TempDir Path dir) {
+        DistributionSnapshot snap = DistributionSnapshot.builder()
+                .bins(10).lo(0.0).hi(1.0)
+                .counts(new int[]{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}).total(10)
+                .capturedAt(LocalDateTime.now()).build();
 
         AiRiskSupervisedModel m = new AiRiskSupervisedModel();
-        org.springframework.test.util.ReflectionTestUtils.setField(m, "modelPath", dir.toString());
+        ReflectionTestUtils.setField(m, "modelPath", dir.toString());
         m.recordTrainingScoreDistribution(snap);
         assertEquals(10, m.getTrainingScoreDistribution().getBins());
 
         AiRiskSupervisedModel reloaded = new AiRiskSupervisedModel();
-        org.springframework.test.util.ReflectionTestUtils.setField(reloaded, "modelPath", dir.toString());
+        ReflectionTestUtils.setField(reloaded, "modelPath", dir.toString());
         reloaded.init();
         assertEquals(10, reloaded.getTrainingScoreDistribution().getTotal());
         assertArrayEquals(new int[]{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
@@ -79,7 +80,7 @@ class AiRiskSupervisedModelTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("recordOutcome 不动模型，仅写 lastTrainStatus/lastTrainError")
+    @DisplayName("recordOutcome 不动模型，仅写 lastTrainStatus/lastTrainError")
     void recordOutcome_writesObservableFields() {
         AiRiskSupervisedModel m = new AiRiskSupervisedModel();
         m.recordOutcome("FAILED", "boom");
