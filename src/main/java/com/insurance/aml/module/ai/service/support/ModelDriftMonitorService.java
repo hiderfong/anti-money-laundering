@@ -92,7 +92,7 @@ public class ModelDriftMonitorService {
         wrapper.ge(Transaction::getTransactionTime, since)
                 .eq(Transaction::getStatus, TransactionStatus.SUCCESS.getCode())
                 .isNotNull(Transaction::getAmount)
-                .last("LIMIT " + anomalySampleCap);
+                .last("LIMIT " + Math.max(1, Math.min(anomalySampleCap, 100_000)));
         List<Transaction> txns = transactionMapper.selectList(wrapper);
         List<Double> scores = new ArrayList<>();
         int skipped = 0;
@@ -103,8 +103,8 @@ public class ModelDriftMonitorService {
                 skipped++;
             }
         }
-        if (!scores.isEmpty() && skipped > 0) {
-            log.warn("[AI-Drift] anomaly 重算跳过 {} 条", skipped);
+        if (skipped > 0) {
+            log.warn("[AI-Drift] anomaly 重算跳过 {} 条 (scored={})", skipped, scores.size());
         }
         return classify(KEY_ANOMALY, baseline, toArray(scores));
     }

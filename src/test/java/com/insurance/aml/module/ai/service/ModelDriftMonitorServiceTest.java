@@ -153,4 +153,19 @@ class ModelDriftMonitorServiceTest {
                 .thenThrow(new RuntimeException("boom"));
         newService().scheduledDriftCheck();
     }
+
+    @Test
+    @DisplayName("异常分显著偏移 → SEVERE")
+    void anomaly_shifted_severe() {
+        when(anomalyDetector.getTrainingScoreDistribution()).thenReturn(uniformBaseline());
+        List<Transaction> txns = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            txns.add(new Transaction());
+        }
+        when(transactionMapper.selectList(any())).thenReturn(txns);
+        // all predictions concentrate in the top bin → strong drift vs uniform baseline
+        when(anomalyDetector.predict(any())).thenReturn(0.95);
+        ModelDriftStatusVO vo = newService().computeAnomalyDrift();
+        assertEquals("SEVERE", vo.getStatus());
+    }
 }
