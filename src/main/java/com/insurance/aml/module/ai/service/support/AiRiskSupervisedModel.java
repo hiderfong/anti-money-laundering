@@ -1,6 +1,7 @@
 package com.insurance.aml.module.ai.service.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.insurance.aml.module.ai.model.dto.DistributionSnapshot;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -35,7 +36,9 @@ public class AiRiskSupervisedModel {
     private static final String MODEL_FILE = "ai_risk_supervised.model";
     private static final String META_FILE = "ai_risk_supervised.meta";
     private static final String DISTRIBUTION_FILE = "supervised_distribution.json";
-    private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper JSON = new ObjectMapper()
+            .findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     @Value("${aml.ml.ai-risk.model-path:${aml.ml.model-path:./data/models}}")
     private String modelPath;

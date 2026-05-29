@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import smile.anomaly.IsolationForest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.insurance.aml.module.ai.model.dto.DistributionSnapshot;
 import com.insurance.aml.module.ai.service.support.PsiCalculator;
 
@@ -77,7 +78,9 @@ public class TransactionAnomalyDetector {
     private static final int FEATURE_DIM = 6;
 
     private static final String DISTRIBUTION_FILE = "anomaly_distribution.json";
-    private static final ObjectMapper DRIFT_JSON = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper DRIFT_JSON = new ObjectMapper()
+            .findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     /** 特征归一化参数 (从训练数据中计算) */
     private double amountMean = 0.0;
