@@ -87,6 +87,14 @@ aml:
       model-path: ${AML_ML_AI_RISK_MODEL_PATH:${AML_ML_MODEL_PATH:/var/lib/aml/models}}
       retrain-cron: "${AML_ML_AI_RISK_RETRAIN_CRON:0 0 3 * * SUN}"
       min-samples: ${AML_ML_AI_RISK_MIN_SAMPLES:50}
+    drift:
+      cron: "${AML_ML_DRIFT_CRON:0 0 4 * * ?}"
+      window-hours: ${AML_ML_DRIFT_WINDOW_HOURS:24}
+      bins: ${AML_ML_DRIFT_BINS:10}
+      warn-threshold: ${AML_ML_DRIFT_WARN_THRESHOLD:0.1}
+      severe-threshold: ${AML_ML_DRIFT_SEVERE_THRESHOLD:0.25}
+      anomaly-sample-cap: ${AML_ML_DRIFT_ANOMALY_SAMPLE_CAP:10000}
+      min-samples: ${AML_ML_DRIFT_MIN_SAMPLES:50}
 
 # ---- JWT Authentication ----
 jwt:

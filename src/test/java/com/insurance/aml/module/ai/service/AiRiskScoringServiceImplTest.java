@@ -71,6 +71,8 @@ class AiRiskScoringServiceImplTest {
     AiRiskModelTrainingService trainingService;
     @Mock
     com.insurance.aml.module.ai.service.support.ModelTrainingOpsService modelTrainingOpsService;
+    @Mock
+    com.insurance.aml.module.ai.service.support.ModelDriftMonitorService modelDriftMonitorService;
 
     @InjectMocks
     AiRiskScoringServiceImpl service;

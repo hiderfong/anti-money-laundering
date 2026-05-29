@@ -73,6 +73,8 @@ aml:
       min-samples: 4
     ai-risk:
       min-samples: 4
+    drift:
+      min-samples: 10
 
 logging:
   level:

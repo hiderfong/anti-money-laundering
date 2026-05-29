@@ -17,6 +17,7 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
+import com.insurance.aml.module.ai.model.dto.ModelDriftStatusVO;
 import com.insurance.aml.module.ai.model.dto.ModelTrainingStatusVO;
 import com.insurance.aml.module.ai.model.entity.AiRiskScoreRecord;
 import com.insurance.aml.module.ai.service.AiRiskScoringService;
@@ -25,6 +26,7 @@ import com.insurance.aml.module.ai.service.support.AiRiskFeatureBuilder;
 import com.insurance.aml.module.ai.service.support.AiRiskFeatureVectorizer;
 import com.insurance.aml.module.ai.service.support.AiRiskModelTrainingService;
 import com.insurance.aml.module.ai.service.support.AiRiskReviewService;
+import com.insurance.aml.module.ai.service.support.ModelDriftMonitorService;
 import com.insurance.aml.module.ai.service.support.ModelTrainingOpsService;
 import com.insurance.aml.module.ai.service.support.AiRiskSupervisedModel;
 import com.insurance.aml.module.alert.mapper.AlertMapper;
@@ -79,6 +81,7 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     private final AiRiskFeatureVectorizer featureVectorizer;
     private final AiRiskModelTrainingService trainingService;
     private final ModelTrainingOpsService modelTrainingOpsService;
+    private final ModelDriftMonitorService modelDriftMonitorService;
 
     @Override
     public AiRiskScoreVO scoreCustomer(Long customerId) {
@@ -193,6 +196,11 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     @Override
     public ModelTrainingStatusVO retrainModelByKey(String modelKey) {
         return modelTrainingOpsService.retrain(modelKey);
+    }
+
+    @Override
+    public List<ModelDriftStatusVO> listModelDrift() {
+        return modelDriftMonitorService.computeAll();
     }
 
     @Override

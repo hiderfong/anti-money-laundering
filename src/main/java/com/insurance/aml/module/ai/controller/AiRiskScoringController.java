@@ -10,6 +10,7 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolQueryRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
+import com.insurance.aml.module.ai.model.dto.ModelDriftStatusVO;
 import com.insurance.aml.module.ai.model.dto.ModelTrainingStatusVO;
 import com.insurance.aml.module.ai.service.AiRiskScoringService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -72,6 +73,13 @@ public class AiRiskScoringController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:view') or hasAuthority('monitoring:view')")
     public Result<List<ModelTrainingStatusVO>> listTrainableModels() {
         return Result.success(aiRiskScoringService.listTrainableModels());
+    }
+
+    @GetMapping("/models/drift")
+    @Operation(summary = "查询模型分布漂移 (PSI)")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:view') or hasAuthority('monitoring:view')")
+    public Result<List<ModelDriftStatusVO>> listModelDrift() {
+        return Result.success(aiRiskScoringService.listModelDrift());
     }
 
     @PostMapping("/models/training/{modelKey}/retrain")

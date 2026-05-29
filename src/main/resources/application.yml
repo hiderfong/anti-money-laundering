@@ -88,3 +88,11 @@ aml:
       model-path: ./data/models
       retrain-cron: "0 0 3 * * SUN"
       min-samples: 50
+    drift:
+      cron: "0 0 4 * * ?"
+      window-hours: 24
+      bins: 10
+      warn-threshold: 0.1
+      severe-threshold: 0.25
+      anomaly-sample-cap: 10000
+      min-samples: 50

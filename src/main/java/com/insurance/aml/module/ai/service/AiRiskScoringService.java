@@ -8,6 +8,7 @@ import com.insurance.aml.module.ai.model.dto.AiRiskReviewRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreRecordVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskScoreVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
+import com.insurance.aml.module.ai.model.dto.ModelDriftStatusVO;
 import com.insurance.aml.module.ai.model.dto.ModelTrainingStatusVO;
 import com.insurance.aml.common.result.PageResult;
 
@@ -43,4 +44,6 @@ public interface AiRiskScoringService {
     List<ModelTrainingStatusVO> listTrainableModels();
 
     ModelTrainingStatusVO retrainModelByKey(String modelKey);
+
+    List<ModelDriftStatusVO> listModelDrift();
 }
