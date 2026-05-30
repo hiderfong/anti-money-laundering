@@ -65,6 +65,24 @@ public class AiRiskReviewPoolItemVO {
     @Schema(description = "主要贡献因子摘要")
     private String factorSummary;
 
+    @Schema(description = "评分特征快照JSON")
+    private String featureSnapshotJson;
+
+    @Schema(description = "贡献因子快照JSON")
+    private String factorSnapshotJson;
+
+    @Schema(description = "证据快照JSON")
+    private String evidenceSnapshotJson;
+
+    @Schema(description = "建议快照JSON")
+    private String recommendationJson;
+
+    @Schema(description = "监督模型影子概率")
+    private java.math.BigDecimal modelProbability;
+
+    @Schema(description = "监督模型预测标签")
+    private String modelLabelPredicted;
+
     @Schema(description = "评分时间")
     private LocalDateTime scoredAt;
 

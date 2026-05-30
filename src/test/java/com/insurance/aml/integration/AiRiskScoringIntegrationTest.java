@@ -192,6 +192,10 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.list[0].autoLabel").exists())
                 .andExpect(jsonPath("$.data.list[0].priorityLevel").exists())
                 .andExpect(jsonPath("$.data.list[0].verificationBasis").exists())
+                .andExpect(jsonPath("$.data.list[0].featureSnapshotJson").exists())
+                .andExpect(jsonPath("$.data.list[0].factorSnapshotJson").exists())
+                .andExpect(jsonPath("$.data.list[0].evidenceSnapshotJson").exists())
+                .andExpect(jsonPath("$.data.list[0].recommendationJson").exists())
                 .andReturn();
 
         Long reviewRecordId = objectMapper.readTree(reviewPoolResult.getResponse().getContentAsString())

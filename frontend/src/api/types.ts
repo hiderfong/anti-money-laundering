@@ -730,6 +730,12 @@ export interface AiRiskReviewPoolItem {
   priorityLevel: string
   verificationBasis: string
   factorSummary: string
+  featureSnapshotJson?: string
+  factorSnapshotJson?: string
+  evidenceSnapshotJson?: string
+  recommendationJson?: string
+  modelProbability?: number
+  modelLabelPredicted?: string
   scoredAt: string
   manualReviewLabel?: string
   manualReviewLabelText?: string

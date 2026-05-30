@@ -175,9 +175,10 @@
           <template #default="{ row }">v{{ row.modelVersion }}</template>
         </el-table-column>
         <el-table-column prop="scoredAt" label="评分时间" min-width="170" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="238" fixed="right">
           <template #default="{ row }">
             <div class="table-actions">
+              <el-button link type="info" size="small" @click="openAiExplain(row)">解释</el-button>
               <el-button link type="primary" size="small" @click="openAiReview(row)">
                 {{ row.manualReviewLabel ? '更新复核' : '登记复核' }}
               </el-button>
@@ -350,6 +351,88 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="aiExplainDialogVisible" title="AI评分解释详情" width="860px" destroy-on-close>
+      <div v-if="currentAiExplainItem" class="ai-explain-dialog">
+        <div class="ai-explain-summary">
+          <div>
+            <span>评分对象</span>
+            <strong>{{ subjectTypeText(currentAiExplainItem.subjectType) }} · {{ currentAiExplainItem.subjectName }}</strong>
+          </div>
+          <div>
+            <span>AI风险分</span>
+            <strong>{{ currentAiExplainItem.score }} / {{ aiRiskLevelText(currentAiExplainItem.riskLevel) }}</strong>
+          </div>
+          <div>
+            <span>置信度</span>
+            <strong>{{ currentAiExplainItem.confidence }}%</strong>
+          </div>
+          <div>
+            <span>模型版本</span>
+            <strong>{{ currentAiExplainItem.modelCode }} v{{ currentAiExplainItem.modelVersion }}</strong>
+          </div>
+        </div>
+
+        <div class="ai-explain-section-grid">
+          <section>
+            <h3>处置链路判断</h3>
+            <p>{{ currentAiExplainItem.verificationBasis || '-' }}</p>
+          </section>
+          <section>
+            <h3>影子模型结果</h3>
+            <p>
+              预测标签：{{ currentAiExplainItem.modelLabelPredicted || '-' }}；
+              概率：{{ formatModelProbability(currentAiExplainItem.modelProbability) }}
+            </p>
+          </section>
+        </div>
+
+        <section>
+          <h3>主要贡献因子</h3>
+          <div v-if="aiExplainFactors.length" class="ai-factor-list">
+            <div v-for="factor in aiExplainFactors" :key="factor.factorCode || factor.factorName" class="ai-factor-row">
+              <div class="ai-factor-copy">
+                <strong>{{ factor.factorName || factor.factorCode || '未命名因子' }}</strong>
+                <span>{{ factor.evidence || factor.suggestion || '-' }}</span>
+              </div>
+              <div class="ai-factor-score">
+                <span>+{{ Number(factor.contribution || 0) }}</span>
+                <el-progress :percentage="factorPercentage(factor.contribution)" :show-text="false" />
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无贡献因子快照" />
+        </section>
+
+        <section>
+          <h3>核心特征快照</h3>
+          <div v-if="aiExplainFeatureCards.length" class="ai-feature-grid">
+            <div v-for="item in aiExplainFeatureCards" :key="item.key">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+          <el-empty v-else description="暂无特征快照" />
+        </section>
+
+        <div class="ai-explain-section-grid">
+          <section>
+            <h3>证据摘要</h3>
+            <ul v-if="aiExplainEvidence.length">
+              <li v-for="item in aiExplainEvidence" :key="item">{{ item }}</li>
+            </ul>
+            <p v-else>-</p>
+          </section>
+          <section>
+            <h3>建议动作</h3>
+            <ul v-if="aiExplainRecommendations.length">
+              <li v-for="item in aiExplainRecommendations" :key="item">{{ item }}</li>
+            </ul>
+            <p v-else>-</p>
+          </section>
+        </div>
+      </div>
+    </el-dialog>
+
     <el-dialog v-model="modelDialogVisible" :title="editingModelId ? '编辑模型' : '新增模型'" width="760px" destroy-on-close>
       <el-form :model="modelForm" label-width="110px">
         <div class="form-grid">
@@ -489,6 +572,15 @@ import type { AiRiskFollowUpTaskRequest, AiRiskReviewPoolItem, AiRiskReviewPoolO
 import { disposeEchart, getEcharts } from '@/utils/echarts'
 
 type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'rollback' | 'archive'
+type AiRiskFactorSnapshot = {
+  factorCode?: string
+  factorName?: string
+  category?: string
+  contribution?: number | string
+  weight?: number | string
+  evidence?: string
+  suggestion?: string
+}
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -513,6 +605,8 @@ const aiFollowUpDialogVisible = ref(false)
 const aiFollowUpSubmitting = ref(false)
 const currentAiReviewItem = ref<AiRiskReviewPoolItem | null>(null)
 const currentAiFollowUpItem = ref<AiRiskReviewPoolItem | null>(null)
+const currentAiExplainItem = ref<AiRiskReviewPoolItem | null>(null)
+const aiExplainDialogVisible = ref(false)
 let lifecycleChart: ECharts | null = null
 let healthChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
@@ -663,6 +757,26 @@ const manualReviewLabelOptions = [
   { label: '继续观察', value: 'NEEDS_MONITORING' }
 ]
 
+const aiFeatureLabels: Array<{ key: string; label: string }> = [
+  { key: 'transactionCount90d', label: '近90天交易笔数' },
+  { key: 'totalAmount90d', label: '近90天交易总金额' },
+  { key: 'maxAmount90d', label: '最大单笔金额' },
+  { key: 'cashTransactionCount90d', label: '现金交易笔数' },
+  { key: 'crossBorderTransactionCount90d', label: '跨境交易笔数' },
+  { key: 'highAmountTransactionCount90d', label: '大额交易笔数' },
+  { key: 'distinctCounterpartyCount90d', label: '不同交易对手' },
+  { key: 'activeAlertCount', label: '活跃预警数量' },
+  { key: 'highRiskAlertCount', label: '高风险预警' },
+  { key: 'confirmedSuspiciousAlertCount', label: '确认可疑预警' },
+  { key: 'caseCount', label: '案件数量' },
+  { key: 'strReportCount', label: 'STR报告数量' },
+  { key: 'watchlistHitCount', label: '名单命中数量' },
+  { key: 'kycCompleteness', label: 'KYC完整度' },
+  { key: 'amountToAverageRatio', label: '金额/均值倍数' },
+  { key: 'sharedCounterpartyAccountCustomerCount', label: '共享对手账户客户数' },
+  { key: 'relatedAlertCount', label: '关联预警数量' }
+]
+
 const lifecycleTitle = computed(() => ({
   test: '登记模型测试',
   deploy: '登记模型部署',
@@ -686,6 +800,29 @@ const lifecycleButtonType = computed(() => {
   if (currentAction.value === 'rollback') return 'warning'
   return 'primary'
 })
+
+const aiExplainFeatures = computed<Record<string, unknown>>(() =>
+  parseJsonObject(currentAiExplainItem.value?.featureSnapshotJson)
+)
+
+const aiExplainFactors = computed<AiRiskFactorSnapshot[]>(() =>
+  parseJsonArray<AiRiskFactorSnapshot>(currentAiExplainItem.value?.factorSnapshotJson).slice(0, 8)
+)
+
+const aiExplainEvidence = computed<string[]>(() =>
+  parseJsonArray<string>(currentAiExplainItem.value?.evidenceSnapshotJson)
+)
+
+const aiExplainRecommendations = computed<string[]>(() =>
+  parseJsonArray<string>(currentAiExplainItem.value?.recommendationJson)
+)
+
+const aiExplainFeatureCards = computed(() =>
+  aiFeatureLabels
+    .map(item => ({ ...item, value: formatFeatureValue(aiExplainFeatures.value[item.key]) }))
+    .filter(item => item.value !== '-')
+    .slice(0, 12)
+)
 
 async function loadOverview() {
   const res: any = await modelApi.getOverview()
@@ -744,6 +881,11 @@ function openAiReview(row: AiRiskReviewPoolItem) {
   aiReviewForm.reviewLabel = row.manualReviewLabel || labelFromAutoLabel(row.autoLabel)
   aiReviewForm.reviewComment = row.manualReviewComment || ''
   aiReviewDialogVisible.value = true
+}
+
+function openAiExplain(row: AiRiskReviewPoolItem) {
+  currentAiExplainItem.value = row
+  aiExplainDialogVisible.value = true
 }
 
 async function submitAiReview() {
@@ -1089,6 +1231,42 @@ function scoreColor(score: number) {
   if (value >= 65) return '#dc2626'
   if (value >= 35) return '#d97706'
   return '#16a34a'
+}
+
+function parseJsonObject(value?: string): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function parseJsonArray<T>(value?: string): T[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function formatFeatureValue(value: unknown) {
+  if (value === undefined || value === null || value === '') return '-'
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2)
+  return String(value)
+}
+
+function factorPercentage(value: unknown) {
+  const n = Math.abs(Number(value || 0))
+  return Math.max(0, Math.min(100, n))
+}
+
+function formatModelProbability(value?: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : '-'
 }
 
 function countModelsByStatus(statuses: string[]) {
@@ -1484,6 +1662,133 @@ onUnmounted(() => {
 .ai-review-pagination {
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.ai-explain-dialog {
+  display: grid;
+  gap: 16px;
+}
+
+.ai-explain-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-explain-summary > div,
+.ai-feature-grid > div,
+.ai-explain-section-grid > section,
+.ai-explain-dialog > section {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.ai-explain-summary > div,
+.ai-feature-grid > div {
+  min-width: 0;
+  padding: 12px;
+}
+
+.ai-explain-summary span,
+.ai-feature-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-explain-summary strong,
+.ai-feature-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ai-explain-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-explain-section-grid > section,
+.ai-explain-dialog > section {
+  padding: 14px;
+}
+
+.ai-explain-dialog h3 {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ai-explain-dialog p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.ai-factor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-factor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.ai-factor-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ai-factor-copy strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.ai-factor-copy span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-factor-score {
+  display: grid;
+  gap: 6px;
+}
+
+.ai-factor-score span {
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.ai-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-explain-dialog ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .toolbar {
