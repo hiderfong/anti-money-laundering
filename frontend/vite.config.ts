@@ -40,8 +40,33 @@ export default defineConfig({
               priority: 30
             },
             {
-              name: 'element-plus',
-              test: /node_modules[\\/](element-plus|@element-plus)[\\/]/,
+              name: 'element-plus-icons',
+              test: /node_modules[\\/]@element-plus[\\/]icons-vue[\\/]/,
+              priority: 29
+            },
+            {
+              name: 'element-plus-table',
+              test: /node_modules[\\/]element-plus[\\/]es[\\/]components[\\/](table|table-v2|pagination|scrollbar)[\\/]/,
+              priority: 28
+            },
+            {
+              name: 'element-plus-form',
+              test: /node_modules[\\/]element-plus[\\/]es[\\/]components[\\/](form|input|input-number|select|select-v2|checkbox|radio|date-picker|switch|slider)[\\/]/,
+              priority: 27
+            },
+            {
+              name: 'element-plus-overlay',
+              test: /node_modules[\\/]element-plus[\\/]es[\\/]components[\\/](dialog|dropdown|tooltip|popper|popconfirm|message|message-box|notification|loading)[\\/]/,
+              priority: 26
+            },
+            {
+              name: 'element-plus-layout',
+              test: /node_modules[\\/]element-plus[\\/]es[\\/]components[\\/](alert|breadcrumb|button|card|col|config-provider|container|descriptions|divider|empty|icon|menu|page-header|progress|row|tabs|tag|timeline)[\\/]/,
+              priority: 25
+            },
+            {
+              name: 'element-plus-core',
+              test: /node_modules[\\/]element-plus[\\/]/,
               priority: 20
             },
             {
