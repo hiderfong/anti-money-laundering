@@ -45,6 +45,8 @@ public class ModelDriftMonitorService {
     private double severeThreshold;
     @Value("${aml.ml.drift.anomaly-sample-cap:10000}")
     private int anomalySampleCap;
+    @Value("${aml.ml.drift.supervised-sample-cap:10000}")
+    private int supervisedSampleCap;
     @Value("${aml.ml.drift.min-samples:50}")
     private int minSamples;
 
@@ -75,9 +77,11 @@ public class ModelDriftMonitorService {
             return unavailable(KEY_SUPERVISED, "基线缺失，需先完成训练", 0, 0);
         }
         LocalDateTime since = LocalDateTime.now().minusHours(windowHours);
+        int cap = Math.max(1, Math.min(supervisedSampleCap, 100_000));
         List<Double> probs = jdbcTemplate.queryForList(
                 "SELECT model_probability FROM t_ai_risk_score_record "
-                        + "WHERE scored_at >= ? AND model_probability IS NOT NULL",
+                        + "WHERE scored_at >= ? AND model_probability IS NOT NULL "
+                        + "ORDER BY scored_at DESC LIMIT " + cap,
                 Double.class, since);
         return classify(KEY_SUPERVISED, baseline, toArray(probs));
     }

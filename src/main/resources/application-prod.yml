@@ -94,6 +94,7 @@ aml:
       warn-threshold: ${AML_ML_DRIFT_WARN_THRESHOLD:0.1}
       severe-threshold: ${AML_ML_DRIFT_SEVERE_THRESHOLD:0.25}
       anomaly-sample-cap: ${AML_ML_DRIFT_ANOMALY_SAMPLE_CAP:10000}
+      supervised-sample-cap: ${AML_ML_DRIFT_SUPERVISED_SAMPLE_CAP:10000}
       min-samples: ${AML_ML_DRIFT_MIN_SAMPLES:50}
 
 # ---- JWT Authentication ----

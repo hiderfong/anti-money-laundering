@@ -95,4 +95,5 @@ aml:
       warn-threshold: 0.1
       severe-threshold: 0.25
       anomaly-sample-cap: 10000
+      supervised-sample-cap: 10000
       min-samples: 50

@@ -45,6 +45,7 @@ class ModelDriftMonitorServiceTest {
         ReflectionTestUtils.setField(s, "warnThreshold", 0.1);
         ReflectionTestUtils.setField(s, "severeThreshold", 0.25);
         ReflectionTestUtils.setField(s, "anomalySampleCap", 10000);
+        ReflectionTestUtils.setField(s, "supervisedSampleCap", 10000);
         ReflectionTestUtils.setField(s, "minSamples", 10);
         return s;
     }
