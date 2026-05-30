@@ -251,6 +251,35 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     }
 
     /**
+     * 模型回滚
+     * 已部署或监控中的模型可回滚到指定版本，并保留回滚记录。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AmlModel rollbackModel(Long id, ModelLifecycleRequest request) {
+        AmlModel model = loadModel(id);
+        ensureNotArchived(model);
+        ensureLifecycleStatus(model, "回滚", STATUS_DEPLOYED, STATUS_MONITORING);
+        if (!StringUtils.hasText(request.getTargetVersion())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "模型回滚必须指定目标版本");
+        }
+        String fromStatus = model.getLifecycleStatus();
+        String previousVersion = model.getVersion();
+        model.setLifecycleStatus(STATUS_DEPLOYED);
+        model.setVersion(request.getTargetVersion());
+        model.setDeploymentEnv(firstText(request.getDeploymentEnv(), model.getDeploymentEnv(), "UAT"));
+        model.setDeployedTime(LocalDateTime.now());
+        model.setMonitorStatus(firstText(request.getMonitorStatus(), "ATTENTION"));
+        modelMapper.updateById(model);
+        addLog(model, "ROLLBACK", fromStatus, STATUS_DEPLOYED,
+                firstText(request.getActionSummary(),
+                        "模型已完成回滚登记，原版本=" + firstText(previousVersion, "UNKNOWN")
+                                + "，目标版本=" + firstText(model.getVersion(), "UNKNOWN")),
+                metricsJson(model), request.getArtifactRef(), request.getOperator());
+        return model;
+    }
+
+    /**
      * 模型归档
      * 下线模型并记录归档原因，停止监控
      */

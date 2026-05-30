@@ -511,6 +511,10 @@ export const modelApi = {
   iterate(id: string, data: ModelLifecycleParams) {
     return request.post<ApiResponse<AmlModel>>(`/models/${id}/iterate`, data)
   },
+  /** 登记模型回滚 */
+  rollback(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/rollback`, data)
+  },
   /** 归档模型 */
   archive(id: string, data: ModelLifecycleParams) {
     return request.post<ApiResponse<AmlModel>>(`/models/${id}/archive`, data)

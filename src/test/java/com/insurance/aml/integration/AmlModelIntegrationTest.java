@@ -91,6 +91,24 @@ class AmlModelIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(result -> assertTrue(result.getResponse().getContentAsString().contains("MONITORING")));
 
+        mockMvc.perform(post("/models/" + modelId + "/rollback")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "targetVersion": "0.9.9",
+                                  "monitorStatus": "ATTENTION",
+                                  "actionSummary": "回滚至上一稳定版本",
+                                  "artifactRef": "rollback://integration-test"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    String body = result.getResponse().getContentAsString();
+                    assertTrue(body.contains("DEPLOYED"));
+                    assertTrue(body.contains("0.9.9"));
+                });
+
         mockMvc.perform(post("/models/" + modelId + "/iterate")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -174,6 +192,11 @@ class AmlModelIntegrationTest extends BaseIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"targetVersion\":\"1.0.1\"}")).andReturn());
+
+        assertBusinessBadRequest(mockMvc.perform(post("/models/" + modelId + "/rollback")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"targetVersion\":\"0.9.9\"}")).andReturn());
     }
 
     private void assertBusinessBadRequest(MvcResult result) throws Exception {

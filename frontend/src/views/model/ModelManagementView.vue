@@ -262,7 +262,7 @@
         </el-table-column>
         <el-table-column prop="deploymentEnv" label="部署环境" width="100" />
         <el-table-column prop="updatedTime" label="更新时间" min-width="170" />
-        <el-table-column label="操作" width="330" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <div class="table-actions">
               <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
@@ -270,6 +270,7 @@
               <el-button link type="warning" size="small" @click="openLifecycle(row, 'deploy')">部署</el-button>
               <el-button link type="info" size="small" @click="openLifecycle(row, 'monitor')">监控</el-button>
               <el-button link type="primary" size="small" @click="openLifecycle(row, 'iterate')">迭代</el-button>
+              <el-button link type="warning" size="small" @click="openLifecycle(row, 'rollback')">回滚</el-button>
               <el-button link type="danger" size="small" @click="openLifecycle(row, 'archive')">归档</el-button>
               <el-button link type="info" size="small" @click="openLogs(row)">记录</el-button>
             </div>
@@ -421,6 +422,16 @@
         <el-form-item v-if="currentAction === 'iterate'" label="迭代计划">
           <el-input v-model="lifecycleForm.iterationPlan" type="textarea" :rows="3" />
         </el-form-item>
+        <el-form-item v-if="currentAction === 'rollback'" label="回滚版本">
+          <el-input v-model="lifecycleForm.targetVersion" placeholder="请输入上一稳定版本，如 1.0.0" />
+        </el-form-item>
+        <el-form-item v-if="currentAction === 'rollback'" label="回滚后状态">
+          <el-select v-model="lifecycleForm.monitorStatus" style="width: 100%;">
+            <el-option label="需关注" value="ATTENTION" />
+            <el-option label="正常" value="NORMAL" />
+            <el-option label="已漂移" value="DRIFTED" />
+          </el-select>
+        </el-form-item>
         <el-form-item v-if="currentAction === 'archive'" label="归档原因">
           <el-input v-model="lifecycleForm.archiveReason" type="textarea" :rows="3" />
         </el-form-item>
@@ -477,7 +488,7 @@ import { modelApi } from '@/api/modules'
 import type { AiRiskFollowUpTaskRequest, AiRiskReviewPoolItem, AiRiskReviewPoolOverview, AmlModel, ModelLifecycleLog } from '@/api/types'
 import { disposeEchart, getEcharts } from '@/utils/echarts'
 
-type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'archive'
+type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'rollback' | 'archive'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -657,6 +668,7 @@ const lifecycleTitle = computed(() => ({
   deploy: '登记模型部署',
   monitor: '刷新模型监控',
   iterate: '登记模型迭代',
+  rollback: '登记模型回滚',
   archive: '归档模型'
 }[currentAction.value]))
 
@@ -665,10 +677,15 @@ const lifecycleConfirmText = computed(() => ({
   deploy: '确认部署',
   monitor: '刷新监控',
   iterate: '进入迭代',
+  rollback: '确认回滚',
   archive: '确认归档'
 }[currentAction.value]))
 
-const lifecycleButtonType = computed(() => currentAction.value === 'archive' ? 'danger' : 'primary')
+const lifecycleButtonType = computed(() => {
+  if (currentAction.value === 'archive') return 'danger'
+  if (currentAction.value === 'rollback') return 'warning'
+  return 'primary'
+})
 
 async function loadOverview() {
   const res: any = await modelApi.getOverview()
@@ -899,6 +916,10 @@ function openLifecycle(row: AmlModel, action: LifecycleAction) {
 
 async function submitLifecycle() {
   if (!currentModel.value) return
+  if (currentAction.value === 'rollback' && !lifecycleForm.targetVersion) {
+    ElMessage.warning('请填写回滚目标版本')
+    return
+  }
   submitting.value = true
   try {
     const id = currentModel.value.id
@@ -907,6 +928,7 @@ async function submitLifecycle() {
     if (currentAction.value === 'deploy') await modelApi.deploy(id, payload)
     if (currentAction.value === 'monitor') await modelApi.monitor(id, payload)
     if (currentAction.value === 'iterate') await modelApi.iterate(id, payload)
+    if (currentAction.value === 'rollback') await modelApi.rollback(id, payload)
     if (currentAction.value === 'archive') await modelApi.archive(id, payload)
     ElMessage.success(`${lifecycleTitle.value}已完成`)
     lifecycleDialogVisible.value = false
@@ -935,6 +957,7 @@ function defaultActionSummary(row: AmlModel, action: LifecycleAction) {
     deploy: `${name} 完成部署登记，等待监控周期验证`,
     monitor: `${name} 刷新本期运行监控指标`,
     iterate: `${name} 基于监控反馈进入迭代优化`,
+    rollback: `${name} 回滚至上一稳定版本并保留治理记录`,
     archive: `${name} 停止使用并归档治理材料`
   }[action]
 }
@@ -951,6 +974,7 @@ function actionLabel(value: string) {
     DEPLOY: '部署',
     MONITOR: '监控',
     ITERATE: '迭代',
+    ROLLBACK: '回滚',
     ARCHIVE: '归档'
   }[value] || value
 }
