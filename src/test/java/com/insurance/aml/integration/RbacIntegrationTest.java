@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -75,6 +76,66 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
                                 """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("只读用户调用审计日志接口 -> 403")
+    void viewerCannotReadAuditLogs() throws Exception {
+        mockMvc.perform(get("/system/audit-logs/page")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "system_operator", authorities = {"system:view"})
+    @DisplayName("拥有 system:view 权限 -> 可查询审计日志")
+    void systemViewCanReadAuditLogs() throws Exception {
+        mockMvc.perform(get("/system/audit-logs/page")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("只读用户调用交易图分析接口 -> 403")
+    void viewerCannotReadGraphAnalysis() throws Exception {
+        mockMvc.perform(get("/monitoring/graph/density/1")
+                        .param("densityThreshold", "10"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "monitoring_operator", authorities = {"monitoring:view"})
+    @DisplayName("拥有 monitoring:view 权限 -> 可查询交易图分析")
+    void monitoringViewCanReadGraphAnalysis() throws Exception {
+        mockMvc.perform(get("/monitoring/graph/density/1")
+                        .param("densityThreshold", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("只读用户调用规则反馈接口 -> 403")
+    void viewerCannotReadRuleFeedback() throws Exception {
+        mockMvc.perform(get("/monitoring/rules/feedback/summary"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "monitoring_operator", authorities = {"monitoring:view"})
+    @DisplayName("拥有 monitoring:view 权限 -> 可查询规则反馈")
+    void monitoringViewCanReadRuleFeedback() throws Exception {
+        mockMvc.perform(get("/monitoring/rules/feedback/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     private String customerJson(String name, String idNumber) {

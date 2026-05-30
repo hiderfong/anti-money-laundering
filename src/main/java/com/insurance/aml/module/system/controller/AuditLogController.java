@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/system/audit-logs")
 @RequiredArgsConstructor
 @Tag(name = "审计日志", description = "审计日志查询相关接口")
+@PreAuthorize("hasRole('ADMIN') or hasAuthority('system:view')")
 public class AuditLogController {
     private final AuditLogQueryService auditLogQueryService;
     @Autowired(required = false)
