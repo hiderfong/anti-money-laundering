@@ -163,17 +163,34 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
+        <el-table-column label="跟进任务" width="150">
+          <template #default="{ row }">
+            <el-tag v-if="row.followUpTaskId" type="success" size="small">已生成 #{{ row.followUpTaskId }}</el-tag>
+            <el-tag v-else type="warning" size="small">待生成</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="verificationBasis" label="系统判断依据" min-width="260" show-overflow-tooltip />
         <el-table-column prop="factorSummary" label="主要贡献因子" min-width="280" show-overflow-tooltip />
         <el-table-column label="模型版本" width="120">
           <template #default="{ row }">v{{ row.modelVersion }}</template>
         </el-table-column>
         <el-table-column prop="scoredAt" label="评分时间" min-width="170" />
-        <el-table-column label="操作" width="110" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openAiReview(row)">
-              {{ row.manualReviewLabel ? '更新复核' : '登记复核' }}
-            </el-button>
+            <div class="table-actions">
+              <el-button link type="primary" size="small" @click="openAiReview(row)">
+                {{ row.manualReviewLabel ? '更新复核' : '登记复核' }}
+              </el-button>
+              <el-button
+                link
+                type="warning"
+                size="small"
+                :disabled="Boolean(row.followUpTaskId)"
+                @click="openAiFollowUp(row)"
+              >
+                {{ row.followUpTaskId ? '已生成任务' : '生成任务' }}
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -284,6 +301,51 @@
       <template #footer>
         <el-button @click="aiReviewDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="aiReviewSubmitting" @click="submitAiReview">保存复核结果</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="aiFollowUpDialogVisible" title="生成AI评分跟进任务" width="620px" destroy-on-close>
+      <el-form :model="aiFollowUpForm" label-width="104px">
+        <el-form-item label="评分对象">
+          <el-input :model-value="currentAiFollowUpItem ? `${subjectTypeText(currentAiFollowUpItem.subjectType)} · ${currentAiFollowUpItem.subjectName}` : ''" disabled />
+        </el-form-item>
+        <el-form-item label="风险结果">
+          <el-input :model-value="currentAiFollowUpItem ? `${currentAiFollowUpItem.score}分 / ${aiRiskLevelText(currentAiFollowUpItem.riskLevel)} / ${currentAiFollowUpItem.priorityLevel}` : ''" disabled />
+        </el-form-item>
+        <div class="form-grid">
+          <el-form-item label="任务类型">
+            <el-select v-model="aiFollowUpForm.taskType" style="width: 100%;">
+              <el-option label="整改核查" value="RECTIFICATION" />
+              <el-option label="持续监控" value="MONITORING" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="严重程度">
+            <el-select v-model="aiFollowUpForm.severity" style="width: 100%;">
+              <el-option label="高" value="HIGH" />
+              <el-option label="中" value="MEDIUM" />
+              <el-option label="低" value="LOW" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="责任部门">
+            <el-input v-model="aiFollowUpForm.responsibleDept" />
+          </el-form-item>
+          <el-form-item label="责任人">
+            <el-input v-model="aiFollowUpForm.responsiblePerson" />
+          </el-form-item>
+          <el-form-item label="问题分类">
+            <el-input v-model="aiFollowUpForm.issueCategory" />
+          </el-form-item>
+          <el-form-item label="跟进期限">
+            <el-date-picker v-model="aiFollowUpForm.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+        </div>
+        <el-form-item label="补充说明">
+          <el-input v-model="aiFollowUpForm.comment" type="textarea" :rows="3" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aiFollowUpDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="aiFollowUpSubmitting" @click="submitAiFollowUp">生成跟进任务</el-button>
       </template>
     </el-dialog>
 
@@ -412,7 +474,7 @@ import type { ECharts } from 'echarts'
 import { ElMessage } from 'element-plus'
 import { Download, Plus, Refresh } from '@element-plus/icons-vue'
 import { modelApi } from '@/api/modules'
-import type { AiRiskReviewPoolItem, AiRiskReviewPoolOverview, AmlModel, ModelLifecycleLog } from '@/api/types'
+import type { AiRiskFollowUpTaskRequest, AiRiskReviewPoolItem, AiRiskReviewPoolOverview, AmlModel, ModelLifecycleLog } from '@/api/types'
 import { disposeEchart, getEcharts } from '@/utils/echarts'
 
 type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'archive'
@@ -436,7 +498,10 @@ const aiReviewExporting = ref(false)
 const aiReviewSubmitting = ref(false)
 const aiReviewTotal = ref(0)
 const aiReviewDialogVisible = ref(false)
+const aiFollowUpDialogVisible = ref(false)
+const aiFollowUpSubmitting = ref(false)
 const currentAiReviewItem = ref<AiRiskReviewPoolItem | null>(null)
+const currentAiFollowUpItem = ref<AiRiskReviewPoolItem | null>(null)
 let lifecycleChart: ECharts | null = null
 let healthChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
@@ -522,6 +587,16 @@ const aiReviewQuery = reactive({
 const aiReviewForm = reactive({
   reviewLabel: 'TRUE_POSITIVE',
   reviewComment: ''
+})
+
+const aiFollowUpForm = reactive<AiRiskFollowUpTaskRequest>({
+  taskType: 'RECTIFICATION',
+  issueCategory: 'AI高风险核查',
+  severity: 'HIGH',
+  responsibleDept: '反洗钱合规部',
+  responsiblePerson: '',
+  deadline: '',
+  comment: ''
 })
 
 const modelTypeOptions = [
@@ -667,6 +742,45 @@ async function submitAiReview() {
     await refreshAiReview()
   } finally {
     aiReviewSubmitting.value = false
+  }
+}
+
+function openAiFollowUp(row: AiRiskReviewPoolItem) {
+  if (row.followUpTaskId) {
+    ElMessage.info(`已生成跟进任务：${row.followUpTaskId}`)
+    return
+  }
+  currentAiFollowUpItem.value = row
+  Object.assign(aiFollowUpForm, {
+    taskType: row.riskLevel === 'LOW' || row.riskLevel === 'MEDIUM' ? 'MONITORING' : 'RECTIFICATION',
+    issueCategory: row.riskLevel === 'LOW' || row.riskLevel === 'MEDIUM' ? 'AI持续监控' : 'AI高风险核查',
+    severity: defaultFollowUpSeverity(row),
+    responsibleDept: '反洗钱合规部',
+    responsiblePerson: '',
+    deadline: defaultFollowUpDeadline(row),
+    comment: row.verificationBasis || ''
+  })
+  aiFollowUpDialogVisible.value = true
+}
+
+async function submitAiFollowUp() {
+  if (!currentAiFollowUpItem.value) return
+  if (!aiFollowUpForm.deadline) {
+    ElMessage.warning('请选择跟进期限')
+    return
+  }
+  aiFollowUpSubmitting.value = true
+  try {
+    await modelApi.createAiRiskFollowUpTask(currentAiFollowUpItem.value.id, {
+      ...aiFollowUpForm,
+      responsiblePerson: aiFollowUpForm.responsiblePerson || undefined,
+      comment: aiFollowUpForm.comment || undefined
+    })
+    ElMessage.success('已生成整改中心跟进任务')
+    aiFollowUpDialogVisible.value = false
+    await refreshAiReview()
+  } finally {
+    aiFollowUpSubmitting.value = false
   }
 }
 
@@ -929,6 +1043,20 @@ function labelFromAutoLabel(value: string) {
   if (value === 'LIKELY_TRUE_POSITIVE') return 'TRUE_POSITIVE'
   if (value === 'LIKELY_FALSE_POSITIVE') return 'FALSE_POSITIVE'
   return 'NEEDS_MONITORING'
+}
+
+function defaultFollowUpSeverity(row: AiRiskReviewPoolItem): 'HIGH' | 'MEDIUM' | 'LOW' {
+  if (row.riskLevel === 'CRITICAL' || row.riskLevel === 'HIGH' || Number(row.score || 0) >= 65) return 'HIGH'
+  if (row.riskLevel === 'MEDIUM' || Number(row.score || 0) >= 35) return 'MEDIUM'
+  return 'LOW'
+}
+
+function defaultFollowUpDeadline(row: AiRiskReviewPoolItem) {
+  const date = new Date()
+  const score = Number(row.score || 0)
+  const days = score >= 85 || row.riskLevel === 'CRITICAL' ? 3 : score >= 65 || row.riskLevel === 'HIGH' ? 7 : 14
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
 }
 
 function scoreColor(score: number) {

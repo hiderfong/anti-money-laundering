@@ -2,6 +2,7 @@ package com.insurance.aml.module.ai.controller;
 
 import com.insurance.aml.common.result.Result;
 import com.insurance.aml.common.result.PageResult;
+import com.insurance.aml.module.ai.model.dto.AiRiskFollowUpTaskRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskModelStatusVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskTrainingResultVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolItemVO;
@@ -111,6 +112,15 @@ public class AiRiskScoringController {
             @Parameter(description = "评分记录ID", required = true) @PathVariable Long recordId,
             @Valid @RequestBody AiRiskReviewRequest request) {
         return Result.success(aiRiskScoringService.reviewScoreRecord(recordId, request));
+    }
+
+    @PostMapping("/review-pool/{recordId}/follow-up-task")
+    @Operation(summary = "根据AI评分生成跟进整改任务")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:manage') or hasAuthority('rectification:manage') or hasAuthority('monitoring:config')")
+    public Result<AiRiskReviewPoolItemVO> createFollowUpTask(
+            @Parameter(description = "评分记录ID", required = true) @PathVariable Long recordId,
+            @RequestBody(required = false) AiRiskFollowUpTaskRequest request) {
+        return Result.success(aiRiskScoringService.createFollowUpTask(recordId, request));
     }
 
     @GetMapping("/review-pool/export")

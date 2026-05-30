@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -212,6 +213,37 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.manualReviewLabel").value("TRUE_POSITIVE"))
                 .andExpect(jsonPath("$.data.reviewStatus").value("MANUAL_REVIEWED"));
+
+        String followUpJson = String.format("""
+                {
+                    "taskType": "RECTIFICATION",
+                    "issueCategory": "AI高风险核查",
+                    "severity": "HIGH",
+                    "responsibleDept": "反洗钱合规部",
+                    "responsiblePerson": "刘思远",
+                    "deadline": "%s",
+                    "comment": "集成测试生成AI评分跟进任务"
+                }
+                """, LocalDate.now().plusDays(5));
+        MvcResult followUpResult = mockMvc.perform(post("/ai/risk/review-pool/" + reviewRecordId + "/follow-up-task")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(followUpJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followUpTaskId").exists())
+                .andReturn();
+        Long followUpTaskId = objectMapper.readTree(followUpResult.getResponse().getContentAsString())
+                .path("data")
+                .path("followUpTaskId")
+                .asLong();
+        Integer followUpCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM t_rectification_task
+                WHERE id = ?
+                  AND source_type = 'AI_RISK_SCORE'
+                  AND source_id = ?
+                """, Integer.class, followUpTaskId, reviewRecordId);
+        assertTrue(followUpCount != null && followUpCount == 1, "AI评分应生成整改中心跟进任务");
 
         MvcResult exportResult = mockMvc.perform(get("/ai/risk/review-pool/export")
                         .param("minScore", "65")

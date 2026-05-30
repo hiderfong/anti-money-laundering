@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insurance.aml.common.exception.BusinessException;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.ResultCode;
+import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.ai.mapper.AiRiskScoreRecordMapper;
+import com.insurance.aml.module.ai.model.dto.AiRiskFollowUpTaskRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskFactorVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskFeatureSummaryVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskModelStatusVO;
@@ -31,23 +33,30 @@ import com.insurance.aml.module.ai.service.support.ModelTrainingOpsService;
 import com.insurance.aml.module.ai.service.support.AiRiskSupervisedModel;
 import com.insurance.aml.module.alert.mapper.AlertMapper;
 import com.insurance.aml.module.alert.model.entity.Alert;
+import com.insurance.aml.module.assessment.model.dto.RectificationTaskRequest;
+import com.insurance.aml.module.assessment.model.entity.RectificationTask;
+import com.insurance.aml.module.assessment.service.RectificationService;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.kyc.model.entity.Customer;
 import com.insurance.aml.module.modelmgmt.mapper.AmlModelMapper;
 import com.insurance.aml.module.modelmgmt.model.entity.AmlModel;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
+import com.insurance.aml.module.system.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -66,6 +75,9 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     private static final String MODEL_CODE = "AI_AML_RISK_BASELINE_V1";
     private static final String MODEL_NAME = "AI可解释风险评分基线模型";
     private static final String MODEL_VERSION = "1.0.0";
+    private static final String FOLLOW_UP_SOURCE_TYPE = "AI_RISK_SCORE";
+    private static final String FOLLOW_UP_TYPE_MONITORING = "MONITORING";
+    private static final String FOLLOW_UP_DEFAULT_DEPT = "反洗钱合规部";
 
     private final CustomerMapper customerMapper;
     private final TransactionMapper transactionMapper;
@@ -73,6 +85,8 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     private final JdbcTemplate jdbcTemplate;
     private final AmlModelMapper amlModelMapper;
     private final AiRiskScoreRecordMapper scoreRecordMapper;
+    private final RectificationService rectificationService;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final AiRiskFeatureBuilder featureBuilder;
     private final AiRiskFactorEvaluator factorEvaluator;
@@ -171,6 +185,41 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
     @Override
     public AiRiskReviewPoolItemVO reviewScoreRecord(Long recordId, AiRiskReviewRequest request) {
         return reviewService.reviewScoreRecord(recordId, request);
+    }
+
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AiRiskReviewPoolItemVO createFollowUpTask(Long recordId, AiRiskFollowUpTaskRequest request) {
+        AiRiskScoreRecord record = scoreRecordMapper.selectById(recordId);
+        if (record == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "AI评分记录不存在，ID：" + recordId);
+        }
+        if (record.getFollowUpTaskId() != null) {
+            return reviewService.toReviewPoolItem(record);
+        }
+
+        AiRiskFollowUpTaskRequest safeRequest = request == null ? new AiRiskFollowUpTaskRequest() : request;
+        AiRiskReviewPoolItemVO snapshot = reviewService.toReviewPoolItem(record);
+        RectificationTaskRequest taskRequest = new RectificationTaskRequest();
+        taskRequest.setSourceType(FOLLOW_UP_SOURCE_TYPE);
+        taskRequest.setSourceId(record.getId());
+        taskRequest.setIssueDescription(buildFollowUpIssueDescription(record, snapshot, safeRequest));
+        taskRequest.setIssueCategory(firstNonBlank(safeRequest.getIssueCategory(), defaultFollowUpCategory(safeRequest.getTaskType())));
+        taskRequest.setSeverity(normalizeFollowUpSeverity(firstNonBlank(safeRequest.getSeverity(), defaultFollowUpSeverity(record))));
+        taskRequest.setResponsibleDept(firstNonBlank(safeRequest.getResponsibleDept(), FOLLOW_UP_DEFAULT_DEPT));
+        taskRequest.setResponsiblePerson(firstNonBlank(safeRequest.getResponsiblePerson(), SecurityUtils.getCurrentUsername(), "智能风控岗"));
+        taskRequest.setDeadline(resolveFollowUpDeadline(record, safeRequest.getDeadline()));
+
+        RectificationTask task = rectificationService.createTask(taskRequest);
+        LocalDateTime now = LocalDateTime.now();
+        record.setFollowUpTaskId(task.getId());
+        record.setFollowUpCreatedAt(now);
+        record.setFollowUpCreatedBy(firstNonBlank(SecurityUtils.getCurrentUsername(), "system"));
+        scoreRecordMapper.updateById(record);
+        sendFollowUpNotification(task, record);
+        log.info("AI评分记录已生成跟进任务: recordId={}, taskId={}", recordId, task.getId());
+        return reviewService.toReviewPoolItem(record);
     }
 
     @Override
@@ -358,6 +407,114 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
             log.warn("AI风险评分快照序列化失败", ex);
             return "{}";
         }
+    }
+
+
+    private String buildFollowUpIssueDescription(AiRiskScoreRecord record, AiRiskReviewPoolItemVO snapshot,
+                                                AiRiskFollowUpTaskRequest request) {
+        List<String> lines = new ArrayList<>();
+        lines.add("AI评分触发跟进任务");
+        lines.add("评分流水号：" + nullToDash(record.getScoreNo()));
+        lines.add("评分主体：" + subjectTypeText(record.getSubjectType()) + " · " + nullToDash(record.getSubjectName())
+                + "（ID：" + record.getSubjectId() + "）");
+        lines.add("AI风险结果：" + (record.getScore() == null ? 0 : record.getScore()) + "分 / " + nullToDash(record.getRiskLevel())
+                + "，置信度：" + (record.getConfidence() == null ? 0 : record.getConfidence()) + "%");
+        lines.add("系统弱标签：" + nullToDash(snapshot.getAutoLabelText()));
+        lines.add("判断依据：" + nullToDash(snapshot.getVerificationBasis()));
+        lines.add("主要贡献因子：" + nullToDash(record.getFactorSummary()));
+        if (StringUtils.hasText(record.getManualReviewLabel())) {
+            lines.add("人工复核：" + nullToDash(snapshot.getManualReviewLabelText()) + "，复核人：" + nullToDash(record.getReviewedBy()));
+        }
+        if (StringUtils.hasText(request.getComment())) {
+            lines.add("补充说明：" + request.getComment().trim());
+        }
+        lines.add("处置建议：请在整改中心补充核查结论、证据材料和后续监控结果。");
+        return String.join("\n", lines);
+    }
+
+    private String defaultFollowUpCategory(String taskType) {
+        return StringUtils.hasText(taskType) && FOLLOW_UP_TYPE_MONITORING.equalsIgnoreCase(taskType.trim())
+                ? "AI持续监控"
+                : "AI高风险核查";
+    }
+
+    private String defaultFollowUpSeverity(AiRiskScoreRecord record) {
+        int score = record.getScore() == null ? 0 : record.getScore();
+        if (score >= 65 || "HIGH".equals(record.getRiskLevel()) || "CRITICAL".equals(record.getRiskLevel())) {
+            return "HIGH";
+        }
+        if (score >= 35 || "MEDIUM".equals(record.getRiskLevel())) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }
+
+    private String normalizeFollowUpSeverity(String severity) {
+        String value = StringUtils.hasText(severity) ? severity.trim().toUpperCase(Locale.ROOT) : "MEDIUM";
+        if (List.of("HIGH", "MEDIUM", "LOW").contains(value)) {
+            return value;
+        }
+        throw new BusinessException(ResultCode.BAD_REQUEST, "跟进任务严重程度不支持：" + severity);
+    }
+
+    private LocalDate resolveFollowUpDeadline(AiRiskScoreRecord record, LocalDate requestedDeadline) {
+        LocalDate today = LocalDate.now();
+        if (requestedDeadline != null && !requestedDeadline.isBefore(today)) {
+            return requestedDeadline;
+        }
+        int score = record.getScore() == null ? 0 : record.getScore();
+        if (score >= 85 || "CRITICAL".equals(record.getRiskLevel())) {
+            return today.plusDays(3);
+        }
+        if (score >= 65 || "HIGH".equals(record.getRiskLevel())) {
+            return today.plusDays(7);
+        }
+        return today.plusDays(14);
+    }
+
+    private void sendFollowUpNotification(RectificationTask task, AiRiskScoreRecord record) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        if (currentUserId == null || task == null || task.getId() == null) {
+            return;
+        }
+        try {
+            notificationService.sendNotification(
+                    currentUserId,
+                    "SYSTEM",
+                    "AI评分跟进任务已生成",
+                    "已为" + subjectTypeText(record.getSubjectType()) + "「" + nullToDash(record.getSubjectName())
+                            + "」生成整改中心跟进任务，任务ID：" + task.getId(),
+                    "RECTIFICATION",
+                    String.valueOf(task.getId())
+            );
+        } catch (Exception ex) {
+            log.warn("AI评分跟进任务通知发送失败，taskId={}", task.getId(), ex);
+        }
+    }
+
+    private String subjectTypeText(String subjectType) {
+        return switch (subjectType == null ? "" : subjectType) {
+            case "CUSTOMER" -> "客户";
+            case "TRANSACTION" -> "交易";
+            case "ALERT" -> "预警";
+            default -> subjectType == null ? "" : subjectType;
+        };
+    }
+
+    private String nullToDash(String value) {
+        return StringUtils.hasText(value) ? value : "-";
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private String toRiskLevel(int score) {

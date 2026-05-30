@@ -82,4 +82,13 @@ public class AiRiskReviewPoolItemVO {
 
     @Schema(description = "复核时间")
     private LocalDateTime reviewedAt;
+
+    @Schema(description = "已生成的跟进整改任务ID")
+    private Long followUpTaskId;
+
+    @Schema(description = "跟进任务生成时间")
+    private LocalDateTime followUpCreatedAt;
+
+    @Schema(description = "跟进任务创建人")
+    private String followUpCreatedBy;
 }
