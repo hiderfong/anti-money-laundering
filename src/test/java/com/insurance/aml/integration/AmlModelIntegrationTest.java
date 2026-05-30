@@ -118,6 +118,71 @@ class AmlModelIntegrationTest extends BaseIntegrationTest {
                 .andExpect(result -> assertTrue(result.getResponse().getContentAsString().contains("AMLM-IT-001")));
     }
 
+    @Test
+    @DisplayName("模型生命周期不允许跳过治理节点")
+    void modelLifecycleRejectsSkippedStages() throws Exception {
+        String token = login();
+        String modelCode = "AMLM-IT-GUARD-" + System.currentTimeMillis();
+        String payload = """
+                {
+                  "modelCode": "%s",
+                  "modelName": "生命周期约束测试模型",
+                  "modelType": "SUPERVISED",
+                  "scenario": "CUSTOMER_RISK_RATING",
+                  "algorithmType": "LOGISTIC_REGRESSION",
+                  "version": "1.0.0",
+                  "lifecycleStatus": "DEPLOYED",
+                  "owner": "测试管理员",
+                  "governanceLevel": "L1",
+                  "riskLevel": "HIGH",
+                  "trainingDataset": "治理测试训练集",
+                  "validationDataset": "治理测试验证集"
+                }
+                """.formatted(modelCode);
+
+        MvcResult createResult = mockMvc.perform(post("/models")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data");
+        long modelId = created.path("id").asLong();
+        assertEquals("DRAFT", created.path("lifecycleStatus").asText(), "创建模型必须从草稿状态开始");
+
+        mockMvc.perform(put("/models/" + modelId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload.replace("生命周期约束测试模型", "生命周期约束测试模型-更新")))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+                    assertEquals("DRAFT", data.path("lifecycleStatus").asText(), "基础信息更新不能绕过生命周期动作");
+                });
+
+        assertBusinessBadRequest(mockMvc.perform(post("/models/" + modelId + "/deploy")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"deploymentEnv\":\"PROD\"}")).andReturn());
+
+        assertBusinessBadRequest(mockMvc.perform(post("/models/" + modelId + "/monitor")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"monitorStatus\":\"NORMAL\"}")).andReturn());
+
+        assertBusinessBadRequest(mockMvc.perform(post("/models/" + modelId + "/iterate")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"targetVersion\":\"1.0.1\"}")).andReturn());
+    }
+
+    private void assertBusinessBadRequest(MvcResult result) throws Exception {
+        assertEquals(200, result.getResponse().getStatus(), "业务异常仍使用统一响应体承载");
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertEquals(400, body.path("code").asInt());
+        assertFalse(body.path("message").asText().isBlank());
+    }
+
     private String login() throws Exception {
         MvcResult loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
