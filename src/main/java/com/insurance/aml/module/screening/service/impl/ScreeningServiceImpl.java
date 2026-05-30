@@ -225,7 +225,7 @@ public class ScreeningServiceImpl implements ScreeningService {
             return (long) totalHit;
 
         } catch (BusinessException e) {
-            log.error("制裁名单筛查业务异常，customerId={}", customerId, e);
+            log.warn("制裁名单筛查业务异常，customerId={}, message={}", customerId, e.getMessage());
             request.setStatus(ScreeningStatus.FAILED.getCode());
             request.setErrorMessage(truncateErrorMessage(e.getMessage()));
             screeningRequestMapper.updateById(request);
@@ -250,6 +250,9 @@ public class ScreeningServiceImpl implements ScreeningService {
             try {
                 Long hitCount = screenCustomer(customerId, "BATCH");
                 results.add(hitCount);
+            } catch (BusinessException e) {
+                log.warn("批量筛查中客户筛查业务失败，customerId={}, message={}", customerId, e.getMessage());
+                results.add(-1L); // -1 表示筛查失败
             } catch (Exception e) {
                 log.error("批量筛查中客户筛查失败，customerId={}", customerId, e);
                 results.add(-1L); // -1 表示筛查失败
