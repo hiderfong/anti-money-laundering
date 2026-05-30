@@ -341,4 +341,24 @@ public class AiRiskScoringIntegrationTest extends BaseIntegrationTest {
         assertEquals(400, unknownBody.path("code").asInt(),
                 "未知 modelKey 应返回业务错误码 400");
     }
+
+    @Test
+    @Order(5)
+    @DisplayName("模型漂移监控端点 - 返回 supervised + anomaly")
+    void modelDriftEndpoint_returnsBothModels() throws Exception {
+        String token = getAuthToken();
+        MvcResult result = mockMvc.perform(get("/ai/risk/models/drift")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        assertEquals(2, data.size());
+        assertEquals("supervised", data.get(0).path("modelKey").asText());
+        assertEquals("anomaly", data.get(1).path("modelKey").asText());
+        String supervisedStatus = data.get(0).path("status").asText();
+        assertTrue(
+                "NORMAL".equals(supervisedStatus) || "WARN".equals(supervisedStatus)
+                        || "SEVERE".equals(supervisedStatus) || "UNAVAILABLE".equals(supervisedStatus),
+                "status 应为四种合法值之一: " + supervisedStatus);
+    }
 }
