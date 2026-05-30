@@ -12,6 +12,7 @@ import com.insurance.aml.module.monitoring.model.entity.RuleExecutionLog;
 import com.insurance.aml.common.enums.TransactionStatus;
 import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.monitoring.model.entity.TransactionEvaluationContext;
+import com.insurance.aml.module.monitoring.service.support.RuleExecutionLogFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kie.api.runtime.KieContainer;
@@ -309,14 +310,7 @@ public class RuleEngineService {
     private RuleExecutionLog evaluateRule(RuleDefinition rule, Transaction transaction) {
         long ruleStart = System.currentTimeMillis();
 
-        RuleExecutionLog execLog = new RuleExecutionLog();
-        execLog.setRuleId(rule.getId());
-        execLog.setRuleCode(rule.getRuleCode());
-        execLog.setTransactionId(transaction.getId());
-        execLog.setCustomerId(transaction.getCustomerId());
-        execLog.setExecutionTime(LocalDateTime.now());
-        execLog.setMatchResult(false);
-        execLog.setMatchScore(BigDecimal.ZERO);
+        RuleExecutionLog execLog = RuleExecutionLogFactory.baseLog(rule, transaction);
 
         try {
             switch (rule.getRuleCategory()) {
