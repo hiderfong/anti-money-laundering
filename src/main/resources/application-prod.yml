@@ -87,6 +87,8 @@ aml:
       model-path: ${AML_ML_AI_RISK_MODEL_PATH:${AML_ML_MODEL_PATH:/var/lib/aml/models}}
       retrain-cron: "${AML_ML_AI_RISK_RETRAIN_CRON:0 0 3 * * SUN}"
       min-samples: ${AML_ML_AI_RISK_MIN_SAMPLES:50}
+      training-window-days: ${AML_ML_AI_RISK_TRAINING_WINDOW_DAYS:365}
+      training-sample-cap: ${AML_ML_AI_RISK_TRAINING_SAMPLE_CAP:10000}
     drift:
       cron: "${AML_ML_DRIFT_CRON:0 0 4 * * ?}"
       window-hours: ${AML_ML_DRIFT_WINDOW_HOURS:24}
@@ -126,3 +128,7 @@ logging:
   level:
     root: ${AML_LOG_LEVEL_ROOT:WARN}
     com.insurance.aml: ${AML_LOG_LEVEL_APP:INFO}
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

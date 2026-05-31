@@ -19,6 +19,7 @@ import com.insurance.aml.module.alert.model.entity.AlertAssignmentLog;
 import com.insurance.aml.module.alert.model.entity.AlertRuleDetail;
 import com.insurance.aml.module.alert.controller.AlertController;
 import com.insurance.aml.module.alert.service.AlertService;
+import com.insurance.aml.module.alert.service.support.AlertDispositionSupport;
 import com.insurance.aml.module.casemgmt.mapper.CaseMapper;
 import com.insurance.aml.module.casemgmt.mapper.StrReportMapper;
 import com.insurance.aml.module.casemgmt.model.dto.CaseCreateRequest;
@@ -49,6 +50,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import static com.insurance.aml.module.alert.service.support.AlertDispositionSupport.*;
 
 /**
  * 预警管理服务实现类
@@ -282,7 +285,7 @@ public class AlertServiceImpl implements AlertService {
         summary.setStrReportCount(strReports.size());
         summary.setHasCase(!cases.isEmpty());
         summary.setHasStrReport(!strReports.isEmpty());
-        summary.setSubmittedToRegulator(strReports.stream().anyMatch(this::isSubmittedToRegulator));
+        summary.setSubmittedToRegulator(strReports.stream().anyMatch(AlertDispositionSupport::isSubmittedToRegulator));
 
         vo.setSteps(buildDispositionSteps(alert, ruleDetails, transactions, cases, strReports));
         return vo;
@@ -717,7 +720,7 @@ public class AlertServiceImpl implements AlertService {
                     needsReport ? "pending" : "muted"
             );
         }
-        boolean submitted = strReports.stream().anyMatch(this::isSubmittedToRegulator);
+        boolean submitted = strReports.stream().anyMatch(AlertDispositionSupport::isSubmittedToRegulator);
         StrReport firstReport = strReports.get(0);
         String reportSummary = joinLimited(strReports.stream()
                 .map(item -> item.getReportNo() + "(" + reportStatusLabel(item.getReportStatus()) + ")")
@@ -748,124 +751,6 @@ public class AlertServiceImpl implements AlertService {
         step.setTime(time);
         step.setState(state);
         return step;
-    }
-
-    private String buildRuleSummary(Alert alert, List<AlertRuleDetail> ruleDetails) {
-        List<String> ruleNames = ruleDetails.stream()
-                .map(item -> StringUtils.hasText(item.getRuleName()) ? item.getRuleName() : item.getRuleCode())
-                .filter(StringUtils::hasText)
-                .collect(Collectors.toList());
-        if (!ruleNames.isEmpty()) {
-            return "命中规则：" + joinLimited(ruleNames, 3);
-        }
-        if (StringUtils.hasText(alert.getSourceRuleCodes())) {
-            return "规则代码：" + alert.getSourceRuleCodes();
-        }
-        return "规则明细待补充";
-    }
-
-    private String buildAlertMeta(Alert alert, String ruleSummary) {
-        List<String> parts = new ArrayList<>();
-        if (StringUtils.hasText(alert.getAlertType())) {
-            parts.add(alert.getAlertType());
-        }
-        if (alert.getRiskScore() != null) {
-            parts.add("风险分 " + alert.getRiskScore());
-        }
-        if (StringUtils.hasText(ruleSummary)) {
-            parts.add(ruleSummary);
-        }
-        return String.join(" / ", parts);
-    }
-
-    private String resolveReviewState(Alert alert) {
-        if (AlertStatus.EXCLUDED.getCode().equals(alert.getStatus())) {
-            return "muted";
-        }
-        if (AlertStatus.CONFIRMED.getCode().equals(alert.getStatus())) {
-            return "done";
-        }
-        if (AlertStatus.ESCALATED.getCode().equals(alert.getStatus())) {
-            return "warn";
-        }
-        return StringUtils.hasText(alert.getProcessResult()) ? "done" : "current";
-    }
-
-    private boolean isHighRisk(String riskLevel) {
-        return RiskLevel.HIGH.getCode().equals(riskLevel) || RiskLevel.CRITICAL.getCode().equals(riskLevel);
-    }
-
-    private boolean isSubmittedToRegulator(StrReport report) {
-        return "SUBMITTED".equals(report.getReportStatus())
-                || "SUBMIT_SUCCESS".equals(report.getSubmitResult())
-                || "SUCCESS".equals(report.getSubmitResult())
-                || report.getSubmitTime() != null && StringUtils.hasText(report.getSubmitResult());
-    }
-
-    private LocalDateTime firstNonNull(LocalDateTime first, LocalDateTime second) {
-        return first != null ? first : second;
-    }
-
-    private String joinLimited(List<String> values, int limit) {
-        List<String> filtered = values.stream()
-                .filter(StringUtils::hasText)
-                .distinct()
-                .collect(Collectors.toList());
-        if (filtered.isEmpty()) {
-            return "";
-        }
-        String joined = filtered.stream().limit(limit).collect(Collectors.joining("、"));
-        if (filtered.size() > limit) {
-            joined += " 等" + filtered.size() + "项";
-        }
-        return joined;
-    }
-
-    private String nullSafe(String value) {
-        return StringUtils.hasText(value) ? value : "-";
-    }
-
-    private String caseStatusLabel(String status) {
-        if (!StringUtils.hasText(status)) {
-            return "-";
-        }
-        return switch (status) {
-            case "DRAFT" -> "草稿";
-            case "INVESTIGATING" -> "调查中";
-            case "PENDING_APPROVAL" -> "待审批";
-            case "SUBMITTED" -> "已报送";
-            case "CLOSED" -> "已结案";
-            default -> status;
-        };
-    }
-
-    private String reportStatusLabel(String status) {
-        if (!StringUtils.hasText(status)) {
-            return "-";
-        }
-        return switch (status) {
-            case "DRAFT" -> "草稿";
-            case "PENDING_REVIEW" -> "待审核";
-            case "APPROVED" -> "已审核";
-            case "REJECTED" -> "已拒绝";
-            case "SUBMITTED" -> "已报送";
-            default -> status;
-        };
-    }
-
-    private String alertProcessLabel(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "-";
-        }
-        return switch (value) {
-            case "CONFIRMED", "CONFIRMED_SUSPICIOUS" -> "确认可疑";
-            case "EXCLUDED" -> "排除误报";
-            case "ESCALATED" -> "升级处理";
-            case "NEW" -> "新建";
-            case "ASSIGNED" -> "已分配";
-            case "PROCESSING" -> "处理中";
-            default -> value;
-        };
     }
 
     /**

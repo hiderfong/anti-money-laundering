@@ -163,17 +163,35 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
+        <el-table-column label="跟进任务" width="150">
+          <template #default="{ row }">
+            <el-tag v-if="row.followUpTaskId" type="success" size="small">已生成 #{{ row.followUpTaskId }}</el-tag>
+            <el-tag v-else type="warning" size="small">待生成</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="verificationBasis" label="系统判断依据" min-width="260" show-overflow-tooltip />
         <el-table-column prop="factorSummary" label="主要贡献因子" min-width="280" show-overflow-tooltip />
         <el-table-column label="模型版本" width="120">
           <template #default="{ row }">v{{ row.modelVersion }}</template>
         </el-table-column>
         <el-table-column prop="scoredAt" label="评分时间" min-width="170" />
-        <el-table-column label="操作" width="110" fixed="right">
+        <el-table-column label="操作" width="238" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openAiReview(row)">
-              {{ row.manualReviewLabel ? '更新复核' : '登记复核' }}
-            </el-button>
+            <div class="table-actions">
+              <el-button link type="info" size="small" @click="openAiExplain(row)">解释</el-button>
+              <el-button link type="primary" size="small" @click="openAiReview(row)">
+                {{ row.manualReviewLabel ? '更新复核' : '登记复核' }}
+              </el-button>
+              <el-button
+                link
+                type="warning"
+                size="small"
+                :disabled="Boolean(row.followUpTaskId)"
+                @click="openAiFollowUp(row)"
+              >
+                {{ row.followUpTaskId ? '已生成任务' : '生成任务' }}
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -245,7 +263,7 @@
         </el-table-column>
         <el-table-column prop="deploymentEnv" label="部署环境" width="100" />
         <el-table-column prop="updatedTime" label="更新时间" min-width="170" />
-        <el-table-column label="操作" width="330" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <div class="table-actions">
               <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
@@ -253,6 +271,7 @@
               <el-button link type="warning" size="small" @click="openLifecycle(row, 'deploy')">部署</el-button>
               <el-button link type="info" size="small" @click="openLifecycle(row, 'monitor')">监控</el-button>
               <el-button link type="primary" size="small" @click="openLifecycle(row, 'iterate')">迭代</el-button>
+              <el-button link type="warning" size="small" @click="openLifecycle(row, 'rollback')">回滚</el-button>
               <el-button link type="danger" size="small" @click="openLifecycle(row, 'archive')">归档</el-button>
               <el-button link type="info" size="small" @click="openLogs(row)">记录</el-button>
             </div>
@@ -285,6 +304,133 @@
         <el-button @click="aiReviewDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="aiReviewSubmitting" @click="submitAiReview">保存复核结果</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="aiFollowUpDialogVisible" title="生成AI评分跟进任务" width="620px" destroy-on-close>
+      <el-form :model="aiFollowUpForm" label-width="104px">
+        <el-form-item label="评分对象">
+          <el-input :model-value="currentAiFollowUpItem ? `${subjectTypeText(currentAiFollowUpItem.subjectType)} · ${currentAiFollowUpItem.subjectName}` : ''" disabled />
+        </el-form-item>
+        <el-form-item label="风险结果">
+          <el-input :model-value="currentAiFollowUpItem ? `${currentAiFollowUpItem.score}分 / ${aiRiskLevelText(currentAiFollowUpItem.riskLevel)} / ${currentAiFollowUpItem.priorityLevel}` : ''" disabled />
+        </el-form-item>
+        <div class="form-grid">
+          <el-form-item label="任务类型">
+            <el-select v-model="aiFollowUpForm.taskType" style="width: 100%;">
+              <el-option label="整改核查" value="RECTIFICATION" />
+              <el-option label="持续监控" value="MONITORING" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="严重程度">
+            <el-select v-model="aiFollowUpForm.severity" style="width: 100%;">
+              <el-option label="高" value="HIGH" />
+              <el-option label="中" value="MEDIUM" />
+              <el-option label="低" value="LOW" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="责任部门">
+            <el-input v-model="aiFollowUpForm.responsibleDept" />
+          </el-form-item>
+          <el-form-item label="责任人">
+            <el-input v-model="aiFollowUpForm.responsiblePerson" />
+          </el-form-item>
+          <el-form-item label="问题分类">
+            <el-input v-model="aiFollowUpForm.issueCategory" />
+          </el-form-item>
+          <el-form-item label="跟进期限">
+            <el-date-picker v-model="aiFollowUpForm.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+        </div>
+        <el-form-item label="补充说明">
+          <el-input v-model="aiFollowUpForm.comment" type="textarea" :rows="3" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aiFollowUpDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="aiFollowUpSubmitting" @click="submitAiFollowUp">生成跟进任务</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="aiExplainDialogVisible" title="AI评分解释详情" width="860px" destroy-on-close>
+      <div v-if="currentAiExplainItem" class="ai-explain-dialog">
+        <div class="ai-explain-summary">
+          <div>
+            <span>评分对象</span>
+            <strong>{{ subjectTypeText(currentAiExplainItem.subjectType) }} · {{ currentAiExplainItem.subjectName }}</strong>
+          </div>
+          <div>
+            <span>AI风险分</span>
+            <strong>{{ currentAiExplainItem.score }} / {{ aiRiskLevelText(currentAiExplainItem.riskLevel) }}</strong>
+          </div>
+          <div>
+            <span>置信度</span>
+            <strong>{{ currentAiExplainItem.confidence }}%</strong>
+          </div>
+          <div>
+            <span>模型版本</span>
+            <strong>{{ currentAiExplainItem.modelCode }} v{{ currentAiExplainItem.modelVersion }}</strong>
+          </div>
+        </div>
+
+        <div class="ai-explain-section-grid">
+          <section>
+            <h3>处置链路判断</h3>
+            <p>{{ currentAiExplainItem.verificationBasis || '-' }}</p>
+          </section>
+          <section>
+            <h3>影子模型结果</h3>
+            <p>
+              预测标签：{{ currentAiExplainItem.modelLabelPredicted || '-' }}；
+              概率：{{ formatModelProbability(currentAiExplainItem.modelProbability) }}
+            </p>
+          </section>
+        </div>
+
+        <section>
+          <h3>主要贡献因子</h3>
+          <div v-if="aiExplainFactors.length" class="ai-factor-list">
+            <div v-for="factor in aiExplainFactors" :key="factor.factorCode || factor.factorName" class="ai-factor-row">
+              <div class="ai-factor-copy">
+                <strong>{{ factor.factorName || factor.factorCode || '未命名因子' }}</strong>
+                <span>{{ factor.evidence || factor.suggestion || '-' }}</span>
+              </div>
+              <div class="ai-factor-score">
+                <span>+{{ Number(factor.contribution || 0) }}</span>
+                <el-progress :percentage="factorPercentage(factor.contribution)" :show-text="false" />
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无贡献因子快照" />
+        </section>
+
+        <section>
+          <h3>核心特征快照</h3>
+          <div v-if="aiExplainFeatureCards.length" class="ai-feature-grid">
+            <div v-for="item in aiExplainFeatureCards" :key="item.key">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+          <el-empty v-else description="暂无特征快照" />
+        </section>
+
+        <div class="ai-explain-section-grid">
+          <section>
+            <h3>证据摘要</h3>
+            <ul v-if="aiExplainEvidence.length">
+              <li v-for="item in aiExplainEvidence" :key="item">{{ item }}</li>
+            </ul>
+            <p v-else>-</p>
+          </section>
+          <section>
+            <h3>建议动作</h3>
+            <ul v-if="aiExplainRecommendations.length">
+              <li v-for="item in aiExplainRecommendations" :key="item">{{ item }}</li>
+            </ul>
+            <p v-else>-</p>
+          </section>
+        </div>
+      </div>
     </el-dialog>
 
     <el-dialog v-model="modelDialogVisible" :title="editingModelId ? '编辑模型' : '新增模型'" width="760px" destroy-on-close>
@@ -359,6 +505,16 @@
         <el-form-item v-if="currentAction === 'iterate'" label="迭代计划">
           <el-input v-model="lifecycleForm.iterationPlan" type="textarea" :rows="3" />
         </el-form-item>
+        <el-form-item v-if="currentAction === 'rollback'" label="回滚版本">
+          <el-input v-model="lifecycleForm.targetVersion" placeholder="请输入上一稳定版本，如 1.0.0" />
+        </el-form-item>
+        <el-form-item v-if="currentAction === 'rollback'" label="回滚后状态">
+          <el-select v-model="lifecycleForm.monitorStatus" style="width: 100%;">
+            <el-option label="需关注" value="ATTENTION" />
+            <el-option label="正常" value="NORMAL" />
+            <el-option label="已漂移" value="DRIFTED" />
+          </el-select>
+        </el-form-item>
         <el-form-item v-if="currentAction === 'archive'" label="归档原因">
           <el-input v-model="lifecycleForm.archiveReason" type="textarea" :rows="3" />
         </el-form-item>
@@ -412,10 +568,19 @@ import type { ECharts } from 'echarts'
 import { ElMessage } from 'element-plus'
 import { Download, Plus, Refresh } from '@element-plus/icons-vue'
 import { modelApi } from '@/api/modules'
-import type { AiRiskReviewPoolItem, AiRiskReviewPoolOverview, AmlModel, ModelLifecycleLog } from '@/api/types'
+import type { AiRiskFollowUpTaskRequest, AiRiskReviewPoolItem, AiRiskReviewPoolOverview, AmlModel, ModelLifecycleLog } from '@/api/types'
 import { disposeEchart, getEcharts } from '@/utils/echarts'
 
-type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'archive'
+type LifecycleAction = 'test' | 'deploy' | 'monitor' | 'iterate' | 'rollback' | 'archive'
+type AiRiskFactorSnapshot = {
+  factorCode?: string
+  factorName?: string
+  category?: string
+  contribution?: number | string
+  weight?: number | string
+  evidence?: string
+  suggestion?: string
+}
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -436,7 +601,12 @@ const aiReviewExporting = ref(false)
 const aiReviewSubmitting = ref(false)
 const aiReviewTotal = ref(0)
 const aiReviewDialogVisible = ref(false)
+const aiFollowUpDialogVisible = ref(false)
+const aiFollowUpSubmitting = ref(false)
 const currentAiReviewItem = ref<AiRiskReviewPoolItem | null>(null)
+const currentAiFollowUpItem = ref<AiRiskReviewPoolItem | null>(null)
+const currentAiExplainItem = ref<AiRiskReviewPoolItem | null>(null)
+const aiExplainDialogVisible = ref(false)
 let lifecycleChart: ECharts | null = null
 let healthChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
@@ -524,6 +694,16 @@ const aiReviewForm = reactive({
   reviewComment: ''
 })
 
+const aiFollowUpForm = reactive<AiRiskFollowUpTaskRequest>({
+  taskType: 'RECTIFICATION',
+  issueCategory: 'AI高风险核查',
+  severity: 'HIGH',
+  responsibleDept: '反洗钱合规部',
+  responsiblePerson: '',
+  deadline: '',
+  comment: ''
+})
+
 const modelTypeOptions = [
   { label: '规则模型', value: 'RULE' },
   { label: '统计模型', value: 'STATISTICAL' },
@@ -577,11 +757,32 @@ const manualReviewLabelOptions = [
   { label: '继续观察', value: 'NEEDS_MONITORING' }
 ]
 
+const aiFeatureLabels: Array<{ key: string; label: string }> = [
+  { key: 'transactionCount90d', label: '近90天交易笔数' },
+  { key: 'totalAmount90d', label: '近90天交易总金额' },
+  { key: 'maxAmount90d', label: '最大单笔金额' },
+  { key: 'cashTransactionCount90d', label: '现金交易笔数' },
+  { key: 'crossBorderTransactionCount90d', label: '跨境交易笔数' },
+  { key: 'highAmountTransactionCount90d', label: '大额交易笔数' },
+  { key: 'distinctCounterpartyCount90d', label: '不同交易对手' },
+  { key: 'activeAlertCount', label: '活跃预警数量' },
+  { key: 'highRiskAlertCount', label: '高风险预警' },
+  { key: 'confirmedSuspiciousAlertCount', label: '确认可疑预警' },
+  { key: 'caseCount', label: '案件数量' },
+  { key: 'strReportCount', label: 'STR报告数量' },
+  { key: 'watchlistHitCount', label: '名单命中数量' },
+  { key: 'kycCompleteness', label: 'KYC完整度' },
+  { key: 'amountToAverageRatio', label: '金额/均值倍数' },
+  { key: 'sharedCounterpartyAccountCustomerCount', label: '共享对手账户客户数' },
+  { key: 'relatedAlertCount', label: '关联预警数量' }
+]
+
 const lifecycleTitle = computed(() => ({
   test: '登记模型测试',
   deploy: '登记模型部署',
   monitor: '刷新模型监控',
   iterate: '登记模型迭代',
+  rollback: '登记模型回滚',
   archive: '归档模型'
 }[currentAction.value]))
 
@@ -590,10 +791,38 @@ const lifecycleConfirmText = computed(() => ({
   deploy: '确认部署',
   monitor: '刷新监控',
   iterate: '进入迭代',
+  rollback: '确认回滚',
   archive: '确认归档'
 }[currentAction.value]))
 
-const lifecycleButtonType = computed(() => currentAction.value === 'archive' ? 'danger' : 'primary')
+const lifecycleButtonType = computed(() => {
+  if (currentAction.value === 'archive') return 'danger'
+  if (currentAction.value === 'rollback') return 'warning'
+  return 'primary'
+})
+
+const aiExplainFeatures = computed<Record<string, unknown>>(() =>
+  parseJsonObject(currentAiExplainItem.value?.featureSnapshotJson)
+)
+
+const aiExplainFactors = computed<AiRiskFactorSnapshot[]>(() =>
+  parseJsonArray<AiRiskFactorSnapshot>(currentAiExplainItem.value?.factorSnapshotJson).slice(0, 8)
+)
+
+const aiExplainEvidence = computed<string[]>(() =>
+  parseJsonArray<string>(currentAiExplainItem.value?.evidenceSnapshotJson)
+)
+
+const aiExplainRecommendations = computed<string[]>(() =>
+  parseJsonArray<string>(currentAiExplainItem.value?.recommendationJson)
+)
+
+const aiExplainFeatureCards = computed(() =>
+  aiFeatureLabels
+    .map(item => ({ ...item, value: formatFeatureValue(aiExplainFeatures.value[item.key]) }))
+    .filter(item => item.value !== '-')
+    .slice(0, 12)
+)
 
 async function loadOverview() {
   const res: any = await modelApi.getOverview()
@@ -654,6 +883,11 @@ function openAiReview(row: AiRiskReviewPoolItem) {
   aiReviewDialogVisible.value = true
 }
 
+function openAiExplain(row: AiRiskReviewPoolItem) {
+  currentAiExplainItem.value = row
+  aiExplainDialogVisible.value = true
+}
+
 async function submitAiReview() {
   if (!currentAiReviewItem.value) return
   aiReviewSubmitting.value = true
@@ -667,6 +901,45 @@ async function submitAiReview() {
     await refreshAiReview()
   } finally {
     aiReviewSubmitting.value = false
+  }
+}
+
+function openAiFollowUp(row: AiRiskReviewPoolItem) {
+  if (row.followUpTaskId) {
+    ElMessage.info(`已生成跟进任务：${row.followUpTaskId}`)
+    return
+  }
+  currentAiFollowUpItem.value = row
+  Object.assign(aiFollowUpForm, {
+    taskType: row.riskLevel === 'LOW' || row.riskLevel === 'MEDIUM' ? 'MONITORING' : 'RECTIFICATION',
+    issueCategory: row.riskLevel === 'LOW' || row.riskLevel === 'MEDIUM' ? 'AI持续监控' : 'AI高风险核查',
+    severity: defaultFollowUpSeverity(row),
+    responsibleDept: '反洗钱合规部',
+    responsiblePerson: '',
+    deadline: defaultFollowUpDeadline(row),
+    comment: row.verificationBasis || ''
+  })
+  aiFollowUpDialogVisible.value = true
+}
+
+async function submitAiFollowUp() {
+  if (!currentAiFollowUpItem.value) return
+  if (!aiFollowUpForm.deadline) {
+    ElMessage.warning('请选择跟进期限')
+    return
+  }
+  aiFollowUpSubmitting.value = true
+  try {
+    await modelApi.createAiRiskFollowUpTask(currentAiFollowUpItem.value.id, {
+      ...aiFollowUpForm,
+      responsiblePerson: aiFollowUpForm.responsiblePerson || undefined,
+      comment: aiFollowUpForm.comment || undefined
+    })
+    ElMessage.success('已生成整改中心跟进任务')
+    aiFollowUpDialogVisible.value = false
+    await refreshAiReview()
+  } finally {
+    aiFollowUpSubmitting.value = false
   }
 }
 
@@ -785,6 +1058,10 @@ function openLifecycle(row: AmlModel, action: LifecycleAction) {
 
 async function submitLifecycle() {
   if (!currentModel.value) return
+  if (currentAction.value === 'rollback' && !lifecycleForm.targetVersion) {
+    ElMessage.warning('请填写回滚目标版本')
+    return
+  }
   submitting.value = true
   try {
     const id = currentModel.value.id
@@ -793,6 +1070,7 @@ async function submitLifecycle() {
     if (currentAction.value === 'deploy') await modelApi.deploy(id, payload)
     if (currentAction.value === 'monitor') await modelApi.monitor(id, payload)
     if (currentAction.value === 'iterate') await modelApi.iterate(id, payload)
+    if (currentAction.value === 'rollback') await modelApi.rollback(id, payload)
     if (currentAction.value === 'archive') await modelApi.archive(id, payload)
     ElMessage.success(`${lifecycleTitle.value}已完成`)
     lifecycleDialogVisible.value = false
@@ -821,6 +1099,7 @@ function defaultActionSummary(row: AmlModel, action: LifecycleAction) {
     deploy: `${name} 完成部署登记，等待监控周期验证`,
     monitor: `${name} 刷新本期运行监控指标`,
     iterate: `${name} 基于监控反馈进入迭代优化`,
+    rollback: `${name} 回滚至上一稳定版本并保留治理记录`,
     archive: `${name} 停止使用并归档治理材料`
   }[action]
 }
@@ -837,6 +1116,7 @@ function actionLabel(value: string) {
     DEPLOY: '部署',
     MONITOR: '监控',
     ITERATE: '迭代',
+    ROLLBACK: '回滚',
     ARCHIVE: '归档'
   }[value] || value
 }
@@ -931,12 +1211,62 @@ function labelFromAutoLabel(value: string) {
   return 'NEEDS_MONITORING'
 }
 
+function defaultFollowUpSeverity(row: AiRiskReviewPoolItem): 'HIGH' | 'MEDIUM' | 'LOW' {
+  if (row.riskLevel === 'CRITICAL' || row.riskLevel === 'HIGH' || Number(row.score || 0) >= 65) return 'HIGH'
+  if (row.riskLevel === 'MEDIUM' || Number(row.score || 0) >= 35) return 'MEDIUM'
+  return 'LOW'
+}
+
+function defaultFollowUpDeadline(row: AiRiskReviewPoolItem) {
+  const date = new Date()
+  const score = Number(row.score || 0)
+  const days = score >= 85 || row.riskLevel === 'CRITICAL' ? 3 : score >= 65 || row.riskLevel === 'HIGH' ? 7 : 14
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 function scoreColor(score: number) {
   const value = Number(score || 0)
   if (value >= 85) return '#991b1b'
   if (value >= 65) return '#dc2626'
   if (value >= 35) return '#d97706'
   return '#16a34a'
+}
+
+function parseJsonObject(value?: string): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function parseJsonArray<T>(value?: string): T[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function formatFeatureValue(value: unknown) {
+  if (value === undefined || value === null || value === '') return '-'
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2)
+  return String(value)
+}
+
+function factorPercentage(value: unknown) {
+  const n = Math.abs(Number(value || 0))
+  return Math.max(0, Math.min(100, n))
+}
+
+function formatModelProbability(value?: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : '-'
 }
 
 function countModelsByStatus(statuses: string[]) {
@@ -1332,6 +1662,133 @@ onUnmounted(() => {
 .ai-review-pagination {
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.ai-explain-dialog {
+  display: grid;
+  gap: 16px;
+}
+
+.ai-explain-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-explain-summary > div,
+.ai-feature-grid > div,
+.ai-explain-section-grid > section,
+.ai-explain-dialog > section {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.ai-explain-summary > div,
+.ai-feature-grid > div {
+  min-width: 0;
+  padding: 12px;
+}
+
+.ai-explain-summary span,
+.ai-feature-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-explain-summary strong,
+.ai-feature-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ai-explain-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-explain-section-grid > section,
+.ai-explain-dialog > section {
+  padding: 14px;
+}
+
+.ai-explain-dialog h3 {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ai-explain-dialog p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.ai-factor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-factor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.ai-factor-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ai-factor-copy strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.ai-factor-copy span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-factor-score {
+  display: grid;
+  gap: 6px;
+}
+
+.ai-factor-score span {
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.ai-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-explain-dialog ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .toolbar {

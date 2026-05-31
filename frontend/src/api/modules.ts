@@ -89,6 +89,7 @@ import type {
   AiRiskReviewPoolItem,
   AiRiskReviewPoolOverview,
   AiRiskReviewRequest,
+  AiRiskFollowUpTaskRequest,
   // 法规及资料库
   RegulationCategory,
   RegulationCategoryParams,
@@ -510,6 +511,10 @@ export const modelApi = {
   iterate(id: string, data: ModelLifecycleParams) {
     return request.post<ApiResponse<AmlModel>>(`/models/${id}/iterate`, data)
   },
+  /** 登记模型回滚 */
+  rollback(id: string, data: ModelLifecycleParams) {
+    return request.post<ApiResponse<AmlModel>>(`/models/${id}/rollback`, data)
+  },
   /** 归档模型 */
   archive(id: string, data: ModelLifecycleParams) {
     return request.post<ApiResponse<AmlModel>>(`/models/${id}/archive`, data)
@@ -529,6 +534,10 @@ export const modelApi = {
   /** 登记AI评分复核结果 */
   reviewAiRiskScore(recordId: string, data: AiRiskReviewRequest) {
     return request.post<ApiResponse<AiRiskReviewPoolItem>>(`/ai/risk/review-pool/${recordId}/review`, data)
+  },
+  /** 根据AI评分生成整改中心跟进任务 */
+  createAiRiskFollowUpTask(recordId: string, data: AiRiskFollowUpTaskRequest) {
+    return request.post<ApiResponse<AiRiskReviewPoolItem>>(`/ai/risk/review-pool/${recordId}/follow-up-task`, data)
   },
   /** 导出AI评分待复核清单 */
   exportAiRiskReviewPool(params: AiRiskReviewPoolParams) {

@@ -1,6 +1,7 @@
 package com.insurance.aml.module.ai.service;
 
 import com.insurance.aml.module.ai.model.dto.AiRiskModelStatusVO;
+import com.insurance.aml.module.ai.model.dto.AiRiskFollowUpTaskRequest;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolItemVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolOverviewVO;
 import com.insurance.aml.module.ai.model.dto.AiRiskReviewPoolQueryRequest;
@@ -32,6 +33,8 @@ public interface AiRiskScoringService {
     AiRiskReviewPoolOverviewVO reviewPoolOverview();
 
     AiRiskReviewPoolItemVO reviewScoreRecord(Long recordId, AiRiskReviewRequest request);
+
+    AiRiskReviewPoolItemVO createFollowUpTask(Long recordId, AiRiskFollowUpTaskRequest request);
 
     byte[] exportReviewPool(AiRiskReviewPoolQueryRequest request);
 

@@ -66,7 +66,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public Result<Void> handleBusinessException(BusinessException e, HttpServletRequest request) {
-        log.error("业务异常: uri={}, code={}, message={}", request.getRequestURI(), e.getCode(), e.getMessage());
+        log.warn("业务异常: uri={}, code={}, message={}", request.getRequestURI(), e.getCode(), e.getMessage());
         return Result.fail(e.getCode(), e.getMessage());
     }
 
@@ -90,7 +90,7 @@ public class GlobalExceptionHandler {
     public Result<Void> handleMethodArgumentNotValidException(MethodArgumentNotValidException e,
                                                               HttpServletRequest request) {
         String message = extractFirstFieldError(e);
-        log.error("参数校验异常: uri={}, message={}", request.getRequestURI(), message);
+        log.warn("参数校验异常: uri={}, message={}", request.getRequestURI(), message);
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), message);
     }
 
@@ -101,7 +101,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleBindException(BindException e, HttpServletRequest request) {
         String message = extractFirstBindingError(e);
-        log.error("参数绑定异常: uri={}, query={}, message={}", request.getRequestURI(), request.getQueryString(), message);
+        log.warn("参数绑定异常: uri={}, query={}, message={}", request.getRequestURI(), request.getQueryString(), message);
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), message);
     }
 
@@ -112,7 +112,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
     public Result<Void> handleHttpRequestMethodNotSupportedException(
             HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
-        log.error("请求方法不支持: uri={}, method={}, message={}",
+        log.warn("请求方法不支持: uri={}, method={}, message={}",
                 request.getRequestURI(), request.getMethod(), e.getMessage());
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), "request method not supported: " + e.getMethod());
     }
@@ -124,7 +124,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleHttpMessageNotReadableException(
             HttpMessageNotReadableException e, HttpServletRequest request) {
-        log.error("请求体读取异常: uri={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("请求体读取异常: uri={}, message={}", request.getRequestURI(), e.getMessage());
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), "request body is not readable");
     }
 
@@ -134,7 +134,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public Result<Void> handleAccessDeniedException(AccessDeniedException e, HttpServletRequest request) {
-        log.error("访问拒绝: uri={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("访问拒绝: uri={}, message={}", request.getRequestURI(), e.getMessage());
         return Result.fail(ResultCode.FORBIDDEN);
     }
 
@@ -144,7 +144,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public Result<Void> handleAuthenticationException(AuthenticationException e, HttpServletRequest request) {
-        log.error("认证异常: uri={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("认证异常: uri={}, message={}", request.getRequestURI(), e.getMessage());
         return Result.fail(ResultCode.UNAUTHORIZED);
     }
 
