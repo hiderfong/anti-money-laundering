@@ -171,7 +171,7 @@ jobs:
   e2e:
     name: End-To-End Release Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 70
     needs:
       - secret-scan
       - backend-test
@@ -255,10 +255,15 @@ jobs:
         working-directory: frontend
         run: bash ../scripts/ci-npm.sh ci
 
-      - name: Install Playwright browser
-        timeout-minutes: 10
+      - name: Install Playwright browser dependencies
+        timeout-minutes: 15
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install-deps chromium-headless-shell
+
+      - name: Install Playwright Chromium headless shell
+        timeout-minutes: 12
+        working-directory: frontend
+        run: npx playwright install --only-shell chromium
 
       - name: Start backend
         timeout-minutes: 12
