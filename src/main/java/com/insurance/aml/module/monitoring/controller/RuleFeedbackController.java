@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +35,7 @@ public class RuleFeedbackController {
      */
     @GetMapping("/summary")
     @Operation(summary = "规则反馈统计汇总", description = "统计所有启用规则的命中/确认/误报数据，生成阈值调整建议")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<RuleFeedbackVO.FeedbackSummary> getFeedbackSummary() {
         RuleFeedbackVO.FeedbackSummary summary = ruleFeedbackService.calculateRuleStats();
         return Result.success(summary);
@@ -44,6 +46,7 @@ public class RuleFeedbackController {
      */
     @GetMapping("/rule/{ruleId}")
     @Operation(summary = "单条规则反馈详情", description = "按规则ID查询该规则的命中/确认/误报统计及阈值建议")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<RuleFeedbackVO> getRuleFeedback(
             @Parameter(description = "规则ID") @PathVariable Long ruleId) {
         RuleFeedbackVO vo = ruleFeedbackService.getRuleFeedback(ruleId);
@@ -55,6 +58,7 @@ public class RuleFeedbackController {
      */
     @GetMapping("/rule/code/{ruleCode}")
     @Operation(summary = "按规则编码查询反馈", description = "按规则编码查询该规则的命中/确认/误报统计及阈值建议")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<RuleFeedbackVO> getRuleFeedbackByCode(
             @Parameter(description = "规则编码") @PathVariable String ruleCode) {
         RuleFeedbackVO vo = ruleFeedbackService.getRuleFeedbackByCode(ruleCode);
@@ -67,6 +71,7 @@ public class RuleFeedbackController {
      */
     @GetMapping("/attention")
     @Operation(summary = "需关注的规则", description = "返回系统建议调整阈值的规则列表（确认率异常或命中量异常）")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<List<RuleFeedbackVO>> getRulesNeedingAttention() {
         List<RuleFeedbackVO> list = ruleFeedbackService.getRulesNeedingAttention();
         return Result.success(list);

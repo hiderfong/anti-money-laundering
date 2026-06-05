@@ -25,6 +25,7 @@ import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
@@ -58,6 +59,7 @@ public class AuditLogController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询日志", description = "支持按用户ID、用户名、操作类型、模块、时间范围筛选")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('system:view')")
     public Result<PageResult<AuditLogVO>> pageQueryLogs(AuditLogQueryRequest req) {
         log.debug("分页查询审计日志");
         PageResult<AuditLogVO> result = auditLogQueryService.pageQueryLogs(req);
@@ -69,6 +71,7 @@ public class AuditLogController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "日志详情", description = "获取指定审计日志的详细信息")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('system:view')")
     public Result<AuditLogVO> getLogDetail(
             @Parameter(description = "日志ID") @PathVariable Long id) {
         AuditLogVO vo = auditLogQueryService.getLogDetail(id);
@@ -80,6 +83,7 @@ public class AuditLogController {
      */
     @GetMapping("/export")
     @Operation(summary = "导出日志", description = "将审计日志导出为CSV文件下载")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('system:view')")
     public ResponseEntity<byte[]> exportLogs(AuditLogQueryRequest req) {
         log.info("导出审计日志CSV请求");
         byte[] csvBytes = auditLogQueryService.exportLogs(req);
@@ -99,6 +103,7 @@ public class AuditLogController {
      */
     @PostMapping("/search")
     @Operation(summary = "全文检索日志", description = "基于Elasticsearch的全文检索，支持关键词搜索和多条件过滤")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('system:view')")
     public Result<PageResult<AuditLogDocument>> fullTextSearch(@RequestBody AuditLogSearchRequest req) {
         log.info("ES全文检索审计日志: keyword={}, module={}, operationType={}",
                 req.getKeyword(), req.getModule(), req.getOperationType());

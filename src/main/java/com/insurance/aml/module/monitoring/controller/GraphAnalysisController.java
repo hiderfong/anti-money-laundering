@@ -9,6 +9,7 @@ import com.insurance.aml.module.monitoring.service.GraphAnalysisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -24,6 +25,7 @@ public class GraphAnalysisController {
 
     @GetMapping("/ring/{customerId}")
     @Operation(summary = "检测环形交易", description = "检测指定客户是否存在A→B→C→A的资金回流")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<RingTransactionResult> detectRingTransactions(
             @PathVariable Long customerId) {
         return Result.success(graphAnalysisService.detectRingTransactions(customerId));
@@ -31,6 +33,7 @@ public class GraphAnalysisController {
 
     @GetMapping("/trace/{customerId}")
     @Operation(summary = "追踪资金流向", description = "从指定客户追踪N层资金去向")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<MultiLayerTransferResult> traceMultiLayerTransfer(
             @PathVariable Long customerId,
             @RequestParam(defaultValue = "3") int maxDepth) {
@@ -39,6 +42,7 @@ public class GraphAnalysisController {
 
     @GetMapping("/shared-accounts/{customerId}")
     @Operation(summary = "检测共同账户", description = "检测指定客户是否与其他客户共享账户")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<SharedAccountResult> detectSharedAccounts(
             @PathVariable Long customerId) {
         return Result.success(graphAnalysisService.detectSharedAccounts(customerId));
@@ -46,6 +50,7 @@ public class GraphAnalysisController {
 
     @GetMapping("/density/{customerId}")
     @Operation(summary = "检测异常网络密度", description = "分析客户交易网络中关联方数量")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<NetworkDensityResult> analyzeNetworkDensity(
             @PathVariable Long customerId,
             @RequestParam(defaultValue = "10") int densityThreshold) {

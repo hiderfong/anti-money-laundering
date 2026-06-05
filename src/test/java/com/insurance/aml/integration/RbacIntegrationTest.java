@@ -77,6 +77,45 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.code").value(403));
     }
 
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 system:view 用户读取审计日志 -> 403")
+    void viewerCannotReadAuditLogs() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/system/audit-logs/page"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 system:view 用户导出审计日志 -> 403")
+    void viewerCannotExportAuditLogs() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/system/audit-logs/export"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 monitoring:view 用户读取规则反馈 -> 403")
+    void viewerCannotReadRuleFeedback() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/monitoring/rules/feedback/summary"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 monitoring:view 用户调用图谱分析 -> 403")
+    void viewerCannotRunGraphAnalysis() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/monitoring/graph/ring/1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
     private String customerJson(String name, String idNumber) {
         return """
                 {
