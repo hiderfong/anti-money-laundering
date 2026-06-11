@@ -257,5 +257,6 @@ class StrReportServiceImplTest {
 
         assertSame(r, result);
         verify(caseMapper, times(1)).selectBatchIds(any());
+        verify(customerMapper, times(1)).selectBatchIds(any());
     }
 }
