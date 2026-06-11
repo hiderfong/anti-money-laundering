@@ -26,7 +26,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.Collections;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -126,7 +129,7 @@ class StrReportServiceImplTest {
     @Test
     @DisplayName("提交审核-非DRAFT状态-抛异常")
     void submitForReview_nonDraft_throws() {
-        when(strReportMapper.selectById(100L)).thenReturn(reportWithStatus(ReportStatus.APPROVED.getCode()));
+        when(strReportMapper.selectById(100L)).thenReturn(reportWithStatus(ReportStatus.PENDING_REVIEW.getCode()));
         assertThrows(BusinessException.class, () -> service.submitForReview(100L));
         verify(strReportMapper, never()).updateById(any());
     }
@@ -240,5 +243,19 @@ class StrReportServiceImplTest {
     void getReportDetail_notFound_throws() {
         when(strReportMapper.selectById(100L)).thenReturn(null);
         assertThrows(BusinessException.class, () -> service.getReportDetail(100L));
+    }
+
+    @Test
+    @DisplayName("查询详情-报告存在-返回实体并执行enrichReports")
+    void getReportDetail_found_returnsEnrichedReport() {
+        StrReport r = reportWithStatus(ReportStatus.APPROVED.getCode());
+        when(strReportMapper.selectById(100L)).thenReturn(r);
+        when(caseMapper.selectBatchIds(any())).thenReturn(Collections.emptyList());
+        when(customerMapper.selectBatchIds(any())).thenReturn(Collections.emptyList());
+
+        StrReport result = service.getReportDetail(100L);
+
+        assertSame(r, result);
+        verify(caseMapper, times(1)).selectBatchIds(any());
     }
 }
