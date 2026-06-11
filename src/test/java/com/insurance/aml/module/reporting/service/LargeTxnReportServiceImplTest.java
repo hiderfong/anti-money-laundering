@@ -16,6 +16,7 @@ import com.insurance.aml.module.reporting.service.impl.LargeTxnReportServiceImpl
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -148,11 +149,20 @@ class LargeTxnReportServiceImplTest {
     }
 
     @Test
-    @DisplayName("生成XML-关联交易或客户缺失-抛异常")
-    void generateXml_missingTransactionOrCustomer_throws() {
+    @DisplayName("生成XML-关联交易缺失-抛异常")
+    void generateXml_missingTransaction_throws() {
         when(largeTxnReportMapper.selectById(200L)).thenReturn(reportWithStatus(ReportStatus.REVIEWED.getCode()));
         when(transactionMapper.selectById(5L)).thenReturn(null);
         when(customerMapper.selectById(9L)).thenReturn(customer());
+        assertThrows(BusinessException.class, () -> service.generateXml(200L));
+    }
+
+    @Test
+    @DisplayName("生成XML-关联客户缺失-抛异常")
+    void generateXml_missingCustomer_throws() {
+        when(largeTxnReportMapper.selectById(200L)).thenReturn(reportWithStatus(ReportStatus.REVIEWED.getCode()));
+        when(transactionMapper.selectById(5L)).thenReturn(txn());
+        when(customerMapper.selectById(9L)).thenReturn(null);
         assertThrows(BusinessException.class, () -> service.generateXml(200L));
     }
 
@@ -202,7 +212,10 @@ class LargeTxnReportServiceImplTest {
         service.submitReport(200L);
 
         assertEquals(ReportStatus.SUBMITTED.getCode(), r.getReportStatus());
-        verify(reportSubmitLogMapper, times(1)).insert(any());
+        ArgumentCaptor<ReportSubmitLog> captor = ArgumentCaptor.forClass(ReportSubmitLog.class);
+        verify(reportSubmitLogMapper, times(1)).insert(captor.capture());
+        assertEquals("LARGE_TXN", captor.getValue().getReportType());
+        assertEquals(SubmitStatus.SUCCESS.getCode(), captor.getValue().getSubmitStatus());
     }
 
     // ---- retryFailedSubmissions ----
