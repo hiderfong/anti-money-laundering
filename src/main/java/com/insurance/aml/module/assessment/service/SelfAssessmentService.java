@@ -3,6 +3,7 @@ package com.insurance.aml.module.assessment.service;
 import com.insurance.aml.module.assessment.model.dto.AssessmentCreateRequest;
 import com.insurance.aml.module.assessment.model.dto.AssessmentScoreRequest;
 import com.insurance.aml.module.assessment.model.dto.SelfAssessmentDetailVO;
+import com.insurance.aml.module.assessment.model.entity.AssessmentIndicator;
 import com.insurance.aml.module.assessment.model.entity.SelfAssessment;
 
 import java.util.List;
@@ -45,6 +46,14 @@ public interface SelfAssessmentService {
      * @return 评估详情VO
      */
     SelfAssessmentDetailVO getAssessmentDetail(Long assessmentId);
+
+    /**
+     * 查询启用的自评估指标。
+     * 如果系统尚未初始化指标，则创建一组默认指标，保证自评估流程可直接使用。
+     *
+     * @return 启用指标列表
+     */
+    List<AssessmentIndicator> listEnabledIndicators();
 
     /**
      * 按年度查询评估列表

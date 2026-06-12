@@ -10,6 +10,17 @@
     "build-only": "vite build",
     "test:unit": "vitest run",
     "e2e:browser": "node scripts/frontend-browser-e2e.mjs",
+    "e2e:customer": "node scripts/customer-workflow-e2e.mjs",
+    "e2e:screening": "node scripts/screening-workflow-e2e.mjs",
+    "e2e:monitoring": "node scripts/monitoring-workflow-e2e.mjs",
+    "e2e:alert": "node scripts/alert-workflow-e2e.mjs",
+    "e2e:case": "node scripts/case-workflow-e2e.mjs",
+    "e2e:str-report": "node scripts/str-report-workflow-e2e.mjs",
+    "e2e:large-report": "node scripts/large-report-workflow-e2e.mjs",
+    "e2e:product": "node scripts/product-workflow-e2e.mjs",
+    "e2e:assessment": "node scripts/assessment-workflow-e2e.mjs",
+    "e2e:rectification": "node scripts/rectification-workflow-e2e.mjs",
+    "e2e:notification": "node scripts/notification-workflow-e2e.mjs",
     "type-check": "vue-tsc --build"
   },
   "dependencies": {

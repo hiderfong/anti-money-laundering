@@ -140,7 +140,7 @@
                   </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="IN_PROGRESS" v-if="row.status === 'PENDING'">进行中</el-dropdown-item>
+                      <el-dropdown-item command="IN_PROGRESS" v-if="row.status === 'OPEN' || row.status === 'PENDING'">进行中</el-dropdown-item>
                       <el-dropdown-item command="COMPLETED" v-if="row.status === 'IN_PROGRESS'">已完成</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
@@ -176,14 +176,30 @@
     </el-dialog>
 
     <!-- 评分弹窗 -->
-    <el-dialog v-model="showScoreDialog" title="评估评分" width="500px" destroy-on-close>
+    <el-dialog v-model="showScoreDialog" title="评估评分" width="760px" destroy-on-close>
       <el-form :model="scoreForm" label-width="100px">
         <el-form-item label="评估名称">
           <el-input :model-value="scoreForm.assessmentName" disabled />
         </el-form-item>
-        <el-form-item label="评分" prop="totalScore" :rules="[{ required: true, message: '请输入评分', trigger: 'blur' }]">
-          <el-input-number v-model="scoreForm.totalScore" :min="0" :max="100" :step="1" style="width: 100%;" />
-        </el-form-item>
+        <el-table :data="scoreForm.scores" border size="small" v-loading="indicatorLoading">
+          <el-table-column label="类别" width="120">
+            <template #default="{ row }">
+              {{ assessmentCategoryLabel(row.category) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="indicatorName" label="指标名称" min-width="170" show-overflow-tooltip />
+          <el-table-column prop="dimension" label="维度" min-width="140" show-overflow-tooltip />
+          <el-table-column label="评分" width="140" align="center">
+            <template #default="{ row }">
+              <el-input-number v-model="row.score" :min="0" :max="100" :step="1" controls-position="right" style="width: 112px;" />
+            </template>
+          </el-table-column>
+          <el-table-column label="评分依据" min-width="220">
+            <template #default="{ row }">
+              <el-input v-model="row.evidence" placeholder="请输入评分依据" />
+            </template>
+          </el-table-column>
+        </el-table>
       </el-form>
       <template #footer>
         <el-button @click="showScoreDialog = false">取消</el-button>
@@ -260,8 +276,18 @@
         <el-form-item label="问题描述" prop="issueDescription">
           <el-input v-model="rectForm.issueDescription" type="textarea" :rows="3" placeholder="请输入问题描述" />
         </el-form-item>
+        <el-form-item label="严重程度" prop="severity">
+          <el-select v-model="rectForm.severity" placeholder="请选择严重程度" style="width: 100%;">
+            <el-option label="高" value="HIGH" />
+            <el-option label="中" value="MEDIUM" />
+            <el-option label="低" value="LOW" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="整改措施" prop="rectificationMeasure">
           <el-input v-model="rectForm.rectificationMeasure" type="textarea" :rows="3" placeholder="请输入整改措施" />
+        </el-form-item>
+        <el-form-item label="责任部门" prop="responsibleDept">
+          <el-input v-model="rectForm.responsibleDept" placeholder="请输入责任部门" />
         </el-form-item>
         <el-form-item label="责任人" prop="responsiblePerson">
           <el-input v-model="rectForm.responsiblePerson" placeholder="请输入责任人" />
@@ -301,6 +327,7 @@ const showCreateAssessment = ref(false)
 const showScoreDialog = ref(false)
 const showDetailDialog = ref(false)
 const detailData = ref<any>(null)
+const indicatorLoading = ref(false)
 const assessmentRadarRef = ref<HTMLElement | null>(null)
 const assessmentRectChartRef = ref<HTMLElement | null>(null)
 let assessmentRadarChart: ECharts | null = null
@@ -312,7 +339,19 @@ const assessmentForm = reactive({
   assessmentPeriod: 'ANNUAL',
   assessorId: null as number | null
 })
-const scoreForm = reactive({ assessmentId: '', assessmentName: '', totalScore: 0 })
+const scoreForm = reactive({
+  assessmentId: '',
+  assessmentName: '',
+  scores: [] as Array<{
+    indicatorId: number
+    indicatorName: string
+    category: string
+    dimension: string
+    rawValue: number
+    score: number
+    evidence: string
+  }>
+})
 const assessmentRules = {
   assessmentYear: [{ required: true, message: '请输入评估年度', trigger: 'blur' }],
   assessmentPeriod: [{ required: true, message: '请选择评估周期', trigger: 'change' }],
@@ -327,13 +366,16 @@ const rectFormRef = ref<FormInstance>()
 const rectForm = reactive({
   assessmentId: '',
   issueDescription: '',
+  severity: 'MEDIUM',
   rectificationMeasure: '',
+  responsibleDept: '合规部',
   responsiblePerson: '',
   deadline: ''
 })
 const rectRules = {
   assessmentId: [{ required: true, message: '请输入关联评估ID', trigger: 'blur' }],
   issueDescription: [{ required: true, message: '请输入问题描述', trigger: 'blur' }],
+  severity: [{ required: true, message: '请选择严重程度', trigger: 'change' }],
   rectificationMeasure: [{ required: true, message: '请输入整改措施', trigger: 'blur' }],
   responsiblePerson: [{ required: true, message: '请输入责任人', trigger: 'blur' }],
   deadline: [{ required: true, message: '请选择截止日期', trigger: 'change' }]
@@ -375,21 +417,43 @@ async function viewAssessmentDetail(id: string | number) {
   } catch { ElMessage.error('获取评估详情失败') }
 }
 
-function openScoreDialog(row: any) {
+async function openScoreDialog(row: any) {
   scoreForm.assessmentId = row.id
   scoreForm.assessmentName = assessmentTitle(row)
-  scoreForm.totalScore = 0
+  scoreForm.scores = []
   showScoreDialog.value = true
+  indicatorLoading.value = true
+  try {
+    const res: any = await request.get('/assessments/indicators')
+    const indicators = Array.isArray(res.data) ? res.data : []
+    scoreForm.scores = indicators.map((indicator: any) => defaultIndicatorScore(indicator))
+  } catch {
+    ElMessage.error('加载评估指标失败')
+  } finally {
+    indicatorLoading.value = false
+  }
 }
 
 async function submitScore() {
-  if (scoreForm.totalScore <= 0) {
-    ElMessage.warning('请输入有效评分')
+  if (!scoreForm.scores.length) {
+    ElMessage.warning('暂无可用评估指标')
+    return
+  }
+  if (scoreForm.scores.some(item => item.score === null || item.score === undefined || item.score < 0 || item.score > 100)) {
+    ElMessage.warning('评分需在0-100之间')
     return
   }
   submitting.value = true
   try {
-    await request.post('/assessments/score', { id: scoreForm.assessmentId, totalScore: scoreForm.totalScore })
+    await Promise.all(scoreForm.scores.map(item => request.post('/assessments/score', {
+      assessmentId: Number(scoreForm.assessmentId),
+      indicatorId: item.indicatorId,
+      rawValue: item.rawValue,
+      score: item.score,
+      evidence: item.evidence,
+      dataSource: 'UI_ASSESSMENT',
+      remark: '自评估页面评分'
+    })))
     ElMessage.success('评分成功')
     showScoreDialog.value = false
     loadAssessments()
@@ -461,12 +525,12 @@ function assessmentStatusLabel(status: string) {
 }
 
 function riskLevelType(level: string): any {
-  const map: Record<string, string> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger' }
+  const map: Record<string, string> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger', CRITICAL: 'danger' }
   return map[level] || 'info'
 }
 
 function riskLevelLabel(level: string) {
-  const map: Record<string, string> = { LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险' }
+  const map: Record<string, string> = { LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险', CRITICAL: '极高风险' }
   return map[level] || displayValue(level)
 }
 
@@ -486,6 +550,22 @@ function isScorable(row: any) {
   return row?.assessmentStatus === 'CREATED' || row?.assessmentStatus === 'IN_PROGRESS'
 }
 
+function defaultIndicatorScore(indicator: any) {
+  const isControl = indicator.category === 'CONTROL_EFFECTIVENESS'
+  const score = isControl ? 62 : 82
+  return {
+    indicatorId: Number(indicator.id),
+    indicatorName: indicator.indicatorName,
+    category: indicator.category,
+    dimension: indicator.dimension,
+    rawValue: score,
+    score,
+    evidence: isControl
+      ? '名单筛查、交易监测、案件调查和监管报送控制基本有效，仍需提升自动化复核覆盖率。'
+      : '高风险客户、大额现金交易和复杂资金链路占比较高，固有风险处于偏高水平。'
+  }
+}
+
 // ==================== Rectification Methods ====================
 async function loadRectifications() {
   rectLoading.value = true
@@ -502,17 +582,31 @@ async function submitRectification() {
   if (!valid) return
   submitting.value = true
   try {
-    await request.post('/assessments/rectifications', { ...rectForm })
+    await request.post('/assessments/rectifications', {
+      ...rectForm,
+      assessmentId: Number(rectForm.assessmentId),
+      sourceType: 'SELF_ASSESSMENT',
+      sourceId: Number(rectForm.assessmentId),
+      deadline: formatDate(rectForm.deadline)
+    })
     ElMessage.success('创建整改任务成功')
     showCreateRectification.value = false
-    Object.assign(rectForm, { assessmentId: '', issueDescription: '', rectificationMeasure: '', responsiblePerson: '', deadline: '' })
+    Object.assign(rectForm, {
+      assessmentId: '',
+      issueDescription: '',
+      severity: 'MEDIUM',
+      rectificationMeasure: '',
+      responsibleDept: '合规部',
+      responsiblePerson: '',
+      deadline: ''
+    })
     loadRectifications()
   } catch { ElMessage.error('创建整改任务失败') } finally { submitting.value = false }
 }
 
 async function updateRectStatus(id: string | number, status: string) {
   try {
-    await request.put(`/assessments/rectifications/${id}/status`, { status })
+    await request.put(`/assessments/rectifications/${id}/status`, undefined, { params: { status } })
     ElMessage.success('状态更新成功')
     loadRectifications()
   } catch { ElMessage.error('状态更新失败') }
@@ -521,20 +615,28 @@ async function updateRectStatus(id: string | number, status: string) {
 async function verifyRectification(id: string | number) {
   await ElMessageBox.confirm('确认验证通过该整改任务？', '提示', { type: 'warning' })
   try {
-    await request.post(`/assessments/rectifications/${id}/verify`)
+    await request.post(`/assessments/rectifications/${id}/verify`, undefined, { params: { verifiedBy: currentOperatorName(userStore.userInfo) } })
     ElMessage.success('验证通过')
     loadRectifications()
   } catch { ElMessage.error('验证失败') }
 }
 
 function rectStatusType(status: string) {
-  const map: Record<string, string> = { PENDING: 'info', IN_PROGRESS: 'warning', COMPLETED: '', VERIFIED: 'success' }
+  const map: Record<string, string> = { OPEN: 'info', PENDING: 'info', IN_PROGRESS: 'warning', COMPLETED: '', VERIFIED: 'success', OVERDUE: 'danger' }
   return (map[status] || 'info') as any
 }
 
 function rectStatusLabel(status: string) {
-  const map: Record<string, string> = { PENDING: '待处理', IN_PROGRESS: '进行中', COMPLETED: '已完成', VERIFIED: '已验证' }
+  const map: Record<string, string> = { OPEN: '待整改', PENDING: '待处理', IN_PROGRESS: '进行中', COMPLETED: '已完成', VERIFIED: '已验证', OVERDUE: '已逾期' }
   return map[status] || status
+}
+
+function formatDate(value: string | Date) {
+  if (!value) return ''
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10)
+  }
+  return String(value).slice(0, 10)
 }
 
 function averageScore(field: string) {
@@ -607,7 +709,7 @@ async function renderAssessmentRectChart() {
   const echarts = await getEcharts()
   if (!assessmentRectChart) assessmentRectChart = echarts.init(container)
 
-  const statuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED']
+  const statuses = ['OPEN', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED']
   assessmentRectChart.setOption({
     color: ['#64748b', '#d97706', '#2563eb', '#16a34a'],
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },

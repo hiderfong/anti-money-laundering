@@ -28,6 +28,9 @@ public class ProductCreateRequest {
     @NotBlank(message = "产品类型不能为空")
     private String productType;
 
+    @Schema(description = "风险等级（LOW/MEDIUM/HIGH/CRITICAL）")
+    private String riskLevel;
+
     @Schema(description = "产品子类型")
     private String productSubType;
 

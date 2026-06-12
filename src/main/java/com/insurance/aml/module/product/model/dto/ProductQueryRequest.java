@@ -16,6 +16,9 @@ public class ProductQueryRequest extends PageQuery {
     @Schema(description = "产品名称（模糊查询）")
     private String productName;
 
+    @Schema(description = "产品编码（模糊查询）")
+    private String productCode;
+
     @Schema(description = "产品类型")
     private String productType;
 

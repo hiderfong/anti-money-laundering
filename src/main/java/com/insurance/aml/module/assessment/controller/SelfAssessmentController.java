@@ -4,6 +4,7 @@ import com.insurance.aml.common.result.Result;
 import com.insurance.aml.module.assessment.model.dto.AssessmentCreateRequest;
 import com.insurance.aml.module.assessment.model.dto.AssessmentScoreRequest;
 import com.insurance.aml.module.assessment.model.dto.SelfAssessmentDetailVO;
+import com.insurance.aml.module.assessment.model.entity.AssessmentIndicator;
 import com.insurance.aml.module.assessment.model.entity.SelfAssessment;
 import com.insurance.aml.module.assessment.service.SelfAssessmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,6 +53,15 @@ public class SelfAssessmentController {
         log.info("提交评估评分请求，assessmentId={}, indicatorId={}", req.getAssessmentId(), req.getIndicatorId());
         assessmentService.submitScore(req);
         return Result.success();
+    }
+
+    /**
+     * 查询启用指标
+     */
+    @GetMapping("/indicators")
+    @Operation(summary = "查询启用评估指标", description = "查询风险自评估可用指标")
+    public Result<List<AssessmentIndicator>> listEnabledIndicators() {
+        return Result.success(assessmentService.listEnabledIndicators());
     }
 
     /**

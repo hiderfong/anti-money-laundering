@@ -5,16 +5,17 @@
       <el-tab-pane label="名单筛查" name="screening">
         <el-card style="margin-bottom: 16px">
           <el-form :inline="true">
-            <el-form-item label="姓名"><el-input v-model="screenForm.name" placeholder="客户姓名" /></el-form-item>
-            <el-form-item label="证件类型">
-              <el-select v-model="screenForm.idType" placeholder="选择证件类型" style="width: 150px">
-                <el-option label="身份证" value="ID_CARD" />
-                <el-option label="护照" value="PASSPORT" />
-                <el-option label="营业执照" value="BUSINESS_LICENSE" />
+            <el-form-item label="客户ID">
+              <el-input v-model="screenForm.customerId" placeholder="输入客户ID" style="width: 180px" />
+            </el-form-item>
+            <el-form-item label="筛查类型">
+              <el-select v-model="screenForm.screeningType" placeholder="选择筛查类型" style="width: 180px">
+                <el-option label="客户准入" value="CUSTOMER_ONBOARD" />
+                <el-option label="信息变更" value="INFO_CHANGE" />
+                <el-option label="交易触发" value="TRANSACTION" />
+                <el-option label="定期复核" value="PERIODIC" />
               </el-select>
             </el-form-item>
-            <el-form-item label="证件号码"><el-input v-model="screenForm.idNumber" placeholder="证件号码" /></el-form-item>
-            <el-form-item label="国籍"><el-input v-model="screenForm.nationality" placeholder="国籍" /></el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="screening" @click="doScreen">触发筛查</el-button>
               <el-button type="success" @click="batchDialogVisible = true">批量筛查</el-button>
@@ -79,27 +80,23 @@
           <el-form :model="whitelistForm" :rules="whitelistRules" ref="whitelistFormRef" label-width="80px">
             <el-row :gutter="16">
               <el-col :span="6">
-                <el-form-item label="姓名" prop="name">
-                  <el-input v-model="whitelistForm.name" placeholder="姓名" />
+                <el-form-item label="客户ID" prop="customerId">
+                  <el-input v-model="whitelistForm.customerId" placeholder="客户ID" />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件类型" prop="idType">
-                  <el-select v-model="whitelistForm.idType" placeholder="选择证件类型" style="width:100%">
-                    <el-option label="身份证" value="ID_CARD" />
-                    <el-option label="护照" value="PASSPORT" />
-                    <el-option label="营业执照" value="BUSINESS_LICENSE" />
-                  </el-select>
+                <el-form-item label="客户姓名" prop="customerName">
+                  <el-input v-model="whitelistForm.customerName" placeholder="客户姓名" />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="证件号码" prop="idNumber">
-                  <el-input v-model="whitelistForm.idNumber" placeholder="证件号码" />
+                <el-form-item label="名单项ID" prop="watchlistEntryId">
+                  <el-input v-model="whitelistForm.watchlistEntryId" placeholder="名单项ID" />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="原因" prop="reason">
-                  <el-input v-model="whitelistForm.reason" placeholder="加入白名单原因" />
+                <el-form-item label="排除原因" prop="excludeReason">
+                  <el-input v-model="whitelistForm.excludeReason" placeholder="加入白名单原因" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -120,15 +117,17 @@
           </template>
           <el-table :data="whitelist" stripe v-loading="whitelistLoading" border>
             <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="name" label="姓名" width="120" />
-            <el-table-column prop="idType" label="证件类型" width="120">
+            <el-table-column prop="customerId" label="客户ID" width="140" />
+            <el-table-column prop="customerName" label="客户姓名" width="140" />
+            <el-table-column prop="watchlistEntryId" label="名单项ID" width="140" />
+            <el-table-column prop="watchlistName" label="命中名单" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="excludeReason" label="排除原因" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="reviewStatus" label="状态" width="100">
               <template #default="{ row }">
-                {{ idTypeLabel(row.idType) }}
+                <el-tag size="small" type="success">{{ row.reviewStatus || 'ACTIVE' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="idNumber" label="证件号码" width="180" />
-            <el-table-column prop="reason" label="原因" />
-            <el-table-column prop="createdTime" label="添加时间" width="180" />
+            <el-table-column prop="expiryDate" label="失效日期" width="120" />
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
                 <el-popconfirm title="确认删除该白名单？" @confirm="removeWhitelist(row.id)">
@@ -146,23 +145,9 @@
     <!-- 批量筛查对话框 -->
     <el-dialog v-model="batchDialogVisible" title="批量筛查" width="700px" destroy-on-close>
       <el-table :data="batchList" border size="small">
-        <el-table-column label="姓名" min-width="120">
+        <el-table-column label="客户ID" min-width="180">
           <template #default="{ row }">
-            <el-input v-model="row.name" size="small" placeholder="姓名" />
-          </template>
-        </el-table-column>
-        <el-table-column label="证件类型" width="150">
-          <template #default="{ row }">
-            <el-select v-model="row.idType" size="small" placeholder="选择" style="width: 100%">
-              <el-option label="身份证" value="ID_CARD" />
-              <el-option label="护照" value="PASSPORT" />
-              <el-option label="营业执照" value="BUSINESS_LICENSE" />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="证件号码" min-width="150">
-          <template #default="{ row }">
-            <el-input v-model="row.idNumber" size="small" placeholder="证件号码" />
+            <el-input v-model="row.customerId" size="small" placeholder="客户ID" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="70">
@@ -172,7 +157,7 @@
         </el-table-column>
       </el-table>
       <div style="margin-top:12px">
-        <el-button size="small" @click="batchList.push({ name:'', idType:'ID_CARD', idNumber:'' })">添加一行</el-button>
+        <el-button size="small" @click="batchList.push({ customerId: '' })">添加一行</el-button>
       </div>
       <template #footer>
         <el-button @click="batchDialogVisible = false">取消</el-button>
@@ -268,7 +253,7 @@ const activeTab = ref('screening')
 const resultsLoading = ref(false)
 const screening = ref(false)
 const results = ref<any[]>([])
-const screenForm = ref({ name: '', idType: 'ID_CARD', idNumber: '', nationality: '' })
+const screenForm = ref({ customerId: '', screeningType: 'CUSTOMER_ONBOARD' })
 const explainVisible = ref(false)
 const explainData = ref<any>(null)
 
@@ -289,10 +274,6 @@ function reviewStatusTagType(status: unknown): '' | 'success' | 'warning' | 'dan
 
 function reviewStatusLabel(status: unknown) {
   return mapLabel({ PENDING_REVIEW: '待复核', CONFIRMED: '已确认', EXCLUDED: '已排除' }, status)
-}
-
-function idTypeLabel(idType: unknown) {
-  return mapLabel({ ID_CARD: '身份证', PASSPORT: '护照', BUSINESS_LICENSE: '营业执照' }, idType)
 }
 
 function matchFieldLabel(matchField: unknown) {
@@ -371,46 +352,52 @@ async function loadResults() {
 }
 
 async function doScreen() {
-  if (!screenForm.value.name) {
-    ElMessage.warning('请输入客户姓名')
+  const customerId = Number(screenForm.value.customerId)
+  if (!Number.isFinite(customerId) || customerId <= 0) {
+    ElMessage.warning('请输入有效客户ID')
     return
   }
   screening.value = true
   try {
-    await request.post('/screening/screen', screenForm.value)
+    await request.post('/screening/screen', {
+      customerId,
+      screeningType: screenForm.value.screeningType
+    })
     ElMessage.success('筛查完成')
-    loadResults()
+    await loadResults()
   } catch (e) { /* handled */ } finally { screening.value = false }
 }
 
 async function review(id: number, status: string) {
   try {
-    await request.post('/screening/review', { resultId: id, reviewStatus: status, remark: '' })
+    await request.post('/screening/review', { resultId: id, reviewStatus: status, reviewReason: '' })
     ElMessage.success('复核完成')
-    loadResults()
+    await loadResults()
   } catch (e) { /* handled */ }
 }
 
 // ============ 批量筛查 ============
 const batchDialogVisible = ref(false)
 const batchScreening = ref(false)
-const batchList = ref<{ name: string; idType: string; idNumber: string }[]>([
-  { name: '', idType: 'ID_CARD', idNumber: '' }
+const batchList = ref<{ customerId: string }[]>([
+  { customerId: '' }
 ])
 
 async function doBatchScreen() {
-  const validItems = batchList.value.filter(item => item.name && item.idNumber)
-  if (validItems.length === 0) {
-    ElMessage.warning('请至少填写一条完整的筛查记录（姓名+证件号码）')
+  const customerIds = batchList.value
+    .map(item => Number(item.customerId))
+    .filter(id => Number.isFinite(id) && id > 0)
+  if (customerIds.length === 0) {
+    ElMessage.warning('请至少填写一个有效客户ID')
     return
   }
   batchScreening.value = true
   try {
-    await request.post('/screening/batch-screen', { customers: validItems })
-    ElMessage.success(`批量筛查完成，共${validItems.length}条`)
+    await request.post('/screening/batch-screen', customerIds)
+    ElMessage.success(`批量筛查完成，共${customerIds.length}条`)
     batchDialogVisible.value = false
-    batchList.value = [{ name: '', idType: 'ID_CARD', idNumber: '' }]
-    loadResults()
+    batchList.value = [{ customerId: '' }]
+    await loadResults()
   } catch (e) { /* handled */ } finally { batchScreening.value = false }
 }
 
@@ -419,12 +406,18 @@ const whitelistLoading = ref(false)
 const whitelistSubmitting = ref(false)
 const whitelist = ref<any[]>([])
 const whitelistFormRef = ref<FormInstance>()
-const whitelistForm = reactive({ name: '', idType: 'ID_CARD', idNumber: '', reason: '' })
+const whitelistForm = reactive({
+  customerId: '',
+  customerName: '',
+  watchlistEntryId: '',
+  watchlistName: '',
+  excludeReason: ''
+})
 const whitelistRules: FormRules = {
-  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  idType: [{ required: true, message: '请选择证件类型', trigger: 'change' }],
-  idNumber: [{ required: true, message: '请输入证件号码', trigger: 'blur' }],
-  reason: [{ required: true, message: '请输入原因', trigger: 'blur' }]
+  customerId: [{ required: true, message: '请输入客户ID', trigger: 'blur' }],
+  customerName: [{ required: true, message: '请输入客户姓名', trigger: 'blur' }],
+  watchlistEntryId: [{ required: true, message: '请输入名单项ID', trigger: 'blur' }],
+  excludeReason: [{ required: true, message: '请输入排除原因', trigger: 'blur' }]
 }
 
 async function loadWhitelist() {
@@ -438,15 +431,37 @@ async function loadWhitelist() {
 async function addWhitelist() {
   if (!whitelistFormRef.value) return
   await whitelistFormRef.value.validate()
+  const customerId = Number(whitelistForm.customerId)
+  const watchlistEntryId = Number(whitelistForm.watchlistEntryId)
+  if (!Number.isFinite(customerId) || customerId <= 0 || !Number.isFinite(watchlistEntryId) || watchlistEntryId <= 0) {
+    ElMessage.warning('请输入有效的客户ID和名单项ID')
+    return
+  }
   whitelistSubmitting.value = true
   try {
-    await request.post('/screening/whitelist', { ...whitelistForm })
+    const today = new Date()
+    const expiry = new Date(today)
+    expiry.setFullYear(today.getFullYear() + 1)
+    await request.post('/screening/whitelist', {
+      customerId,
+      customerName: whitelistForm.customerName,
+      watchlistEntryId,
+      watchlistName: whitelistForm.watchlistName || whitelistForm.customerName,
+      excludeReason: whitelistForm.excludeReason,
+      evidence: '人工复核确认同名不同人',
+      effectiveDate: today.toISOString().slice(0, 10),
+      expiryDate: expiry.toISOString().slice(0, 10),
+      approvedBy: 'admin',
+      approvedTime: today.toISOString().slice(0, 19),
+      reviewStatus: 'ACTIVE'
+    })
     ElMessage.success('白名单添加成功')
-    whitelistForm.name = ''
-    whitelistForm.idType = 'ID_CARD'
-    whitelistForm.idNumber = ''
-    whitelistForm.reason = ''
-    loadWhitelist()
+    whitelistForm.customerId = ''
+    whitelistForm.customerName = ''
+    whitelistForm.watchlistEntryId = ''
+    whitelistForm.watchlistName = ''
+    whitelistForm.excludeReason = ''
+    await loadWhitelist()
   } catch (e) { /* handled */ } finally { whitelistSubmitting.value = false }
 }
 
@@ -454,7 +469,7 @@ async function removeWhitelist(id: number) {
   try {
     await request.delete(`/screening/whitelist/${id}`)
     ElMessage.success('删除成功')
-    loadWhitelist()
+    await loadWhitelist()
   } catch (e) { /* handled */ }
 }
 

@@ -142,6 +142,17 @@ jobs:
           bash -n scripts/e2e-test.sh
           bash -n scripts/frontend-e2e.sh
           bash -n scripts/frontend-browser-e2e.sh
+          bash -n scripts/customer-ui-e2e.sh
+          bash -n scripts/screening-ui-e2e.sh
+          bash -n scripts/monitoring-ui-e2e.sh
+          bash -n scripts/alert-ui-e2e.sh
+          bash -n scripts/case-ui-e2e.sh
+          bash -n scripts/str-report-ui-e2e.sh
+          bash -n scripts/large-report-ui-e2e.sh
+          bash -n scripts/product-ui-e2e.sh
+          bash -n scripts/assessment-ui-e2e.sh
+          bash -n scripts/rectification-ui-e2e.sh
+          bash -n scripts/notification-ui-e2e.sh
           bash -n scripts/ci-e2e-step.sh
           bash -n scripts/collect-e2e-artifacts.sh
           bash -n scripts/performance-baseline.sh
@@ -317,6 +328,50 @@ jobs:
       - name: Run frontend browser E2E
         timeout-minutes: 10
         run: bash scripts/ci-e2e-step.sh "Frontend browser E2E" bash scripts/frontend-browser-e2e.sh
+
+      - name: Run customer UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Customer UI workflow E2E" bash scripts/customer-ui-e2e.sh
+
+      - name: Run screening UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Screening UI workflow E2E" bash scripts/screening-ui-e2e.sh
+
+      - name: Run monitoring UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Monitoring UI workflow E2E" bash scripts/monitoring-ui-e2e.sh
+
+      - name: Run alert UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Alert UI workflow E2E" bash scripts/alert-ui-e2e.sh
+
+      - name: Run case UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Case UI workflow E2E" bash scripts/case-ui-e2e.sh
+
+      - name: Run STR report UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "STR report UI workflow E2E" bash scripts/str-report-ui-e2e.sh
+
+      - name: Run large report UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Large report UI workflow E2E" bash scripts/large-report-ui-e2e.sh
+
+      - name: Run product UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Product UI workflow E2E" bash scripts/product-ui-e2e.sh
+
+      - name: Run assessment UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Assessment UI workflow E2E" bash scripts/assessment-ui-e2e.sh
+
+      - name: Run rectification UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Rectification UI workflow E2E" bash scripts/rectification-ui-e2e.sh
+
+      - name: Run notification UI workflow E2E
+        timeout-minutes: 10
+        run: bash scripts/ci-e2e-step.sh "Notification UI workflow E2E" bash scripts/notification-ui-e2e.sh
 
       - name: Run RBAC E2E
         timeout-minutes: 8

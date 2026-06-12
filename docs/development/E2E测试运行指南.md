@@ -179,6 +179,301 @@ npx playwright install chromium
 
 ---
 
+## 5.1 运行客户管理真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/customer-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:customer
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号并进入 `/kyc`。
+- 通过页面“新增客户”弹窗创建唯一测试客户。
+- 使用客户名称搜索列表，并进入客户详情页。
+- 验证客户详情展示客户画像和画像雷达图。
+- 验证客户关系图谱 API 返回客户节点，并检查“关系图谱”标签页可见、可刷新。
+- 输出客户列表、客户详情、客户关系图谱截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.2 运行名单筛查真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/screening-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:screening
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过 API 准备唯一测试客户，避免依赖固定演示数据。
+- 进入 `/screening`，使用页面表单按客户 ID 触发单笔名单筛查。
+- 打开“批量筛查”弹窗，提交客户 ID 批量筛查。
+- 进入“白名单管理”，新增白名单记录并验证列表展示。
+- 输出单笔筛查、白名单管理截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.3 运行交易监测真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/monitoring-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:monitoring
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过 API 准备唯一测试客户和大额现金交易，避免依赖固定演示数据。
+- 进入 `/monitoring`，按交易编号搜索交易列表。
+- 打开交易详情，验证“资金流向图”渲染。
+- 从交易行点击“图谱”，验证交易关系图谱和统计区更新。
+- 输出交易列表、交易详情、交易关系图谱截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.4 运行预警管理真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/alert-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:alert
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过 API 准备唯一测试客户、关联交易和人工预警，避免依赖固定演示数据。
+- 进入 `/alerts`，验证预警列表展示本次创建的预警。
+- 打开预警详情，验证预警处置链路和关联交易证据展示。
+- 通过页面完成预警指派和确认可疑处理，并验证状态更新为“已确认”。
+- 输出预警列表、预警详情、处理后列表截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.5 运行案件管理真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/case-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:case
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过 API 准备唯一测试客户、人工预警，并确认预警自动生成案件。
+- 进入 `/cases`，验证案件列表展示本次创建的案件。
+- 打开案件详情，验证案件处置时间轴。
+- 通过页面新增调查记录，并依次执行开始调查、提交审批、审批通过、关闭案件。
+- 复查案件详情，验证调查记录和关闭节点已沉淀。
+- 输出案件列表、案件详情、关闭后列表截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.6 运行 STR 报告真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/str-report-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:str-report
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过 API 准备唯一测试客户、人工预警和调查中案件，避免依赖固定演示数据。
+- 进入 `/str-reports`，通过页面新建 STR 可疑交易报告。
+- 通过页面提交审核、审核通过，并报送监管。
+- 复查 STR 报告详情，验证报告内容、审核意见和最终报送状态。
+- 输出 STR 报告列表、报送后列表截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.7 运行大额交易报告真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/large-report-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:large-report
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过 API 准备唯一测试客户和大额现金交易，避免依赖固定演示数据。
+- 进入 `/reporting`，通过页面按交易 ID 生成大额交易报告。
+- 打开报告详情，验证客户、交易金额和状态展示。
+- 通过页面完成审核，并提交监管报送。
+- 复查报送后详情，验证最终状态为“已报送”。
+- 输出大额报告列表、报告详情、报送后列表截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.8 运行产品管理真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/product-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:product
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过页面新建唯一产品，覆盖产品编码、名称、类型、风险等级和描述。
+- 按产品编码查询，验证后端筛选条件和列表展示一致。
+- 打开产品详情，验证产品简介展示。
+- 通过页面编辑产品名称和描述。
+- 通过页面发起产品风险评估，验证评估接口返回风险评分和风险等级。
+- 复查产品详情中的评估历史，验证评估人、评分和评估因素展示。
+- 输出产品创建、详情、评估后列表截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.9 运行风险自评估真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/assessment-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:assessment
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 进入 `/assessment`，验证自评估风险画像和整改闭环图表区域可渲染。
+- 通过页面创建年度风险自评估任务。
+- 查询启用评估指标，并通过页面逐项提交固有风险、控制有效性评分。
+- 通过页面完成评估并审批通过，验证综合评分和风险等级回显。
+- 打开评估详情，验证评分明细和评分依据展示。
+- 在自评估页面的整改任务页签创建关联整改任务，验证任务进入“待整改”状态。
+- 输出自评估创建、审批后列表、关联整改任务截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.10 运行整改中心真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/rectification-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:rectification
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 进入 `/rectifications`，验证整改闭环状态图和问题来源/严重程度图表区域可渲染。
+- 通过页面新增监管检查来源整改任务。
+- 按责任人筛选，验证新建任务可被列表查询命中。
+- 通过页面更新整改进度为 100%，并将状态推进到“已完成”。
+- 通过页面提交整改验证并置为“已验证”。
+- 按“已验证”状态复查闭环任务。
+- 输出整改任务创建和验证后列表截图到 `SCREENSHOT_DIR`。
+
+---
+
+## 5.11 运行通知中心案件通知真实 UI 闭环 E2E
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/notification-ui-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:notification
+```
+
+该脚本覆盖：
+
+- 使用真实浏览器登录管理员账号。
+- 通过接口准备客户、手工预警、预警分派和预警处置数据，触发案件创建。
+- 验证案件创建后会生成 `CASE` 类型通知，且通知 `relatedId` 对应真实案件 ID。
+- 进入 `/notifications`，按案件通知筛选并打开通知详情。
+- 验证通知详情展示案件编号、客户名称和案件摘要，并将通知标记为已读。
+- 通过通知详情跳转案件管理，验证 `/cases?caseId=...` 能自动打开对应案件详情。
+- 输出通知详情和案件详情截图到 `SCREENSHOT_DIR`。
+
+---
+
 ## 6. 运行 RBAC E2E
 
 ```bash

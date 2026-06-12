@@ -183,7 +183,7 @@
         <el-descriptions-item label="处理人">{{ detailData.assignedTo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="指派时间">{{ detailData.assignedTime || '-' }}</el-descriptions-item>
         <el-descriptions-item label="处理结果" :span="2">
-          <el-tag v-if="detailData.processResult" :type="detailData.processResult === 'CONFIRMED' ? 'danger' : 'success'" size="small">
+          <el-tag v-if="detailData.processResult" :type="String(detailData.processResult).includes('CONFIRMED') ? 'danger' : 'success'" size="small">
             {{ processResultMap[detailData.processResult] || detailData.processResult }}
           </el-tag>
           <span v-else>-</span>
@@ -302,8 +302,9 @@
         </el-form-item>
         <el-form-item label="处理结果" required>
           <el-radio-group v-model="processForm.processResult">
-            <el-radio value="CONFIRMED">确认可疑</el-radio>
+            <el-radio value="CONFIRMED_SUSPICIOUS">确认可疑</el-radio>
             <el-radio value="EXCLUDED">排除误报</el-radio>
+            <el-radio value="ESCALATED">升级处理</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="处理备注">
@@ -322,8 +323,9 @@
       <el-form :model="batchForm" label-width="100px">
         <el-form-item label="处理结果" required>
           <el-radio-group v-model="batchForm.processResult">
-            <el-radio value="CONFIRMED">确认可疑</el-radio>
+            <el-radio value="CONFIRMED_SUSPICIOUS">确认可疑</el-radio>
             <el-radio value="EXCLUDED">排除误报</el-radio>
+            <el-radio value="ESCALATED">升级处理</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="处理备注">
@@ -550,23 +552,23 @@ const assignVisible = ref(false)
 const assignForm = reactive({ alertId: 0, alertNo: '', assignTo: '' })
 /** 可选处理人列表 */
 const userList = ref<UserOption[]>([
-  { id: 'analyst1', name: '分析师A' },
-  { id: 'analyst2', name: '分析师B' },
-  { id: 'analyst3', name: '分析师C' },
-  { id: 'manager1', name: '主管A' }
+  { id: 1, name: '管理员' },
+  { id: 2, name: '合规专员' },
+  { id: 3, name: '调查专员' },
+  { id: 4, name: '风控主管' }
 ])
 
 // ===================== 处理弹窗状态 =====================
 /** 处理弹窗显示状态 */
 const processVisible = ref(false)
 /** 处理表单数据 */
-const processForm = reactive({ alertId: 0, alertNo: '', processResult: 'CONFIRMED', processRemark: '' })
+const processForm = reactive({ alertId: 0, alertNo: '', processResult: 'CONFIRMED_SUSPICIOUS', processRemark: '' })
 
 // ===================== 批量处理弹窗状态 =====================
 /** 批量处理弹窗显示状态 */
 const batchProcessVisible = ref(false)
 /** 批量处理表单数据 */
-const batchForm = reactive({ processResult: 'CONFIRMED', processRemark: '' })
+const batchForm = reactive({ processResult: 'CONFIRMED_SUSPICIOUS', processRemark: '' })
 
 // ===================== 辅助函数 =====================
 /** 从映射表中获取中文标签 */
@@ -880,7 +882,7 @@ async function handleAssign() {
 function openProcessDialog(row: AlertItem) {
   processForm.alertId = row.id
   processForm.alertNo = row.alertNo
-  processForm.processResult = 'CONFIRMED'
+  processForm.processResult = 'CONFIRMED_SUSPICIOUS'
   processForm.processRemark = ''
   processVisible.value = true
 }
@@ -912,7 +914,7 @@ async function handleProcess() {
 // ===================== 批量处理 =====================
 /** 打开批量处理弹窗 */
 function openBatchProcessDialog() {
-  batchForm.processResult = 'CONFIRMED'
+  batchForm.processResult = 'CONFIRMED_SUSPICIOUS'
   batchForm.processRemark = ''
   batchProcessVisible.value = true
 }
@@ -936,8 +938,7 @@ async function handleBatchProcess() {
   try {
     await request.post('/alerts/batch-process', {
       alertIds: selectedIds.value,
-      processResult: batchForm.processResult,
-      processRemark: batchForm.processRemark
+      action: batchForm.processResult
     })
     ElMessage.success(`成功处理 ${selectedIds.value.length} 条预警`)
     batchProcessVisible.value = false
