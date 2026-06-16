@@ -68,6 +68,7 @@ public class TransactionController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询交易")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<PageResult<TransactionVO>> pageQueryTransactions(@Valid TransactionQueryRequest request) {
         PageResult<TransactionVO> pageResult = transactionService.pageQueryTransactions(request);
         return Result.success(pageResult);
@@ -78,6 +79,7 @@ public class TransactionController {
      */
     @GetMapping("/daily-summary")
     @Operation(summary = "查询交易日汇总")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<TransactionDailySummary> getDailySummary(
             @Parameter(description = "客户ID", required = true) @RequestParam Long customerId,
             @Parameter(description = "汇总日期", required = true)

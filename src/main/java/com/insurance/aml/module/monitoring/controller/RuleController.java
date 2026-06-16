@@ -47,6 +47,7 @@ public class RuleController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询规则")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<PageResult<RuleDefinition>> pageQueryRules(@Valid RuleQueryRequest request) {
         LambdaQueryWrapper<RuleDefinition> wrapper = new LambdaQueryWrapper<>();
 
@@ -136,6 +137,7 @@ public class RuleController {
      */
     @GetMapping("/{id}/versions")
     @Operation(summary = "获取规则执行日志")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<List<RuleExecutionLog>> getRuleVersions(@Parameter(description = "规则ID") @PathVariable Long id) {
         LambdaQueryWrapper<RuleExecutionLog> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RuleExecutionLog::getRuleId, id)

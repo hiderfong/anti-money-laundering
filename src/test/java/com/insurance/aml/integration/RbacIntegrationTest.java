@@ -116,6 +116,26 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.code").value(403));
     }
 
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 screening:view 用户读取筛查结果 -> 403")
+    void viewerCannotReadScreeningResults() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/screening/results").param("customerId", "1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 monitoring:view 用户读取交易列表 -> 403")
+    void viewerCannotReadTransactions() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/monitoring/transactions/page"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
     private String customerJson(String name, String idNumber) {
         return """
                 {

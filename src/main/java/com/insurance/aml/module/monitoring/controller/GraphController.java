@@ -64,6 +64,7 @@ public class GraphController {
      */
     @GetMapping("/ring-detection")
     @Operation(summary = "环形交易检测", description = "检测指定客户是否存在环形交易路径，识别资金回流")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<RingTransactionResult> detectRingTransactions(
             @Parameter(description = "客户ID", required = true)
             @RequestParam Long customerId) {
@@ -80,6 +81,7 @@ public class GraphController {
      */
     @GetMapping("/multi-layer-transfer")
     @Operation(summary = "多层转账追踪", description = "追踪资金流向链，检测深度>=3的多层转账")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<MultiLayerTransferResult> traceMultiLayerTransfer(
             @Parameter(description = "客户ID", required = true)
             @RequestParam Long customerId,
@@ -98,6 +100,7 @@ public class GraphController {
      */
     @GetMapping("/shared-accounts")
     @Operation(summary = "共同账户检测", description = "检测多个客户是否关联同一账户，识别团伙洗钱")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<SharedAccountResult> detectSharedAccounts(
             @Parameter(description = "客户ID", required = true)
             @RequestParam Long customerId) {
@@ -114,6 +117,7 @@ public class GraphController {
      */
     @GetMapping("/network-density")
     @Operation(summary = "异常网络密度检测", description = "分析客户交易网络关联方数量，识别异常活跃账户")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
     public Result<NetworkDensityResult> analyzeNetworkDensity(
             @Parameter(description = "客户ID", required = true)
             @RequestParam Long customerId,

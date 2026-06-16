@@ -63,6 +63,7 @@ public class ScreeningController {
      */
     @GetMapping("/results")
     @Operation(summary = "查询筛查结果", description = "分页查询筛查结果列表，支持按客户ID和审核状态过滤")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:view')")
     public Result<PageResult<ScreeningResultVO>> getResults(
             PageQuery pageQuery,
             @Parameter(description = "客户ID") @RequestParam(required = false) Long customerId,
@@ -88,6 +89,7 @@ public class ScreeningController {
      */
     @GetMapping("/whitelist")
     @Operation(summary = "查询白名单", description = "分页查询白名单列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:view')")
     public Result<PageResult<Whitelist>> getWhitelist(PageQuery pageQuery) {
         List<Whitelist> list = whitelistMapper.selectList(null);
         // 简单分页处理
