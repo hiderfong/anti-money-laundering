@@ -136,6 +136,46 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.code").value(403));
     }
 
+    @Test
+    @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
+    @DisplayName("无 assessment:view 用户读取自评估列表 -> 403")
+    void investigatorCannotReadAssessments() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/assessments/list"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
+    @DisplayName("无 report:str 用户读取STR报告列表 -> 403")
+    void investigatorCannotReadStrReports() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/str-reports/page"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
+    @DisplayName("无 report:view 用户读取大额报送列表 -> 403")
+    void investigatorCannotReadLargeTxnReports() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/reporting/large-txn/page"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
+    @DisplayName("无 product:view 用户读取产品列表 -> 403")
+    void investigatorCannotReadProducts() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/products/page"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
     private String customerJson(String name, String idNumber) {
         return """
                 {

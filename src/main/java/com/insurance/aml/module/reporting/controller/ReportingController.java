@@ -71,6 +71,7 @@ public class ReportingController {
      */
     @GetMapping("/large-txn/page")
     @Operation(summary = "分页查询报告", description = "根据条件分页查询大额交易报告列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:view')")
     public Result<PageResult<LargeTxnReportVO>> pageQueryReports(LargeTxnReportQueryRequest request) {
         log.debug("接收到分页查询大额交易报告请求");
         PageResult<LargeTxnReportVO> result = largeTxnReportService.pageQueryReports(request);
@@ -82,6 +83,7 @@ public class ReportingController {
      */
     @GetMapping("/large-txn/{id}/xml")
     @Operation(summary = "预览XML报文", description = "预览指定报告的XML报文内容")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:view')")
     public Result<String> previewXml(
             @Parameter(description = "报告ID", required = true) @PathVariable Long id) {
         log.debug("接收到预览XML报文请求，报告ID：{}", id);

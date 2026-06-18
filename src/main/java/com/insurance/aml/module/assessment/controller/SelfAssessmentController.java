@@ -86,6 +86,7 @@ public class SelfAssessmentController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取评估详情", description = "根据ID获取评估详细信息，包含评分明细和指标详情")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:view')")
     public Result<SelfAssessmentDetailVO> getAssessmentDetail(
             @Parameter(description = "评估ID") @PathVariable Long id) {
         SelfAssessmentDetailVO detail = assessmentService.getAssessmentDetail(id);
@@ -97,6 +98,7 @@ public class SelfAssessmentController {
      */
     @GetMapping("/list")
     @Operation(summary = "查询评估列表", description = "按年度查询风险自评估列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:view')")
     public Result<List<SelfAssessment>> listAssessments(
             @Parameter(description = "评估年度") @RequestParam(required = false) Integer year) {
         List<SelfAssessment> list = assessmentService.listAssessments(year);

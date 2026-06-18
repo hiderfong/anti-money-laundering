@@ -61,6 +61,7 @@ public class ProductController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取产品详情", description = "根据ID获取产品详细信息")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('product:view')")
     public Result<ProductVO> getProductDetail(
             @Parameter(description = "产品ID") @PathVariable Long id) {
         ProductVO vo = productService.getProductDetail(id);
@@ -72,6 +73,7 @@ public class ProductController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询产品", description = "按条件分页查询产品列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('product:view')")
     public Result<PageResult<ProductVO>> pageQueryProducts(ProductQueryRequest req) {
         PageResult<ProductVO> result = productService.pageQueryProducts(req);
         return Result.success(result);
@@ -97,6 +99,7 @@ public class ProductController {
      */
     @GetMapping("/{id}/assessments")
     @Operation(summary = "查询评估历史", description = "获取指定产品的历史评估记录")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('product:view')")
     public Result<List<ProductRiskAssessment>> getAssessmentHistory(
             @Parameter(description = "产品ID") @PathVariable Long id) {
         List<ProductRiskAssessment> list = productService.getAssessmentHistory(id);

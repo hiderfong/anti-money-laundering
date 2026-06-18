@@ -59,6 +59,7 @@ public class RectificationController {
      */
     @GetMapping("/list")
     @Operation(summary = "查询整改任务", description = "按评估ID查询整改任务列表，支持逾期自动检测")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('assessment:view')")
     public Result<List<RectificationTask>> listTasks(
             @Parameter(description = "评估ID（可选）") @RequestParam(required = false) Long assessmentId) {
         List<RectificationTask> tasks = rectificationService.listTasks(assessmentId);

@@ -33,6 +33,7 @@ public class StrReportController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询STR报告")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
     public PageResult<StrReport> pageQuery(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer size,
@@ -98,6 +99,7 @@ public class StrReportController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取报告详情", description = "查询可疑交易报告详细信息")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
     public Result<StrReport> getReportDetail(
             @Parameter(description = "报告ID") @PathVariable Long id) {
         log.info("收到查询报告详情请求，reportId={}", id);
