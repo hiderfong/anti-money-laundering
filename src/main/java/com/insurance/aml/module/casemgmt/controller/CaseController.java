@@ -65,6 +65,7 @@ public class CaseController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取案件详情", description = "查询案件完整信息，包含调查记录、附件、STR报告、状态日志")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('case:view')")
     public Result<CaseDetailVO> getCaseDetail(
             @Parameter(description = "案件ID") @PathVariable Long id) {
         log.info("收到查询案件详情请求，caseId={}", id);
@@ -77,6 +78,7 @@ public class CaseController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询案件", description = "按条件分页查询案件列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('case:view')")
     public Result<PageResult<CaseVO>> pageQueryCases(CaseQueryRequest req) {
         log.info("收到分页查询案件请求，page={}, size={}", req.getPage(), req.getSize());
         PageResult<CaseVO> result = caseService.pageQueryCases(req);

@@ -58,6 +58,7 @@ public class CustomerController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取客户详情", description = "根据客户ID获取客户详细信息及受益所有人")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:view')")
     public Result<CustomerVO> getCustomerDetail(
             @Parameter(description = "客户ID", required = true) @PathVariable Long id) {
         log.debug("接收到获取客户详情请求，客户ID：{}", id);
@@ -70,6 +71,7 @@ public class CustomerController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询客户", description = "根据条件分页查询客户列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:view')")
     public Result<PageResult<CustomerVO>> pageQueryCustomers(CustomerQueryRequest request) {
         log.debug("接收到分页查询客户请求");
         PageResult<CustomerVO> result = customerService.pageQueryCustomers(request);
@@ -81,6 +83,7 @@ public class CustomerController {
      */
     @GetMapping("/{id}/360")
     @Operation(summary = "客户360度视图", description = "获取客户全方位信息，包括基本信息、受益所有人、验证记录、风险历史")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:view')")
     public Result<Customer360VO> getCustomer360View(
             @Parameter(description = "客户ID", required = true) @PathVariable Long id) {
         log.debug("接收到客户360度视图请求，客户ID：{}", id);
@@ -93,6 +96,7 @@ public class CustomerController {
      */
     @GetMapping("/{id}/relationship-graph")
     @Operation(summary = "客户关系图谱", description = "汇聚客户、受益人、保单、产品、交易、预警、案件、STR 和名单风险线索")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('customer:view')")
     public Result<CustomerRelationshipGraphVO> getCustomerRelationshipGraph(
             @Parameter(description = "客户ID", required = true) @PathVariable Long id) {
         log.debug("接收到客户关系图谱请求，客户ID：{}", id);

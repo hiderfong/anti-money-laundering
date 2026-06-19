@@ -33,6 +33,7 @@ public class AlertController {
      */
     @GetMapping("/page")
     @Operation(summary = "分页查询预警", description = "根据条件分页查询预警列表")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:view')")
     public Result<PageResult<AlertVO>> pageQueryAlerts(AlertQueryRequest request) {
         log.debug("接收到分页查询预警请求");
         PageResult<AlertVO> result = alertService.pageQueryAlerts(request);
@@ -44,6 +45,7 @@ public class AlertController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取预警详情", description = "根据预警ID获取预警详细信息及命中规则明细")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:view')")
     public Result<AlertVO> getAlertDetail(
             @Parameter(description = "预警ID", required = true) @PathVariable Long id) {
         log.debug("接收到获取预警详情请求，预警ID：{}", id);
@@ -56,6 +58,7 @@ public class AlertController {
      */
     @GetMapping("/{id}/disposition-chain")
     @Operation(summary = "预警处置链路", description = "聚合预警关联交易、案件、STR报告和报送状态")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:view')")
     public Result<AlertDispositionChainVO> getDispositionChain(
             @Parameter(description = "预警ID", required = true) @PathVariable Long id) {
         log.debug("接收到获取预警处置链路请求，预警ID：{}", id);
@@ -106,6 +109,7 @@ public class AlertController {
      */
     @GetMapping("/statistics")
     @Operation(summary = "预警统计", description = "获取预警按状态、风险等级的统计数据")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('alert:view')")
     public Result<AlertStatisticsVO> getAlertStatistics() {
         log.debug("接收到预警统计请求");
         // 统计逻辑直接在此处实现，避免过度设计
