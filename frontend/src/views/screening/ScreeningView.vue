@@ -343,6 +343,11 @@ function matchExplainConclusion(row: any) {
   return `低置信命中：${fields} 仅存在弱相似特征，建议作为一般复核线索处理。`
 }
 
+function normalizePositiveId(value: unknown) {
+  const id = String(value ?? '').trim()
+  return /^[1-9]\d*$/.test(id) ? id : ''
+}
+
 async function loadResults() {
   resultsLoading.value = true
   try {
@@ -352,8 +357,8 @@ async function loadResults() {
 }
 
 async function doScreen() {
-  const customerId = Number(screenForm.value.customerId)
-  if (!Number.isFinite(customerId) || customerId <= 0) {
+  const customerId = normalizePositiveId(screenForm.value.customerId)
+  if (!customerId) {
     ElMessage.warning('请输入有效客户ID')
     return
   }
@@ -385,8 +390,8 @@ const batchList = ref<{ customerId: string }[]>([
 
 async function doBatchScreen() {
   const customerIds = batchList.value
-    .map(item => Number(item.customerId))
-    .filter(id => Number.isFinite(id) && id > 0)
+    .map(item => normalizePositiveId(item.customerId))
+    .filter(Boolean)
   if (customerIds.length === 0) {
     ElMessage.warning('请至少填写一个有效客户ID')
     return
@@ -431,9 +436,9 @@ async function loadWhitelist() {
 async function addWhitelist() {
   if (!whitelistFormRef.value) return
   await whitelistFormRef.value.validate()
-  const customerId = Number(whitelistForm.customerId)
-  const watchlistEntryId = Number(whitelistForm.watchlistEntryId)
-  if (!Number.isFinite(customerId) || customerId <= 0 || !Number.isFinite(watchlistEntryId) || watchlistEntryId <= 0) {
+  const customerId = normalizePositiveId(whitelistForm.customerId)
+  const watchlistEntryId = normalizePositiveId(whitelistForm.watchlistEntryId)
+  if (!customerId || !watchlistEntryId) {
     ElMessage.warning('请输入有效的客户ID和名单项ID')
     return
   }
