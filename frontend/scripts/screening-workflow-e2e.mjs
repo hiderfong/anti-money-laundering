@@ -12,6 +12,7 @@ const headless = process.env.HEADLESS !== 'false'
 const slowMo = Number(process.env.PLAYWRIGHT_SLOW_MO || 0)
 const navigationTimeout = Number(process.env.PLAYWRIGHT_NAVIGATION_TIMEOUT || 90000)
 const assertionTimeout = Number(process.env.PLAYWRIGHT_ASSERTION_TIMEOUT || 20000)
+const browserIp = process.env.E2E_BROWSER_IP || ''
 
 const numericRun = runId.replace(/\D/g, '') || new Date().toISOString().replace(/\D/g, '').slice(0, 14)
 const idTail = numericRun.slice(-4).padStart(4, '0')
@@ -202,13 +203,18 @@ async function main() {
   console.log(`  E2E_RUN_ID: ${runId}`)
   console.log(`  Customer: ${customerName}`)
   console.log(`  HEADLESS: ${headless}`)
+  console.log(`  E2E_BROWSER_IP: ${browserIp || "(default)"}`)
   console.log('')
 
   await mkdir(screenshotDir, { recursive: true })
   const browser = await launchBrowser()
   const context = await browser.newContext({
     viewport: { width: 1366, height: 768 },
-    ignoreHTTPSErrors: true
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {
+      'X-E2E-Run-Id': runId,
+      ...(browserIp ? { 'X-Forwarded-For': browserIp } : {})
+    }
   })
   const page = await context.newPage()
 

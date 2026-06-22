@@ -11,6 +11,7 @@ const headless = process.env.HEADLESS !== 'false'
 const slowMo = Number(process.env.PLAYWRIGHT_SLOW_MO || 0)
 const navigationTimeout = Number(process.env.PLAYWRIGHT_NAVIGATION_TIMEOUT || 90000)
 const assertionTimeout = Number(process.env.PLAYWRIGHT_ASSERTION_TIMEOUT || 20000)
+const browserIp = process.env.E2E_BROWSER_IP || ''
 
 const routes = [
   { path: '/dashboard', signal: '反洗钱运营态势' },
@@ -154,6 +155,7 @@ async function main() {
   console.log(`  FRONTEND_URL: ${frontendUrl}`)
   console.log(`  E2E_RUN_ID: ${runId}`)
   console.log(`  HEADLESS: ${headless}`)
+  console.log(`  E2E_BROWSER_IP: ${browserIp || "(default)"}`)
   console.log(`  NAVIGATION_TIMEOUT: ${navigationTimeout}ms`)
   console.log('')
 
@@ -161,7 +163,11 @@ async function main() {
   const browser = await launchBrowser()
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
-    ignoreHTTPSErrors: true
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {
+      'X-E2E-Run-Id': runId,
+      ...(browserIp ? { 'X-Forwarded-For': browserIp } : {})
+    }
   })
   const page = await context.newPage()
 
