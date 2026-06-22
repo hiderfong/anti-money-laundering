@@ -62,6 +62,16 @@ function isIgnoredConsole(message) {
   return ignoredConsolePatterns.some(pattern => pattern.test(message))
 }
 
+function displayCaseCustomerName(name, id) {
+  const raw = String(name || '').trim()
+  const lower = raw.toLowerCase()
+  const isLegacy = /^客户\d+$/.test(raw) || lower.includes('e2e') || /[åæèéçä]/.test(raw)
+  if (raw && !isLegacy) {
+    return raw
+  }
+  return id ? `客户ID ${id}` : '-'
+}
+
 async function installE2EApiHeaders(context) {
   await context.route('**/api/**', async route => {
     const headers = {
@@ -327,12 +337,13 @@ async function main() {
     info('1. 登录并准备已确认预警生成的案件')
     await login(page)
     const issueStart = runtimeIssues.length
-    const { caseNo } = await prepareCaseFixture(page)
+    const { customerId, caseNo } = await prepareCaseFixture(page)
+    const displayedCustomerName = displayCaseCustomerName(customerName, customerId)
 
     info('2. 进入案件管理并验证案件列表')
     await page.goto(`${frontendUrl}/cases`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
     await page.getByText(caseNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
-    await page.getByText(customerName, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
+    await page.getByText(displayedCustomerName, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText(alertSummary, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
     await assertNoOverlay(page, '/cases')
     pass('案件列表展示自动创建案件')
