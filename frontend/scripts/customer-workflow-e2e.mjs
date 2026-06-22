@@ -20,6 +20,7 @@ const customerName = `${prefix}客户UI${numericRun.slice(-10)}`
 const customerIdNumber = `11010119900101${idTail}`
 const customerPhone = `139${phoneTail}`
 const customerEmail = `ui_${numericRun}@test.local`
+const maskedCustomerName = maskName(customerName)
 
 const frameworkOverlayPatterns = [
   'Internal server error',
@@ -56,6 +57,18 @@ function info(message) {
 
 function isIgnoredConsole(message) {
   return ignoredConsolePatterns.some(pattern => pattern.test(message))
+}
+
+function maskName(name) {
+  if (!name || name.length === 1) {
+    return name
+  }
+  return `${name.at(0)}${'*'.repeat(name.length - 1)}`
+}
+
+function normalizeRows(body) {
+  const list = body?.data?.list || body?.data?.records || body?.data?.items
+  return Array.isArray(list) ? list : []
 }
 
 async function launchBrowser() {
@@ -230,6 +243,7 @@ async function main() {
       () => dialog.getByRole('button', { name: '确定' }).click()
     )
     const createdCustomerId = createResult.body?.data?.id
+    const createdCustomerNo = createResult.body?.data?.customerNo
     if (createResult.response.status() === 200 && createResult.body?.code === 200 && createdCustomerId) {
       pass(`新增客户成功，id=${createdCustomerId}`)
     } else {
@@ -240,23 +254,37 @@ async function main() {
     info('3. 搜索新客户并进入详情')
     const searchForm = page.locator('.el-form').first()
     await fillFormItem(searchForm, '客户名称', customerName)
-    await waitForApiJson(
+    const searchResult = await waitForApiJson(
       page,
       response => response.url().includes('/api/kyc/customers/page')
         && response.request().method() === 'GET',
       () => page.getByRole('button', { name: '查询' }).click()
     )
-    await page.getByText(customerName, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
-    pass('客户列表可按新客户名称搜索命中')
+    const matchedRows = normalizeRows(searchResult.body)
+    const matchedRow = matchedRows.find(row => String(row.id) === String(createdCustomerId))
+    if (searchResult.response.status() === 200 && searchResult.body?.code === 200 && matchedRow) {
+      pass('客户列表接口可按新客户名称搜索命中')
+    } else {
+      fail('客户列表接口未命中新客户', JSON.stringify({
+        status: searchResult.response.status(),
+        createdCustomerId,
+        response: searchResult.body
+      }, null, 2))
+    }
+    const visibleCustomerNo = createdCustomerNo || matchedRow?.customerNo
+    const rowIdentityText = visibleCustomerNo || matchedRow?.name || maskedCustomerName
+    await page.getByText(rowIdentityText, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
+    pass('客户列表渲染搜索命中的客户记录')
     await page.screenshot({ path: path.join(screenshotDir, `customer-list-${runId}.png`), fullPage: false })
 
+    const customerRow = page.locator('.el-table__body-wrapper tbody tr').filter({ hasText: rowIdentityText }).first()
     await Promise.all([
       page.waitForURL(/\/kyc\/\d+$/, { timeout: assertionTimeout }),
-      page.getByRole('button', { name: '查看' }).first().click()
+      customerRow.getByRole('button', { name: '查看' }).click()
     ])
     await page.locator('main').waitFor({ state: 'visible', timeout: assertionTimeout })
-    await page.getByText(customerName, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
-    pass('进入客户详情页并展示新客户名称')
+    await page.getByText(visibleCustomerNo || maskedCustomerName, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
+    pass('进入客户详情页并展示新客户身份信息')
 
     const detailCustomerId = page.url().split('/').pop()
     if (String(createdCustomerId) === detailCustomerId) {
