@@ -266,15 +266,39 @@ jobs:
         working-directory: frontend
         run: bash ../scripts/ci-npm.sh ci
 
+      - name: Detect system browser
+        timeout-minutes: 2
+        run: |
+          CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -n "$CHROME_PATH" ]; then
+            echo "PLAYWRIGHT_CHANNEL=chrome" >> "$GITHUB_ENV"
+            echo "SKIP_PLAYWRIGHT_BROWSER_INSTALL=true" >> "$GITHUB_ENV"
+            "$CHROME_PATH" --version
+            exit 0
+          fi
+
+          CHROMIUM_PATH="$(command -v chromium || command -v chromium-browser || true)"
+          if [ -n "$CHROMIUM_PATH" ]; then
+            echo "PLAYWRIGHT_EXECUTABLE_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
+            echo "SKIP_PLAYWRIGHT_BROWSER_INSTALL=true" >> "$GITHUB_ENV"
+            "$CHROMIUM_PATH" --version
+            exit 0
+          fi
+
+          echo "SKIP_PLAYWRIGHT_BROWSER_INSTALL=false" >> "$GITHUB_ENV"
+          echo "No system Chrome/Chromium found; falling back to Playwright browser install."
+
       - name: Install Playwright browser dependencies
+        if: env.SKIP_PLAYWRIGHT_BROWSER_INSTALL != 'true'
         timeout-minutes: 15
         working-directory: frontend
-        run: npx playwright install-deps chromium-headless-shell
+        run: npx playwright install-deps chromium
 
-      - name: Install Playwright Chromium headless shell
-        timeout-minutes: 12
+      - name: Install Playwright Chromium
+        if: env.SKIP_PLAYWRIGHT_BROWSER_INSTALL != 'true'
+        timeout-minutes: 20
         working-directory: frontend
-        run: npx playwright install --only-shell chromium
+        run: npx playwright install chromium
 
       - name: Start backend
         timeout-minutes: 12
