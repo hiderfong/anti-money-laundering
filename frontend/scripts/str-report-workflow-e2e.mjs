@@ -174,7 +174,13 @@ async function confirmMessageBox(page, apiPredicate, trigger) {
   await trigger()
   const box = page.locator('.el-message-box').last()
   await box.waitFor({ state: 'visible', timeout: assertionTimeout })
-  return waitForApiJson(page, apiPredicate, () => box.getByRole('button', { name: '确认' }).click())
+  const confirmButton = box.locator('.el-message-box__btns .el-button--primary').last()
+  await confirmButton.waitFor({ state: 'visible', timeout: assertionTimeout })
+  return waitForApiJson(page, apiPredicate, () => confirmButton.click())
+}
+
+function reportRow(page, reportNo) {
+  return page.locator('.el-table__body-wrapper tbody tr').filter({ hasText: reportNo }).first()
 }
 
 async function login(page) {
@@ -380,19 +386,23 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, `str-report-list-${runId}.png`), fullPage: false })
 
     info('3. 提交审核')
+    const createdReportRow = reportRow(page, reportNo)
+    await createdReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
     await confirmMessageBox(
       page,
       response => response.url().includes('/api/str-reports/')
         && response.url().includes('/submit-review')
         && response.request().method() === 'POST',
-      () => page.getByRole('button', { name: '提交审核' }).first().click()
+      () => createdReportRow.getByRole('button', { name: '提交审核' }).click()
     )
     await page.getByText('已提交审核').waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText('待审核', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('STR 报告可提交审核')
 
     info('4. 审核通过')
-    await page.getByRole('button', { name: '审核' }).first().click()
+    const pendingReportRow = reportRow(page, reportNo)
+    await pendingReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
+    await pendingReportRow.getByRole('button', { name: '审核' }).click()
     const reviewDialog = page.locator('.el-dialog').filter({ hasText: '审核STR报告' }).last()
     await reviewDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await reviewDialog.locator('textarea').fill(reviewOpinion)
@@ -408,12 +418,14 @@ async function main() {
     pass('STR 报告可审核通过')
 
     info('5. 报送监管')
+    const approvedReportRow = reportRow(page, reportNo)
+    await approvedReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
     await confirmMessageBox(
       page,
       response => response.url().includes('/api/str-reports/')
         && response.url().includes('/submit-regulator')
         && response.request().method() === 'POST',
-      () => page.getByRole('button', { name: '报送监管' }).first().click()
+      () => approvedReportRow.getByRole('button', { name: '报送监管' }).click()
     )
     await page.getByText('已报送监管').waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText('已报送', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
@@ -421,7 +433,9 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, `str-report-submitted-${runId}.png`), fullPage: false })
 
     info('6. 复查报告详情')
-    await page.getByRole('button', { name: '详情' }).first().click()
+    const submittedReportRow = reportRow(page, reportNo)
+    await submittedReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
+    await submittedReportRow.getByRole('button', { name: '详情' }).click()
     const detailDialog = page.locator('.el-dialog').filter({ hasText: 'STR报告详情' }).last()
     await detailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText(reportNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
