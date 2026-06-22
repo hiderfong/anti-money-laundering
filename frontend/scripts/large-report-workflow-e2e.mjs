@@ -21,7 +21,7 @@ const customerName = `${prefix}大额报送UI${numericRun.slice(-10)}`
 const customerIdNumber = `11010119900707${idTail}`
 const customerPhone = `133${phoneTail}`
 const customerEmail = `large_report_${numericRun}@test.local`
-const transactionNo = `${prefix}_LARGE_REPORT_UI_${numericRun}_001`
+const transactionNo = `${prefix}_LRG_${numericRun.slice(-12).padStart(12, '0')}_01`
 const transactionAmount = 680000
 const reviewRemark = `大额交易报告 UI E2E 审核通过 ${runId}`
 
@@ -160,7 +160,13 @@ async function confirmMessageBox(page, apiPredicate, trigger) {
   await trigger()
   const box = page.locator('.el-message-box').last()
   await box.waitFor({ state: 'visible', timeout: assertionTimeout })
-  return waitForApiJson(page, apiPredicate, () => box.getByRole('button', { name: '确认' }).click())
+  const confirmButton = box.locator('.el-message-box__btns .el-button--primary').last()
+  await confirmButton.waitFor({ state: 'visible', timeout: assertionTimeout })
+  return waitForApiJson(page, apiPredicate, () => confirmButton.click())
+}
+
+function reportRow(page, reportNo) {
+  return page.locator('.el-table__body-wrapper tbody tr').filter({ hasText: reportNo }).first()
 }
 
 async function login(page) {
@@ -216,6 +222,7 @@ async function prepareLargeTransaction(page) {
     pass(`准备大额报告客户成功，id=${customerId}`)
   } else {
     fail('准备大额报告客户失败', JSON.stringify(customerResult, null, 2))
+    throw new Error('准备大额报告客户失败')
   }
 
   const transactionResult = await authedFetch(page, '/api/monitoring/transactions/ingest', {
@@ -240,6 +247,7 @@ async function prepareLargeTransaction(page) {
     pass(`准备大额报告交易成功，id=${transactionId}`)
   } else {
     fail('准备大额报告交易失败', JSON.stringify(transactionResult, null, 2))
+    throw new Error('准备大额报告交易失败')
   }
 
   return { customerId, transactionId }
@@ -304,13 +312,16 @@ async function main() {
       pass(`大额交易报告生成成功，reportNo=${reportNo}`)
     } else {
       fail('大额交易报告生成接口返回异常', JSON.stringify(generateResult.body, null, 2))
+      throw new Error('大额交易报告生成接口返回异常')
     }
     await page.getByText(reportNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText(customerName, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.screenshot({ path: path.join(screenshotDir, `large-report-list-${runId}.png`), fullPage: false })
 
     info('3. 查看报告详情')
-    await page.getByRole('button', { name: '详情' }).first().click()
+    const generatedReportRow = reportRow(page, reportNo)
+    await generatedReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
+    await generatedReportRow.getByRole('button', { name: '详情' }).click()
     const detailDialog = page.locator('.el-dialog').filter({ hasText: '大额交易报告详情' }).last()
     await detailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText(reportNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
@@ -322,7 +333,9 @@ async function main() {
     await detailDialog.waitFor({ state: 'hidden', timeout: assertionTimeout })
 
     info('4. 审核大额交易报告')
-    await page.getByRole('button', { name: '审核' }).first().click()
+    const draftReportRow = reportRow(page, reportNo)
+    await draftReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
+    await draftReportRow.getByRole('button', { name: '审核' }).click()
     const reviewDialog = page.locator('.el-dialog').filter({ hasText: '审核大额交易报告' }).last()
     await reviewDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await reviewDialog.locator('textarea').fill(reviewRemark)
@@ -338,12 +351,14 @@ async function main() {
     pass('大额交易报告可审核通过')
 
     info('5. 提交监管报送')
+    const reviewedReportRow = reportRow(page, reportNo)
+    await reviewedReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
     await confirmMessageBox(
       page,
       response => response.url().includes('/api/reporting/large-txn/')
         && response.url().includes('/submit')
         && response.request().method() === 'POST',
-      () => page.getByRole('button', { name: '提交报送' }).first().click()
+      () => reviewedReportRow.getByRole('button', { name: '提交报送' }).click()
     )
     await page.getByText('提交报送成功').waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText('已报送', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
@@ -351,7 +366,9 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, `large-report-submitted-${runId}.png`), fullPage: false })
 
     info('6. 复查报送后详情')
-    await page.getByRole('button', { name: '详情' }).first().click()
+    const submittedReportRow = reportRow(page, reportNo)
+    await submittedReportRow.waitFor({ state: 'visible', timeout: assertionTimeout })
+    await submittedReportRow.getByRole('button', { name: '详情' }).click()
     const finalDetailDialog = page.locator('.el-dialog').filter({ hasText: '大额交易报告详情' }).last()
     await finalDetailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await finalDetailDialog.getByText(reportNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
