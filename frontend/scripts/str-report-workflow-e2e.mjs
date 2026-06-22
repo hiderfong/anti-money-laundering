@@ -62,6 +62,12 @@ function isIgnoredConsole(message) {
   return ignoredConsolePatterns.some(pattern => pattern.test(message))
 }
 
+function parseJsonPreservingLongIds(text) {
+  if (!text) return null
+  const normalized = text.replace(/"([A-Za-z0-9_]*(?:id|Id|ID))"\s*:\s*(\d{16,})/g, '"$1":"$2"')
+  return JSON.parse(normalized)
+}
+
 async function installE2EApiHeaders(context) {
   await context.route('**/api/**', async route => {
     const headers = {
@@ -149,7 +155,7 @@ async function waitForApiJson(page, predicate, action) {
   const text = await response.text()
   let body = null
   try {
-    body = text ? JSON.parse(text) : null
+    body = parseJsonPreservingLongIds(text)
   } catch (error) {
     body = { raw: text }
   }
@@ -184,7 +190,7 @@ async function login(page) {
 }
 
 async function authedFetch(page, url, options = {}) {
-  return page.evaluate(async ({ requestUrl, requestOptions, e2eRunId }) => {
+  const result = await page.evaluate(async ({ requestUrl, requestOptions, e2eRunId }) => {
     const token = localStorage.getItem('aml_token')
     const response = await fetch(requestUrl, {
       ...requestOptions,
@@ -197,9 +203,17 @@ async function authedFetch(page, url, options = {}) {
     })
     return {
       status: response.status,
-      body: await response.json()
+      text: await response.text()
     }
   }, { requestUrl: url, requestOptions: options, e2eRunId: runId })
+
+  let body = null
+  try {
+    body = parseJsonPreservingLongIds(result.text)
+  } catch (error) {
+    body = { raw: result.text }
+  }
+  return { status: result.status, body }
 }
 
 async function prepareCaseForStr(page) {
