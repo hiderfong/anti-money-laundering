@@ -93,11 +93,10 @@ class ReportingWorkflowIntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "reportId": %d,
                                   "approved": true,
                                   "opinion": "调查证据充分，同意提交监管。"
                                 }
-                                """.formatted(reportId)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 

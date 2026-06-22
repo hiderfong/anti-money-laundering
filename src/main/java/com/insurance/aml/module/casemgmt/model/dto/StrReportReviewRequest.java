@@ -12,10 +12,9 @@ import lombok.Data;
 public class StrReportReviewRequest {
 
     /**
-     * 报告ID（必填）
+     * 报告ID。控制器优先使用路径参数填充，保留该字段兼容旧客户端。
      */
-    @NotNull(message = "报告ID不能为空")
-    @Schema(description = "报告ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "报告ID，由路径参数填充，兼容旧客户端请求体传值")
     private Long reportId;
 
     /**
