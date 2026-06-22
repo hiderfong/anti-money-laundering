@@ -337,7 +337,7 @@ async function main() {
     info('1. 登录并准备已确认预警生成的案件')
     await login(page)
     const issueStart = runtimeIssues.length
-    const { customerId, caseNo } = await prepareCaseFixture(page)
+    const { customerId, caseId, caseNo } = await prepareCaseFixture(page)
     const displayedCustomerName = displayCaseCustomerName(customerName, customerId)
 
     info('2. 进入案件管理并验证案件列表')
@@ -405,10 +405,21 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, `case-closed-${runId}.png`), fullPage: false })
 
     info('6. 复查详情包含调查记录和关闭状态')
-    await page.getByRole('button', { name: '详情' }).first().click()
+    const finalCaseDetailResult = await authedFetch(page, `/api/cases/${caseId}`)
+    const finalInvestigations = finalCaseDetailResult.body?.data?.investigations || []
+    if (finalCaseDetailResult.status === 200
+      && finalCaseDetailResult.body?.code === 200
+      && finalInvestigations.some(item => item?.content === investigationContent)) {
+      pass('案件详情接口已沉淀调查记录')
+    } else {
+      fail('案件详情接口未返回本轮调查记录', JSON.stringify(finalCaseDetailResult.body, null, 2))
+      throw new Error('Case detail API did not return the expected investigation record.')
+    }
+
+    await page.goto(`${frontendUrl}/cases?caseId=${caseId}`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
     const finalDetailDialog = page.locator('.el-dialog').filter({ hasText: '案件详情' }).last()
     await finalDetailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
-    await finalDetailDialog.getByText(investigationContent, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
+    await finalDetailDialog.getByText(investigationContent).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     await finalDetailDialog.getByText('案件关闭').waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('案件详情沉淀调查记录和关闭时间轴')
 
