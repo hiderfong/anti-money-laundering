@@ -258,6 +258,11 @@ function formatCounterparty(counterpartyInfo: string | undefined) {
   }
 }
 
+function normalizePositiveId(value: string | number | undefined | null) {
+  const text = String(value ?? '').trim()
+  return /^\d+$/.test(text) ? text : ''
+}
+
 // ==================== 生成报告 ====================
 const generateDialogVisible = ref(false)
 const generating = ref(false)
@@ -280,10 +285,15 @@ async function handleGenerate() {
   } catch {
     return
   }
+  const transactionId = normalizePositiveId(generateForm.transactionId)
+  if (!transactionId) {
+    ElMessage.warning('请输入有效的交易ID')
+    return
+  }
   generating.value = true
   try {
     await request.post('/reporting/large-txn/generate', undefined, {
-      params: { transactionId: Number(generateForm.transactionId) }
+      params: { transactionId }
     })
     ElMessage.success('报告生成成功')
     generateDialogVisible.value = false
