@@ -151,6 +151,10 @@ async function selectVisibleOption(page, optionText) {
   await option.click({ timeout: assertionTimeout })
 }
 
+function alertTableRow(page, alertNo) {
+  return page.locator('.el-table__body-wrapper tbody tr').filter({ hasText: alertNo }).first()
+}
+
 async function login(page) {
   await page.goto(`${frontendUrl}/login`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
   await page.locator('input[placeholder="用户名"]').fill(username)
@@ -304,7 +308,7 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, `alert-list-${runId}.png`), fullPage: false })
 
     info('3. 打开预警详情并验证处置链路')
-    await page.getByRole('button', { name: '查看' }).first().click()
+    await alertTableRow(page, alertNo).getByRole('button', { name: '查看' }).click()
     const detailDialog = page.locator('.el-dialog').filter({ hasText: '预警详情' }).last()
     await detailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText(alertNo, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
@@ -316,7 +320,7 @@ async function main() {
     await detailDialog.waitFor({ state: 'hidden', timeout: assertionTimeout })
 
     info('4. 通过 UI 指派预警')
-    await page.getByRole('button', { name: '指派' }).first().click()
+    await alertTableRow(page, alertNo).getByRole('button', { name: '指派' }).click()
     const assignDialog = page.locator('.el-dialog').filter({ hasText: '指派预警' }).last()
     await assignDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await assignDialog.locator('.el-select').click()
@@ -330,8 +334,8 @@ async function main() {
     pass('预警指派接口和页面反馈正常')
 
     info('5. 通过 UI 处理预警并确认可疑')
-    await page.getByText(alertNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
-    await page.getByRole('button', { name: '处理' }).first().click()
+    await page.getByText(alertNo, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
+    await alertTableRow(page, alertNo).getByRole('button', { name: '处理' }).click()
     const processDialog = page.locator('.el-dialog').filter({ hasText: '处理预警' }).last()
     await processDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await processDialog.locator('textarea').fill(`预警管理 UI E2E 确认可疑 ${runId}`)
