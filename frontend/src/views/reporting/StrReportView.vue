@@ -213,7 +213,7 @@ async function handleCreate() {
   submitting.value = true
   try {
     await request.post('/str-reports', {
-      caseId: Number(createForm.caseId),
+      caseId: createForm.caseId.trim(),
       reportType: createForm.reportType,
       reportContent: createForm.reportContent
     })
