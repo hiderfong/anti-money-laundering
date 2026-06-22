@@ -166,7 +166,8 @@ async function fillFormInput(scope, label, value) {
 }
 
 async function selectFormOption(page, scope, label, optionText) {
-  await scope.locator('.el-form-item').filter({ hasText: label }).locator('input').click()
+  const formItem = scope.locator('.el-form-item').filter({ hasText: label })
+  await formItem.locator('.el-select').first().click({ timeout: assertionTimeout })
   await selectVisibleOption(page, optionText)
 }
 
@@ -174,7 +175,9 @@ async function confirmMessageBox(page, apiPredicate, trigger) {
   await trigger()
   const box = page.locator('.el-message-box').last()
   await box.waitFor({ state: 'visible', timeout: assertionTimeout })
-  return waitForApiJson(page, apiPredicate, () => box.getByRole('button', { name: /确认/ }).click())
+  const confirmButton = box.locator('.el-message-box__btns .el-button--primary').last()
+  await confirmButton.waitFor({ state: 'visible', timeout: assertionTimeout })
+  return waitForApiJson(page, apiPredicate, () => confirmButton.click())
 }
 
 async function login(page) {

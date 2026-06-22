@@ -167,7 +167,8 @@ async function fillFormInput(scope, label, value) {
 }
 
 async function selectFormOption(page, scope, label, optionText) {
-  await scope.locator('.el-form-item').filter({ hasText: label }).locator('input').click()
+  const formItem = scope.locator('.el-form-item').filter({ hasText: label })
+  await formItem.locator('.el-select').first().click({ timeout: assertionTimeout })
   await selectVisibleOption(page, optionText)
 }
 
