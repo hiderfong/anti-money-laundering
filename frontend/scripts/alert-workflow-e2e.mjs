@@ -307,7 +307,7 @@ async function main() {
     await page.getByRole('button', { name: '查看' }).first().click()
     const detailDialog = page.locator('.el-dialog').filter({ hasText: '预警详情' }).last()
     await detailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
-    await detailDialog.getByText(alertNo, { exact: true }).waitFor({ state: 'visible', timeout: assertionTimeout })
+    await detailDialog.getByText(alertNo, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText('预警处置链路图').waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText('关联交易').waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('预警详情展示真实处置链路')
