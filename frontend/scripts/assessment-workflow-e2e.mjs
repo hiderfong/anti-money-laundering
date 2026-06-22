@@ -177,7 +177,17 @@ async function confirmMessageBox(page, apiPredicate, trigger) {
   await box.waitFor({ state: 'visible', timeout: assertionTimeout })
   const confirmButton = box.locator('.el-message-box__btns .el-button--primary').last()
   await confirmButton.waitFor({ state: 'visible', timeout: assertionTimeout })
-  return waitForApiJson(page, apiPredicate, () => confirmButton.click())
+  const result = await waitForApiJson(page, apiPredicate, () => confirmButton.click())
+  await box.waitFor({ state: 'hidden', timeout: assertionTimeout }).catch(() => {})
+  return result
+}
+
+async function waitForSuccessMessage(page, text) {
+  await page
+    .locator('.el-message:visible .el-message__content')
+    .filter({ hasText: text })
+    .last()
+    .waitFor({ state: 'visible', timeout: assertionTimeout })
 }
 
 async function login(page) {
@@ -271,7 +281,7 @@ async function main() {
     } else {
       fail('自评估评分接口返回异常', JSON.stringify(scoreResult.body, null, 2))
     }
-    await page.getByText('评分成功').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await waitForSuccessMessage(page, '评分成功')
     await page.getByText('进行中', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
 
     info('4. 完成并审批自评估')
@@ -294,7 +304,7 @@ async function main() {
       response => response.url().includes(`/api/assessments/${assessmentId}/approve`) && response.request().method() === 'POST',
       () => page.getByRole('button', { name: '审批' }).first().click()
     )
-    await page.getByText('审批通过').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await waitForSuccessMessage(page, '审批通过')
     await page.getByText('已审批', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('自评估可审批通过')
     await page.screenshot({ path: path.join(screenshotDir, `assessment-approved-${runId}.png`), fullPage: false })
