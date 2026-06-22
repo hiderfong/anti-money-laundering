@@ -59,6 +59,17 @@ function isIgnoredConsole(message) {
   return ignoredConsolePatterns.some(pattern => pattern.test(message))
 }
 
+async function installE2EApiHeaders(context) {
+  await context.route('**/api/**', async route => {
+    const headers = {
+      ...route.request().headers(),
+      'x-e2e-run-id': runId,
+      ...(browserIp ? { 'x-forwarded-for': browserIp } : {})
+    }
+    await route.continue({ headers })
+  })
+}
+
 async function launchBrowser() {
   const baseOptions = {
     headless,
@@ -194,12 +205,9 @@ async function main() {
   const browser = await launchBrowser()
   const context = await browser.newContext({
     viewport: { width: 1366, height: 768 },
-    ignoreHTTPSErrors: true,
-    extraHTTPHeaders: {
-      'X-E2E-Run-Id': runId,
-      ...(browserIp ? { 'X-Forwarded-For': browserIp } : {})
-    }
+    ignoreHTTPSErrors: true
   })
+  await installE2EApiHeaders(context)
   const page = await context.newPage()
 
   page.on('console', message => {
