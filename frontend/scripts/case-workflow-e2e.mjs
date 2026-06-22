@@ -295,7 +295,7 @@ async function changeCaseStatus(page, buttonName, nextStatusText, remark) {
       && response.request().method() === 'PUT',
     () => dialog.getByRole('button', { name: '确认变更' }).click()
   )
-  await page.getByText('状态变更成功').waitFor({ state: 'visible', timeout: assertionTimeout })
+  await page.getByText('状态变更成功').last().waitFor({ state: 'visible', timeout: assertionTimeout })
   await page.getByText(nextStatusText, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
   pass(`案件状态流转为${nextStatusText}`)
 }
@@ -380,7 +380,7 @@ async function main() {
       fail('案件调查记录接口返回异常', JSON.stringify(investigationResult.body, null, 2))
       throw new Error('Case investigation API returned an unexpected response.')
     }
-    await page.getByText('调查记录添加成功').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await page.getByText('调查记录添加成功').last().waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('案件调查记录可通过页面新增')
 
     info('5. 执行案件状态流转直到关闭')
@@ -399,7 +399,7 @@ async function main() {
         && response.request().method() === 'POST',
       () => closeDialog.getByRole('button', { name: '确认关闭' }).click()
     )
-    await page.getByText('案件已关闭').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await page.getByText('案件已关闭').last().waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText('已结案', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('案件可通过 UI 完成关闭闭环')
     await page.screenshot({ path: path.join(screenshotDir, `case-closed-${runId}.png`), fullPage: false })
