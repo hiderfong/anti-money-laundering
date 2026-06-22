@@ -343,7 +343,7 @@ const scoreForm = reactive({
   assessmentId: '',
   assessmentName: '',
   scores: [] as Array<{
-    indicatorId: number
+    indicatorId: string
     indicatorName: string
     category: string
     dimension: string
@@ -418,7 +418,7 @@ async function viewAssessmentDetail(id: string | number) {
 }
 
 async function openScoreDialog(row: any) {
-  scoreForm.assessmentId = row.id
+  scoreForm.assessmentId = String(row.id ?? '')
   scoreForm.assessmentName = assessmentTitle(row)
   scoreForm.scores = []
   showScoreDialog.value = true
@@ -439,6 +439,15 @@ async function submitScore() {
     ElMessage.warning('暂无可用评估指标')
     return
   }
+  const assessmentId = normalizePositiveId(scoreForm.assessmentId)
+  if (!assessmentId) {
+    ElMessage.warning('评估ID无效')
+    return
+  }
+  if (scoreForm.scores.some(item => !normalizePositiveId(item.indicatorId))) {
+    ElMessage.warning('评估指标ID无效')
+    return
+  }
   if (scoreForm.scores.some(item => item.score === null || item.score === undefined || item.score < 0 || item.score > 100)) {
     ElMessage.warning('评分需在0-100之间')
     return
@@ -446,7 +455,7 @@ async function submitScore() {
   submitting.value = true
   try {
     await Promise.all(scoreForm.scores.map(item => request.post('/assessments/score', {
-      assessmentId: Number(scoreForm.assessmentId),
+      assessmentId,
       indicatorId: item.indicatorId,
       rawValue: item.rawValue,
       score: item.score,
@@ -554,7 +563,7 @@ function defaultIndicatorScore(indicator: any) {
   const isControl = indicator.category === 'CONTROL_EFFECTIVENESS'
   const score = isControl ? 62 : 82
   return {
-    indicatorId: Number(indicator.id),
+    indicatorId: normalizePositiveId(indicator.id),
     indicatorName: indicator.indicatorName,
     category: indicator.category,
     dimension: indicator.dimension,
@@ -580,13 +589,18 @@ async function loadRectifications() {
 async function submitRectification() {
   const valid = await rectFormRef.value?.validate().catch(() => false)
   if (!valid) return
+  const assessmentId = normalizePositiveId(rectForm.assessmentId)
+  if (!assessmentId) {
+    ElMessage.warning('关联评估ID无效')
+    return
+  }
   submitting.value = true
   try {
     await request.post('/assessments/rectifications', {
       ...rectForm,
-      assessmentId: Number(rectForm.assessmentId),
+      assessmentId,
       sourceType: 'SELF_ASSESSMENT',
-      sourceId: Number(rectForm.assessmentId),
+      sourceId: assessmentId,
       deadline: formatDate(rectForm.deadline)
     })
     ElMessage.success('创建整改任务成功')
@@ -637,6 +651,11 @@ function formatDate(value: string | Date) {
     return value.toISOString().slice(0, 10)
   }
   return String(value).slice(0, 10)
+}
+
+function normalizePositiveId(value: unknown) {
+  const id = String(value ?? '').trim()
+  return /^\d+$/.test(id) ? id : ''
 }
 
 function averageScore(field: string) {
