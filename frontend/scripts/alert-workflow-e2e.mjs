@@ -309,7 +309,7 @@ async function main() {
     await detailDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText(alertNo, { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     await detailDialog.getByText('预警处置链路图').waitFor({ state: 'visible', timeout: assertionTimeout })
-    await detailDialog.getByText('关联交易').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await detailDialog.getByText('关联交易', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('预警详情展示真实处置链路')
     await page.screenshot({ path: path.join(screenshotDir, `alert-detail-${runId}.png`), fullPage: false })
     await detailDialog.locator('.el-dialog__headerbtn').click()
