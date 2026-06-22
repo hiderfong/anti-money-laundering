@@ -172,6 +172,14 @@ async function selectFormOption(page, scope, label, optionText) {
   await selectVisibleOption(page, optionText)
 }
 
+async function waitForSuccessMessage(page, text) {
+  await page
+    .locator('.el-message:visible .el-message__content')
+    .filter({ hasText: text })
+    .last()
+    .waitFor({ state: 'visible', timeout: assertionTimeout })
+}
+
 async function login(page) {
   await page.goto(`${frontendUrl}/login`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
   await page.locator('input[placeholder="用户名"]').fill(username)
@@ -282,7 +290,7 @@ async function main() {
     } else {
       fail('整改进度更新接口返回异常', JSON.stringify(progressResult.body, null, 2))
     }
-    await page.getByText('整改进度已更新').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await waitForSuccessMessage(page, '整改进度已更新')
     await page.getByText('已完成', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
 
     info('5. 提交整改验证')
@@ -301,14 +309,15 @@ async function main() {
     } else {
       fail('整改验证接口返回异常', JSON.stringify(verifyResult.body, null, 2))
     }
-    await page.getByText('整改验证已提交').waitFor({ state: 'visible', timeout: assertionTimeout })
+    await waitForSuccessMessage(page, '整改验证已提交')
+    await verifyDialog.waitFor({ state: 'hidden', timeout: assertionTimeout }).catch(() => {})
     await page.getByText('已验证', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText('通过', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.screenshot({ path: path.join(screenshotDir, `rectification-verified-${runId}.png`), fullPage: false })
 
     info('6. 按已验证状态复查')
     await page.locator('.toolbar input[placeholder="责任人"]').fill(responsiblePerson)
-    await page.locator('.toolbar .el-select').nth(1).locator('input').click()
+    await page.locator('.toolbar .el-select').nth(1).click({ timeout: assertionTimeout })
     await selectVisibleOption(page, '已验证')
     await waitForApiJson(
       page,
