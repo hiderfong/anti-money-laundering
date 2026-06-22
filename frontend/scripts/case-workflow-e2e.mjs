@@ -23,7 +23,7 @@ const customerPhone = `135${phoneTail}`
 const customerEmail = `case_${numericRun}@test.local`
 const alertSummary = `${prefix}案件管理UI闭环验证 ${runId}`
 const investigationContent = `核查客户资金来源、交易目的和交易对手关系 ${runId}`
-const investigationConclusion = `初步判断存在可疑资金链路，建议提交审批 ${runId}`
+const investigationConclusion = '需提交审批'
 
 const frameworkOverlayPatterns = [
   'Internal server error',
@@ -367,13 +367,19 @@ async function main() {
     await investigationDialog.waitFor({ state: 'visible', timeout: assertionTimeout })
     await investigationDialog.locator('textarea').nth(0).fill(investigationContent)
     await investigationDialog.locator('textarea').nth(1).fill(investigationConclusion)
-    await waitForApiJson(
+    const investigationResult = await waitForApiJson(
       page,
       response => response.url().includes('/api/cases/')
         && response.url().includes('/investigation')
         && response.request().method() === 'POST',
       () => investigationDialog.getByRole('button', { name: '提交' }).click()
     )
+    if (investigationResult.response.status() === 200 && investigationResult.body?.code === 200) {
+      pass('案件调查记录接口提交成功')
+    } else {
+      fail('案件调查记录接口返回异常', JSON.stringify(investigationResult.body, null, 2))
+      throw new Error('Case investigation API returned an unexpected response.')
+    }
     await page.getByText('调查记录添加成功').waitFor({ state: 'visible', timeout: assertionTimeout })
     pass('案件调查记录可通过页面新增')
 
