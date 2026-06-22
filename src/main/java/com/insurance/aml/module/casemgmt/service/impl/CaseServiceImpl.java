@@ -29,6 +29,7 @@ import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.kyc.model.entity.Customer;
 import com.insurance.aml.module.system.mapper.SysUserMapper;
 import com.insurance.aml.module.system.model.entity.SysUser;
+import com.insurance.aml.module.system.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -67,6 +68,7 @@ public class CaseServiceImpl implements CaseService {
     private final SysUserMapper sysUserMapper;
     @Lazy
     private final com.insurance.aml.module.alert.mapper.AlertMapper alertMapper;
+    private final NotificationService notificationService;
     private final IdGenerator idGenerator;
 
     private static final Map<String, String> OPERATOR_DISPLAY_NAMES = Map.of(
@@ -128,6 +130,14 @@ public class CaseServiceImpl implements CaseService {
 
         // 记录状态变更日志：null → DRAFT
         saveStatusLog(caseEntity.getId(), null, CaseStatus.DRAFT.getCode(), "创建案件", SecurityUtils.getCurrentUsername());
+        sendCaseNotification(
+                caseEntity,
+                "案件已创建：" + caseEntity.getCaseNo(),
+                String.format("案件 %s 已创建，客户：%s，摘要：%s",
+                        caseEntity.getCaseNo(),
+                        caseEntity.getCustomerName(),
+                        caseEntity.getSummary())
+        );
 
         return caseEntity;
     }
@@ -165,6 +175,15 @@ public class CaseServiceImpl implements CaseService {
 
         // 记录状态变更日志
         saveStatusLog(caseId, currentStatus, toStatus, remark, SecurityUtils.getCurrentUsername());
+        sendCaseNotification(
+                caseEntity,
+                "案件状态已更新：" + caseEntity.getCaseNo(),
+                String.format("案件 %s 状态已由%s变更为%s。%s",
+                        caseEntity.getCaseNo(),
+                        currentStatus,
+                        toStatus,
+                        StringUtils.hasText(remark) ? "备注：" + remark : "")
+        );
 
         log.info("案件状态变更成功，caseId={}, {} → {}", caseId, currentStatus, toStatus);
     }
@@ -380,6 +399,11 @@ public class CaseServiceImpl implements CaseService {
 
         // 记录状态变更日志
         saveStatusLog(caseId, fromStatus, CaseStatus.CLOSED.getCode(), reason, SecurityUtils.getCurrentUsername());
+        sendCaseNotification(
+                caseEntity,
+                "案件已关闭：" + caseEntity.getCaseNo(),
+                String.format("案件 %s 已关闭。关闭原因：%s", caseEntity.getCaseNo(), reason)
+        );
 
         log.info("案件关闭成功，caseId={}", caseId);
     }
@@ -397,6 +421,25 @@ public class CaseServiceImpl implements CaseService {
         statusLog.setChangedTime(LocalDateTime.now());
 
         caseStatusLogMapper.insert(statusLog);
+    }
+
+    private void sendCaseNotification(Case caseEntity, String title, String content) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null || caseEntity == null || caseEntity.getId() == null) {
+            return;
+        }
+        try {
+            notificationService.sendNotification(
+                    userId,
+                    "CASE",
+                    title,
+                    content,
+                    "CASE",
+                    String.valueOf(caseEntity.getId())
+            );
+        } catch (Exception ex) {
+            log.warn("发送案件通知失败，caseId={}, userId={}", caseEntity.getId(), userId, ex);
+        }
     }
 
     private void enrichCaseVO(CaseVO vo,

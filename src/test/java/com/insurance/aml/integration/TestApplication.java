@@ -1,5 +1,6 @@
 package com.insurance.aml.integration;
 
+import com.insurance.aml.AmlApplication;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -14,6 +15,8 @@ import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientA
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.redisson.spring.starter.RedissonAutoConfigurationV2;
 
 /**
@@ -21,7 +24,6 @@ import org.redisson.spring.starter.RedissonAutoConfigurationV2;
  * 排除所有外部服务自动配置（Neo4j/ES/Kafka/Redis）
  */
 @SpringBootApplication(
-        scanBasePackages = "com.insurance.aml",
         exclude = {
                 Neo4jAutoConfiguration.class,
                 Neo4jDataAutoConfiguration.class,
@@ -36,6 +38,13 @@ import org.redisson.spring.starter.RedissonAutoConfigurationV2;
                 RedisAutoConfiguration.class,
                 RedisRepositoriesAutoConfiguration.class
         }
+)
+@ComponentScan(
+        basePackages = "com.insurance.aml",
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = AmlApplication.class
+        )
 )
 @MapperScan("com.insurance.aml.module.**.mapper")
 public class TestApplication {

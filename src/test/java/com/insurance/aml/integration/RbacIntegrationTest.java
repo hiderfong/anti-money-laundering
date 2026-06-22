@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -81,8 +82,9 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
     @DisplayName("无 system:view 用户读取审计日志 -> 403")
     void viewerCannotReadAuditLogs() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/system/audit-logs/page"))
+        mockMvc.perform(get("/system/audit-logs/page")
+                        .param("page", "1")
+                        .param("size", "10"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -91,27 +93,64 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
     @DisplayName("无 system:view 用户导出审计日志 -> 403")
     void viewerCannotExportAuditLogs() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/system/audit-logs/export"))
+        mockMvc.perform(get("/system/audit-logs/export"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "system_operator", authorities = {"system:view"})
+    @DisplayName("拥有 system:view 权限 -> 可查询审计日志")
+    void systemViewCanReadAuditLogs() throws Exception {
+        mockMvc.perform(get("/system/audit-logs/page")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test
     @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
     @DisplayName("无 monitoring:view 用户读取规则反馈 -> 403")
     void viewerCannotReadRuleFeedback() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/monitoring/rules/feedback/summary"))
+        mockMvc.perform(get("/monitoring/rules/feedback/summary"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test
+    @WithMockUser(username = "monitoring_operator", authorities = {"monitoring:view"})
+    @DisplayName("拥有 monitoring:view 权限 -> 可查询规则反馈")
+    void monitoringViewCanReadRuleFeedback() throws Exception {
+        mockMvc.perform(get("/monitoring/rules/feedback/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
     @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
-    @DisplayName("无 monitoring:view 用户调用图谱分析 -> 403")
-    void viewerCannotRunGraphAnalysis() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/monitoring/graph/ring/1"))
+    @DisplayName("只读用户调用交易图分析接口 -> 403")
+    void viewerCannotReadGraphAnalysis() throws Exception {
+        mockMvc.perform(get("/monitoring/graph/density/1")
+                        .param("densityThreshold", "10"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @WithMockUser(username = "monitoring_operator", authorities = {"monitoring:view"})
+    @DisplayName("拥有 monitoring:view 权限 -> 可查询交易图分析")
+    void monitoringViewCanReadGraphAnalysis() throws Exception {
+        mockMvc.perform(get("/monitoring/graph/density/1")
+                        .param("densityThreshold", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
+    @DisplayName("无 monitoring:view 用户调用环形图谱分析 -> 403")
+    void viewerCannotRunRingGraphAnalysis() throws Exception {
+        mockMvc.perform(get("/monitoring/graph/ring/1"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -120,8 +159,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
     @DisplayName("无 screening:view 用户读取筛查结果 -> 403")
     void viewerCannotReadScreeningResults() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/screening/results").param("customerId", "1"))
+        mockMvc.perform(get("/screening/results").param("customerId", "1"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -130,8 +168,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "viewer", authorities = {"ROLE_VIEWER", "customer:view"})
     @DisplayName("无 monitoring:view 用户读取交易列表 -> 403")
     void viewerCannotReadTransactions() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/monitoring/transactions/page"))
+        mockMvc.perform(get("/monitoring/transactions/page"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -140,8 +177,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
     @DisplayName("无 assessment:view 用户读取自评估列表 -> 403")
     void investigatorCannotReadAssessments() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/assessments/list"))
+        mockMvc.perform(get("/assessments/list"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -150,8 +186,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
     @DisplayName("无 report:str 用户读取STR报告列表 -> 403")
     void investigatorCannotReadStrReports() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/str-reports/page"))
+        mockMvc.perform(get("/str-reports/page"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -160,8 +195,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
     @DisplayName("无 report:view 用户读取大额报送列表 -> 403")
     void investigatorCannotReadLargeTxnReports() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/reporting/large-txn/page"))
+        mockMvc.perform(get("/reporting/large-txn/page"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -170,8 +204,7 @@ public class RbacIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(username = "investigator", authorities = {"ROLE_INVESTIGATOR", "customer:view"})
     @DisplayName("无 product:view 用户读取产品列表 -> 403")
     void investigatorCannotReadProducts() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/products/page"))
+        mockMvc.perform(get("/products/page"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }

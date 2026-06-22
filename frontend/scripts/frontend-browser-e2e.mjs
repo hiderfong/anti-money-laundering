@@ -11,6 +11,7 @@ const headless = process.env.HEADLESS !== 'false'
 const slowMo = Number(process.env.PLAYWRIGHT_SLOW_MO || 0)
 const navigationTimeout = Number(process.env.PLAYWRIGHT_NAVIGATION_TIMEOUT || 90000)
 const assertionTimeout = Number(process.env.PLAYWRIGHT_ASSERTION_TIMEOUT || 20000)
+const browserIp = process.env.E2E_BROWSER_IP || ''
 
 const routes = [
   { path: '/dashboard', signal: '反洗钱运营态势' },
@@ -59,6 +60,17 @@ function info(message) {
 
 function isIgnoredConsole(message) {
   return ignoredConsolePatterns.some(pattern => pattern.test(message))
+}
+
+async function installE2EApiHeaders(context) {
+  await context.route('**/api/**', async route => {
+    const headers = {
+      ...route.request().headers(),
+      'x-e2e-run-id': runId,
+      ...(browserIp ? { 'x-forwarded-for': browserIp } : {})
+    }
+    await route.continue({ headers })
+  })
 }
 
 async function launchBrowser() {
@@ -154,6 +166,7 @@ async function main() {
   console.log(`  FRONTEND_URL: ${frontendUrl}`)
   console.log(`  E2E_RUN_ID: ${runId}`)
   console.log(`  HEADLESS: ${headless}`)
+  console.log(`  E2E_BROWSER_IP: ${browserIp || "(default)"}`)
   console.log(`  NAVIGATION_TIMEOUT: ${navigationTimeout}ms`)
   console.log('')
 
@@ -163,6 +176,7 @@ async function main() {
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true
   })
+  await installE2EApiHeaders(context)
   const page = await context.newPage()
 
   page.on('console', message => {

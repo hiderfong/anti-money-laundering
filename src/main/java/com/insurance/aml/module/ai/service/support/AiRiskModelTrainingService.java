@@ -41,6 +41,12 @@ public class AiRiskModelTrainingService {
     @Value("${aml.ml.ai-risk.min-samples:50}")
     private int minSamples;
 
+    @Value("${aml.ml.ai-risk.training-window-days:365}")
+    private int trainingWindowDays;
+
+    @Value("${aml.ml.ai-risk.training-sample-cap:10000}")
+    private int trainingSampleCap;
+
     /** 串行化训练，避免 @Scheduled 与手动 POST 并发时产生 .model/.meta 错配。 */
     private final java.util.concurrent.atomic.AtomicBoolean trainingInProgress =
             new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -88,11 +94,7 @@ public class AiRiskModelTrainingService {
     }
 
     private AiRiskTrainingResultVO doRetrain() {
-        // MVP: loads all labeled rows. TODO(perf): cap with a recency window (e.g. ORDER BY reviewed_at DESC LIMIT N) once the labeled corpus grows.
-        List<AiRiskScoreRecord> records = scoreRecordMapper.selectList(
-                new LambdaQueryWrapper<AiRiskScoreRecord>()
-                        .isNotNull(AiRiskScoreRecord::getManualReviewLabel)
-                        .isNotNull(AiRiskScoreRecord::getFeatureSnapshotJson));
+        List<AiRiskScoreRecord> records = scoreRecordMapper.selectList(buildTrainingSampleQuery());
 
         List<double[]> xs = new ArrayList<>();
         List<Integer> ys = new ArrayList<>();
@@ -157,6 +159,22 @@ public class AiRiskModelTrainingService {
                 .trainedAt(supervisedModel.getTrainedAt())
                 .message("训练成功")
                 .build();
+    }
+
+    private LambdaQueryWrapper<AiRiskScoreRecord> buildTrainingSampleQuery() {
+        LambdaQueryWrapper<AiRiskScoreRecord> query = new LambdaQueryWrapper<AiRiskScoreRecord>()
+                .isNotNull(AiRiskScoreRecord::getManualReviewLabel)
+                .isNotNull(AiRiskScoreRecord::getFeatureSnapshotJson)
+                .isNotNull(AiRiskScoreRecord::getReviewedAt)
+                .orderByDesc(AiRiskScoreRecord::getReviewedAt);
+
+        if (trainingWindowDays > 0) {
+            query.ge(AiRiskScoreRecord::getReviewedAt, LocalDateTime.now().minusDays(trainingWindowDays));
+        }
+        if (trainingSampleCap > 0) {
+            query.last("LIMIT " + Math.min(trainingSampleCap, 100_000));
+        }
+        return query;
     }
 
     public AiRiskTrainingResultVO trainingStatus() {

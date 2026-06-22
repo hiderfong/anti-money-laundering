@@ -88,8 +88,9 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
         Product product = new Product();
         BeanUtils.copyProperties(req, product);
         applyProductDescription(product, req.getDescription());
-        product.setRiskLevel(RiskLevel.LOW.getCode());
-        product.setRiskScore(0);
+        String initialRiskLevel = resolveProductRiskLevel(req.getRiskLevel(), RiskLevel.LOW.getCode());
+        product.setRiskLevel(initialRiskLevel);
+        product.setRiskScore(defaultRiskScore(initialRiskLevel));
         product.setStatus(StatusEnum.ACTIVE.getCode());
         productMapper.insert(product);
         log.info("产品创建成功，id={}", product.getId());
@@ -104,8 +105,14 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
         if (product == null) {
             throw new RuntimeException("产品不存在，id=" + id);
         }
+        String originalRiskLevel = product.getRiskLevel();
         BeanUtils.copyProperties(req, product);
         product.setId(id);
+        String resolvedRiskLevel = resolveProductRiskLevel(req.getRiskLevel(), originalRiskLevel);
+        product.setRiskLevel(resolvedRiskLevel);
+        if (!resolvedRiskLevel.equals(originalRiskLevel) || product.getRiskScore() == null) {
+            product.setRiskScore(defaultRiskScore(resolvedRiskLevel));
+        }
         applyProductDescription(product, req.getDescription());
         productMapper.updateById(product);
         log.info("产品更新成功，id={}", id);
@@ -119,6 +126,7 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.like(StringUtils.hasText(req.getProductName()), Product::getProductName, req.getProductName())
+                .like(StringUtils.hasText(req.getProductCode()), Product::getProductCode, req.getProductCode())
                 .eq(StringUtils.hasText(req.getProductType()), Product::getProductType, req.getProductType())
                 .eq(StringUtils.hasText(req.getRiskLevel()), Product::getRiskLevel, req.getRiskLevel())
                 .eq(StringUtils.hasText(req.getStatus()), Product::getStatus, req.getStatus())
@@ -293,6 +301,34 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
         return StringUtils.hasText(value)
                 && (value.contains("å") || value.contains("æ") || value.contains("è")
                 || value.contains("é") || value.contains("ç") || value.contains("ä") || value.contains("�"));
+    }
+
+    private String resolveProductRiskLevel(String value, String fallback) {
+        if (!StringUtils.hasText(value)) {
+            return StringUtils.hasText(fallback) ? fallback : RiskLevel.LOW.getCode();
+        }
+        if ("VERY_HIGH".equals(value)) {
+            return RiskLevel.CRITICAL.getCode();
+        }
+        try {
+            return RiskLevel.fromCode(value).getCode();
+        } catch (IllegalArgumentException ex) {
+            log.warn("产品风险等级非法，value={}，使用默认值={}", value, fallback);
+            return StringUtils.hasText(fallback) ? fallback : RiskLevel.LOW.getCode();
+        }
+    }
+
+    private int defaultRiskScore(String riskLevel) {
+        if (RiskLevel.CRITICAL.getCode().equals(riskLevel)) {
+            return 90;
+        }
+        if (RiskLevel.HIGH.getCode().equals(riskLevel)) {
+            return 70;
+        }
+        if (RiskLevel.MEDIUM.getCode().equals(riskLevel)) {
+            return 45;
+        }
+        return 15;
     }
 
     private String escapeJson(String value) {

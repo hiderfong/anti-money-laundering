@@ -87,7 +87,7 @@ public class EncryptUtils {
             byte[] decrypted = cipher.doFinal(encrypted);
             return new String(decrypted);
         } catch (Exception e) {
-            log.error("解密失败", e);
+            log.warn("解密失败: {}", e.getMessage());
             throw new RuntimeException("解密失败", e);
         }
     }

@@ -10,12 +10,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 import smile.classification.LogisticRegression;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("AI监督模型容器测试")
@@ -56,6 +59,44 @@ class AiRiskSupervisedModelTest {
         reloaded.init();
         assertTrue(reloaded.isReady());
         assertEquals(4, reloaded.getSampleCount());
+    }
+
+    @Test
+    @DisplayName("replace后写入模型文件SHA-256元数据")
+    void replace_writesArtifactChecksum(@TempDir Path dir) throws Exception {
+        AiRiskSupervisedModel m = newModel(dir);
+        m.replace(trainTiny(), 4, 2, 2, 1.0, 1.0);
+
+        Properties props = new Properties();
+        try (var r = Files.newBufferedReader(dir.resolve("ai_risk_supervised.meta"))) {
+            props.load(r);
+        }
+
+        String checksum = props.getProperty("modelSha256");
+        assertNotNull(checksum);
+        assertTrue(checksum.matches("[0-9a-f]{64}"));
+    }
+
+    @Test
+    @DisplayName("模型文件SHA-256不匹配时不加载")
+    void init_checksumMismatch_keepsNotReady(@TempDir Path dir) throws Exception {
+        AiRiskSupervisedModel m = newModel(dir);
+        m.replace(trainTiny(), 4, 2, 2, 1.0, 1.0);
+
+        Path meta = dir.resolve("ai_risk_supervised.meta");
+        Properties props = new Properties();
+        try (var r = Files.newBufferedReader(meta)) {
+            props.load(r);
+        }
+        props.setProperty("modelSha256", "0".repeat(64));
+        try (var w = Files.newBufferedWriter(meta)) {
+            props.store(w, "tampered");
+        }
+
+        AiRiskSupervisedModel reloaded = newModel(dir);
+        reloaded.init();
+
+        assertFalse(reloaded.isReady());
     }
 
     @Test

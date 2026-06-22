@@ -11,9 +11,9 @@ import com.insurance.aml.module.assessment.model.dto.SelfAssessmentDetailVO;
 import com.insurance.aml.module.assessment.model.entity.AssessmentIndicator;
 import com.insurance.aml.module.assessment.model.entity.AssessmentScore;
 import com.insurance.aml.module.assessment.model.entity.SelfAssessment;
-import com.insurance.aml.common.enums.AlertStatus;
 import com.insurance.aml.common.enums.AssessmentStatusEnum;
 import com.insurance.aml.common.enums.RiskLevel;
+import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.assessment.service.SelfAssessmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -39,6 +40,9 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
     private final SelfAssessmentMapper assessmentMapper;
     private final AssessmentIndicatorMapper indicatorMapper;
     private final AssessmentScoreMapper scoreMapper;
+
+    private static final String DEFAULT_INHERENT_INDICATOR_CODE = "DEFAULT_INHERENT_CUSTOMER_TXN_RISK";
+    private static final String DEFAULT_CONTROL_INDICATOR_CODE = "DEFAULT_CONTROL_MONITORING_REPORTING";
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -108,6 +112,7 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
             score.setEvidence(req.getEvidence());
             score.setDataSource(req.getDataSource());
             score.setRemark(req.getRemark());
+            score.setScoredBy(SecurityUtils.getCurrentUsername());
             score.setScoredTime(LocalDateTime.now());
             score.setCreatedTime(LocalDateTime.now());
             scoreMapper.insert(score);
@@ -286,6 +291,20 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<AssessmentIndicator> listEnabledIndicators() {
+        ensureDefaultIndicators();
+        LambdaQueryWrapper<AssessmentIndicator> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AssessmentIndicator::getStatus, "ENABLED");
+        List<AssessmentIndicator> indicators = indicatorMapper.selectList(wrapper);
+        return indicators.stream()
+                .sorted(Comparator
+                        .comparing((AssessmentIndicator indicator) -> categoryOrder(indicator.getCategory()))
+                        .thenComparing(AssessmentIndicator::getIndicatorCode))
+                .toList();
+    }
+
+    @Override
     public List<SelfAssessment> listAssessments(Integer year) {
         log.info("按年度查询评估列表，year={}", year);
         LambdaQueryWrapper<SelfAssessment> wrapper = new LambdaQueryWrapper<>();
@@ -294,5 +313,70 @@ public class SelfAssessmentServiceImpl implements SelfAssessmentService {
         }
         wrapper.orderByDesc(SelfAssessment::getCreatedTime);
         return assessmentMapper.selectList(wrapper);
+    }
+
+    private void ensureDefaultIndicators() {
+        List<AssessmentIndicator> defaults = List.of(
+                buildDefaultIndicator(
+                        DEFAULT_INHERENT_INDICATOR_CODE,
+                        "客户与交易固有风险",
+                        "INHERENT_RISK",
+                        "客户和交易风险",
+                        new BigDecimal("60.00"),
+                        "高风险客户占比、跨境交易、大额现金交易、复杂关系链路等固有风险因素。"
+                ),
+                buildDefaultIndicator(
+                        DEFAULT_CONTROL_INDICATOR_CODE,
+                        "监测报送控制有效性",
+                        "CONTROL_EFFECTIVENESS",
+                        "监测和报送控制",
+                        new BigDecimal("40.00"),
+                        "客户尽调、名单筛查、交易监测、案件调查和监管报送控制有效性。"
+                )
+        );
+
+        for (AssessmentIndicator indicator : defaults) {
+            LambdaQueryWrapper<AssessmentIndicator> codeWrapper = new LambdaQueryWrapper<>();
+            codeWrapper.eq(AssessmentIndicator::getIndicatorCode, indicator.getIndicatorCode());
+            AssessmentIndicator existing = indicatorMapper.selectOne(codeWrapper);
+            if (existing == null) {
+                indicatorMapper.insert(indicator);
+            } else if (!"ENABLED".equals(existing.getStatus())) {
+                existing.setStatus("ENABLED");
+                existing.setUpdatedTime(LocalDateTime.now());
+                indicatorMapper.updateById(existing);
+            }
+        }
+    }
+
+    private AssessmentIndicator buildDefaultIndicator(
+            String code,
+            String name,
+            String category,
+            String dimension,
+            BigDecimal weight,
+            String scoringCriteria) {
+        AssessmentIndicator indicator = new AssessmentIndicator();
+        indicator.setIndicatorCode(code);
+        indicator.setIndicatorName(name);
+        indicator.setCategory(category);
+        indicator.setDimension(dimension);
+        indicator.setWeight(weight);
+        indicator.setScoringCriteria(scoringCriteria);
+        indicator.setMaxScore(100);
+        indicator.setStatus("ENABLED");
+        indicator.setCreatedTime(LocalDateTime.now());
+        indicator.setUpdatedTime(LocalDateTime.now());
+        return indicator;
+    }
+
+    private int categoryOrder(String category) {
+        if ("INHERENT_RISK".equals(category)) {
+            return 1;
+        }
+        if ("CONTROL_EFFECTIVENESS".equals(category)) {
+            return 2;
+        }
+        return 9;
     }
 }

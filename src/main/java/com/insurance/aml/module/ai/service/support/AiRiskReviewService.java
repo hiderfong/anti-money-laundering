@@ -122,7 +122,7 @@ public class AiRiskReviewService {
         baos.write(0xBB);
         baos.write(0xBF);
         try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8))) {
-            writer.println("评分流水号,主体类型,主体ID,主体名称,AI风险分,风险等级,置信度,系统弱标签,复核状态,优先级,判断依据,主要贡献因子,模型版本,评分时间,人工复核标签,复核人,复核时间,复核备注");
+            writer.println("评分流水号,主体类型,主体ID,主体名称,AI风险分,风险等级,置信度,系统弱标签,复核状态,优先级,判断依据,主要贡献因子,模型版本,评分时间,人工复核标签,复核人,复核时间,复核备注,跟进任务ID,跟进任务创建人,跟进任务创建时间");
             for (AiRiskReviewPoolItemVO item : items) {
                 writer.println(String.join(",",
                         escapeCsv(item.getScoreNo()),
@@ -142,7 +142,10 @@ public class AiRiskReviewService {
                         escapeCsv(item.getManualReviewLabelText()),
                         escapeCsv(item.getReviewedBy()),
                         escapeCsv(item.getReviewedAt() == null ? "" : item.getReviewedAt().toString()),
-                        escapeCsv(item.getManualReviewComment())
+                        escapeCsv(item.getManualReviewComment()),
+                        escapeCsv(item.getFollowUpTaskId() == null ? "" : String.valueOf(item.getFollowUpTaskId())),
+                        escapeCsv(item.getFollowUpCreatedBy()),
+                        escapeCsv(item.getFollowUpCreatedAt() == null ? "" : item.getFollowUpCreatedAt().toString())
                 ));
             }
             writer.flush();
@@ -197,7 +200,7 @@ public class AiRiskReviewService {
                 .build();
     }
 
-    private AiRiskReviewPoolItemVO toReviewPoolItem(AiRiskScoreRecord record) {
+    public AiRiskReviewPoolItemVO toReviewPoolItem(AiRiskScoreRecord record) {
         String autoLabel = inferAutoLabel(record);
         String basis = buildVerificationBasis(record, autoLabel);
         return AiRiskReviewPoolItemVO.builder()
@@ -218,12 +221,21 @@ public class AiRiskReviewService {
                 .priorityLevel(priorityLevel(record))
                 .verificationBasis(basis)
                 .factorSummary(record.getFactorSummary())
+                .featureSnapshotJson(record.getFeatureSnapshotJson())
+                .factorSnapshotJson(record.getFactorSnapshotJson())
+                .evidenceSnapshotJson(record.getEvidenceSnapshotJson())
+                .recommendationJson(record.getRecommendationJson())
+                .modelProbability(record.getModelProbability())
+                .modelLabelPredicted(record.getModelLabelPredicted())
                 .scoredAt(record.getScoredAt())
                 .manualReviewLabel(record.getManualReviewLabel())
                 .manualReviewLabelText(manualReviewLabelText(record.getManualReviewLabel()))
                 .manualReviewComment(record.getManualReviewComment())
                 .reviewedBy(record.getReviewedBy())
                 .reviewedAt(record.getReviewedAt())
+                .followUpTaskId(record.getFollowUpTaskId())
+                .followUpCreatedAt(record.getFollowUpCreatedAt())
+                .followUpCreatedBy(record.getFollowUpCreatedBy())
                 .build();
     }
 

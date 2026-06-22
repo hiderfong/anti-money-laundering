@@ -18,7 +18,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -155,6 +157,7 @@ public class AiRiskSupervisedModel {
             }
             Files.move(modelTmp, dir.resolve(MODEL_FILE),
                     StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Path modelFile = dir.resolve(MODEL_FILE);
             Properties props = new Properties();
             props.setProperty("sampleCount", String.valueOf(sampleCount));
             props.setProperty("positiveCount", String.valueOf(positiveCount));
@@ -162,6 +165,7 @@ public class AiRiskSupervisedModel {
             props.setProperty("accuracy", String.valueOf(accuracy));
             props.setProperty("auc", String.valueOf(auc));
             props.setProperty("trainedAt", trainedAt.toString());
+            props.setProperty("modelSha256", sha256Hex(modelFile));
             Path metaTmp = dir.resolve(META_FILE + ".tmp");
             try (var w = Files.newBufferedWriter(metaTmp)) {
                 props.store(w, "ai-risk supervised model meta");
@@ -183,13 +187,17 @@ public class AiRiskSupervisedModel {
         }
         lock.writeLock().lock();
         try {
-            try (ObjectInputStream ois = new ObjectInputStream(
-                    new BufferedInputStream(Files.newInputStream(modelFile)))) {
-                this.model = (LogisticRegression) ois.readObject();
-            }
             Properties props = new Properties();
             try (var r = Files.newBufferedReader(metaFile)) {
                 props.load(r);
+            }
+            String expectedSha256 = props.getProperty("modelSha256");
+            if (expectedSha256 != null && !expectedSha256.equalsIgnoreCase(sha256Hex(modelFile))) {
+                throw new IllegalStateException("model artifact checksum mismatch");
+            }
+            try (ObjectInputStream ois = new ObjectInputStream(
+                    new BufferedInputStream(Files.newInputStream(modelFile)))) {
+                this.model = (LogisticRegression) ois.readObject();
             }
             this.sampleCount = Integer.parseInt(props.getProperty("sampleCount", "0"));
             this.positiveCount = Integer.parseInt(props.getProperty("positiveCount", "0"));
@@ -203,5 +211,17 @@ public class AiRiskSupervisedModel {
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    private String sha256Hex(Path file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (var in = Files.newInputStream(file)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                digest.update(buffer, 0, read);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
     }
 }

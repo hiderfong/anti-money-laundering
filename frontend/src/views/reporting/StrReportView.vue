@@ -66,9 +66,8 @@
         </el-form-item>
         <el-form-item label="报告类型" prop="reportType">
           <el-select v-model="createForm.reportType" placeholder="请选择报告类型" style="width:100%;">
-            <el-option label="可疑交易报告" value="SUSPICIOUS_TRANSACTION" />
-            <el-option label="大额交易报告" value="LARGE_TRANSACTION" />
-            <el-option label="涉恐融资报告" value="TERROR_FINANCING" />
+            <el-option label="常规可疑交易报告" value="NORMAL" />
+            <el-option label="紧急可疑交易报告" value="URGENT" />
           </el-select>
         </el-form-item>
         <el-form-item label="报告内容" prop="reportContent">
@@ -159,6 +158,7 @@ const STATUS_MAP: Record<string, string> = {
   DRAFT: '草稿',
   PENDING_REVIEW: '待审核',
   APPROVED: '已审核',
+  REJECTED: '已驳回',
   SUBMITTED: '已报送'
 }
 
@@ -171,6 +171,7 @@ function statusTagType(status: string) {
     DRAFT: 'info',
     PENDING_REVIEW: 'warning',
     APPROVED: '',
+    REJECTED: 'danger',
     SUBMITTED: 'success'
   }
   return (map[status] || 'info') as any
@@ -212,7 +213,7 @@ async function handleCreate() {
   submitting.value = true
   try {
     await request.post('/str-reports', {
-      caseId: createForm.caseId,
+      caseId: createForm.caseId.trim(),
       reportType: createForm.reportType,
       reportContent: createForm.reportContent
     })
@@ -269,7 +270,7 @@ async function handleReview() {
   try {
     await request.post(`/str-reports/${reviewTargetId.value}/review`, {
       approved: reviewForm.approved,
-      remark: reviewForm.remark
+      opinion: reviewForm.remark
     })
     ElMessage.success(reviewForm.approved ? '审核通过' : '已驳回')
     reviewDialogVisible.value = false

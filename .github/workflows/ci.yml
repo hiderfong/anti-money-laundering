@@ -142,6 +142,17 @@ jobs:
           bash -n scripts/e2e-test.sh
           bash -n scripts/frontend-e2e.sh
           bash -n scripts/frontend-browser-e2e.sh
+          bash -n scripts/customer-ui-e2e.sh
+          bash -n scripts/screening-ui-e2e.sh
+          bash -n scripts/monitoring-ui-e2e.sh
+          bash -n scripts/alert-ui-e2e.sh
+          bash -n scripts/case-ui-e2e.sh
+          bash -n scripts/str-report-ui-e2e.sh
+          bash -n scripts/large-report-ui-e2e.sh
+          bash -n scripts/product-ui-e2e.sh
+          bash -n scripts/assessment-ui-e2e.sh
+          bash -n scripts/rectification-ui-e2e.sh
+          bash -n scripts/notification-ui-e2e.sh
           bash -n scripts/ci-e2e-step.sh
           bash -n scripts/collect-e2e-artifacts.sh
           bash -n scripts/performance-baseline.sh
@@ -171,7 +182,7 @@ jobs:
   e2e:
     name: End-To-End Release Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 70
     needs:
       - secret-scan
       - backend-test
@@ -232,12 +243,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install system tools
+        timeout-minutes: 8
         run: |
           if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
           $SUDO apt-get update
           $SUDO apt-get install -y curl jq default-mysql-client
 
       - name: Wait for MySQL
+        timeout-minutes: 4
         run: |
           for i in {1..60}; do
             if mysqladmin ping -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASSWORD" --silent; then
@@ -249,14 +262,46 @@ jobs:
           exit 1
 
       - name: Install frontend dependencies
+        timeout-minutes: 8
         working-directory: frontend
         run: bash ../scripts/ci-npm.sh ci
 
-      - name: Install Playwright browser
+      - name: Detect system browser
+        timeout-minutes: 2
+        run: |
+          CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -n "$CHROME_PATH" ]; then
+            echo "PLAYWRIGHT_CHANNEL=chrome" >> "$GITHUB_ENV"
+            echo "SKIP_PLAYWRIGHT_BROWSER_INSTALL=true" >> "$GITHUB_ENV"
+            "$CHROME_PATH" --version
+            exit 0
+          fi
+
+          CHROMIUM_PATH="$(command -v chromium || command -v chromium-browser || true)"
+          if [ -n "$CHROMIUM_PATH" ]; then
+            echo "PLAYWRIGHT_EXECUTABLE_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
+            echo "SKIP_PLAYWRIGHT_BROWSER_INSTALL=true" >> "$GITHUB_ENV"
+            "$CHROMIUM_PATH" --version
+            exit 0
+          fi
+
+          echo "SKIP_PLAYWRIGHT_BROWSER_INSTALL=false" >> "$GITHUB_ENV"
+          echo "No system Chrome/Chromium found; falling back to Playwright browser install."
+
+      - name: Install Playwright browser dependencies
+        if: env.SKIP_PLAYWRIGHT_BROWSER_INSTALL != 'true'
+        timeout-minutes: 15
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install-deps chromium
+
+      - name: Install Playwright Chromium
+        if: env.SKIP_PLAYWRIGHT_BROWSER_INSTALL != 'true'
+        timeout-minutes: 20
+        working-directory: frontend
+        run: npx playwright install chromium
 
       - name: Start backend
+        timeout-minutes: 12
         run: |
           nohup mvn spring-boot:run \
             -Dspring-boot.run.profiles=dev,no-redis,no-es \
@@ -276,6 +321,7 @@ jobs:
           exit 1
 
       - name: Start frontend
+        timeout-minutes: 4
         working-directory: frontend
         run: |
           nohup npm run dev -- --host 127.0.0.1 > /tmp/aml-frontend.log 2>&1 &
@@ -292,18 +338,67 @@ jobs:
           exit 1
 
       - name: Prepare RBAC E2E users
+        timeout-minutes: 4
         run: bash scripts/ci-e2e-step.sh "Prepare RBAC E2E users" bash scripts/prepare-rbac-e2e-users.sh --execute
 
       - name: Run API E2E
+        timeout-minutes: 8
         run: bash scripts/ci-e2e-step.sh "API E2E" bash scripts/e2e-test.sh
 
       - name: Run frontend smoke E2E
+        timeout-minutes: 5
         run: bash scripts/ci-e2e-step.sh "Frontend smoke E2E" bash scripts/frontend-e2e.sh
 
       - name: Run frontend browser E2E
-        run: bash scripts/ci-e2e-step.sh "Frontend browser E2E" bash scripts/frontend-browser-e2e.sh
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.210 bash scripts/ci-e2e-step.sh "Frontend browser E2E" bash scripts/frontend-browser-e2e.sh
+
+      - name: Run customer UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.211 bash scripts/ci-e2e-step.sh "Customer UI workflow E2E" bash scripts/customer-ui-e2e.sh
+
+      - name: Run screening UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.212 bash scripts/ci-e2e-step.sh "Screening UI workflow E2E" bash scripts/screening-ui-e2e.sh
+
+      - name: Run monitoring UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.213 bash scripts/ci-e2e-step.sh "Monitoring UI workflow E2E" bash scripts/monitoring-ui-e2e.sh
+
+      - name: Run alert UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.214 bash scripts/ci-e2e-step.sh "Alert UI workflow E2E" bash scripts/alert-ui-e2e.sh
+
+      - name: Run case UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.215 bash scripts/ci-e2e-step.sh "Case UI workflow E2E" bash scripts/case-ui-e2e.sh
+
+      - name: Run STR report UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.216 bash scripts/ci-e2e-step.sh "STR report UI workflow E2E" bash scripts/str-report-ui-e2e.sh
+
+      - name: Run large report UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.217 bash scripts/ci-e2e-step.sh "Large report UI workflow E2E" bash scripts/large-report-ui-e2e.sh
+
+      - name: Run product UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.218 bash scripts/ci-e2e-step.sh "Product UI workflow E2E" bash scripts/product-ui-e2e.sh
+
+      - name: Run assessment UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.219 bash scripts/ci-e2e-step.sh "Assessment UI workflow E2E" bash scripts/assessment-ui-e2e.sh
+
+      - name: Run rectification UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.220 bash scripts/ci-e2e-step.sh "Rectification UI workflow E2E" bash scripts/rectification-ui-e2e.sh
+
+      - name: Run notification UI workflow E2E
+        timeout-minutes: 10
+        run: E2E_BROWSER_IP=127.0.0.221 bash scripts/ci-e2e-step.sh "Notification UI workflow E2E" bash scripts/notification-ui-e2e.sh
 
       - name: Run RBAC E2E
+        timeout-minutes: 8
         run: bash scripts/ci-e2e-step.sh "RBAC E2E" bash scripts/rbac-e2e.sh
 
       - name: Collect E2E artifacts

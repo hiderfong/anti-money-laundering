@@ -110,6 +110,14 @@ public class AmlModelController {
         return Result.success(modelService.iterateModel(id, normalize(request)));
     }
 
+    @PostMapping("/{id}/rollback")
+    @Operation(summary = "模型回滚")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:manage')")
+    @AuditLog(module = "模型管理", operationType = "ROLLBACK", description = "登记模型回滚")
+    public Result<AmlModel> rollbackModel(@PathVariable Long id, @RequestBody(required = false) ModelLifecycleRequest request) {
+        return Result.success(modelService.rollbackModel(id, normalize(request)));
+    }
+
     @PostMapping("/{id}/archive")
     @Operation(summary = "归档模型")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('model:manage')")

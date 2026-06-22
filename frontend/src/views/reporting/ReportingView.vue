@@ -5,7 +5,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>大额交易报告</span>
           <div style="display:flex;gap:8px;">
-            <el-button type="primary" @click="generateDialogVisible = true">生成报告</el-button>
+            <el-button type="primary" @click="openGenerateDialog">生成报告</el-button>
             <el-button type="danger" :loading="retryingFailed" @click="handleRetryFailed">重试失败</el-button>
           </div>
         </div>
@@ -94,22 +94,8 @@
     <!-- 生成报告弹窗 -->
     <el-dialog v-model="generateDialogVisible" title="生成大额交易报告" width="500px" destroy-on-close>
       <el-form :model="generateForm" label-width="100px" ref="generateFormRef" :rules="generateRules">
-        <el-form-item label="日期范围" prop="dateRange">
-          <el-date-picker
-            v-model="generateForm.dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            style="width:100%;"
-          />
-        </el-form-item>
-        <el-form-item label="报告类型" prop="reportType">
-          <el-select v-model="generateForm.reportType" placeholder="请选择报告类型" style="width:100%;">
-            <el-option label="大额交易报告" value="LARGE_TRANSACTION" />
-            <el-option label="大额现金交易报告" value="LARGE_CASH_TRANSACTION" />
-          </el-select>
+        <el-form-item label="交易ID" prop="transactionId">
+          <el-input v-model="generateForm.transactionId" placeholder="请输入需要生成报告的交易ID" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -272,17 +258,25 @@ function formatCounterparty(counterpartyInfo: string | undefined) {
   }
 }
 
+function normalizePositiveId(value: string | number | undefined | null) {
+  const text = String(value ?? '').trim()
+  return /^\d+$/.test(text) ? text : ''
+}
+
 // ==================== 生成报告 ====================
 const generateDialogVisible = ref(false)
 const generating = ref(false)
 const generateFormRef = ref<FormInstance>()
 const generateForm = reactive({
-  dateRange: [] as string[],
-  reportType: 'LARGE_TRANSACTION'
+  transactionId: ''
 })
 const generateRules: FormRules = {
-  dateRange: [{ required: true, message: '请选择日期范围', trigger: 'change' }],
-  reportType: [{ required: true, message: '请选择报告类型', trigger: 'change' }]
+  transactionId: [{ required: true, message: '请输入交易ID', trigger: 'blur' }]
+}
+
+function openGenerateDialog() {
+  generateForm.transactionId = ''
+  generateDialogVisible.value = true
 }
 
 async function handleGenerate() {
@@ -291,12 +285,15 @@ async function handleGenerate() {
   } catch {
     return
   }
+  const transactionId = normalizePositiveId(generateForm.transactionId)
+  if (!transactionId) {
+    ElMessage.warning('请输入有效的交易ID')
+    return
+  }
   generating.value = true
   try {
-    await request.post('/reporting/large-txn/generate', {
-      startDate: generateForm.dateRange[0],
-      endDate: generateForm.dateRange[1],
-      reportType: generateForm.reportType
+    await request.post('/reporting/large-txn/generate', undefined, {
+      params: { transactionId }
     })
     ElMessage.success('报告生成成功')
     generateDialogVisible.value = false

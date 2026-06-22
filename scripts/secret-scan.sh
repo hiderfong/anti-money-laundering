@@ -35,7 +35,11 @@ git ls-files -z \
   ':!:docs/development/**' \
   ':!:docs/use-cases/业务闭环验收矩阵.md' \
   ':!:*.lock' \
-  > "$TMP_FILE"
+  | while IFS= read -r -d '' path; do
+      if [ -f "$path" ]; then
+        printf '%s\0' "$path"
+      fi
+    done > "$TMP_FILE"
 
 failures=0
 
