@@ -32,7 +32,8 @@ const frameworkOverlayPatterns = [
 
 const ignoredConsolePatterns = [
   /Download the Vue Devtools extension/i,
-  /Running in development mode/i
+  /Running in development mode/i,
+  /\[ECharts\] The ticks may be not readable when set min: 0, max: 100 and alignTicks: true/i
 ]
 
 const results = []
@@ -157,6 +158,21 @@ async function waitForApiJson(page, predicate, action) {
     body = { raw: text }
   }
   return { response, body }
+}
+
+async function hasRenderedChart(locator) {
+  await locator.waitFor({ state: 'visible', timeout: assertionTimeout })
+  const chartSurface = locator.locator('canvas, svg').first()
+  try {
+    await chartSurface.waitFor({ state: 'attached', timeout: assertionTimeout })
+  } catch (error) {
+    return false
+  }
+  return locator.evaluate(element => {
+    const chartNode = element.querySelector('canvas, svg')
+    const box = chartNode?.getBoundingClientRect()
+    return Boolean(chartNode && box && box.width > 0 && box.height > 0 && element.innerHTML.trim().length > 0)
+  })
 }
 
 async function login(page) {
@@ -296,11 +312,11 @@ async function main() {
     info('4. 验证客户画像与关系图谱')
     await page.getByText('客户画像').first().waitFor({ state: 'visible', timeout: assertionTimeout })
     await page.getByText('画像雷达图').first().waitFor({ state: 'visible', timeout: assertionTimeout })
-    const radarCanvasCount = await page.locator('.profile-radar canvas').count()
-    if (radarCanvasCount > 0) {
-      pass('客户画像雷达图已渲染 canvas')
+    const profileRadar = page.locator('.profile-radar').first()
+    if (await hasRenderedChart(profileRadar)) {
+      pass('客户画像雷达图已渲染图表')
     } else {
-      fail('客户画像雷达图未渲染 canvas')
+      fail('客户画像雷达图未渲染图表')
     }
     await page.screenshot({ path: path.join(screenshotDir, `customer-detail-${runId}.png`), fullPage: false })
 

@@ -621,6 +621,31 @@ function ensureResizeHandler() {
   window.addEventListener('resize', resizeHandler)
 }
 
+function waitForPaint() {
+  return new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
+}
+
+function wait(ms: number) {
+  return new Promise<void>(resolve => window.setTimeout(resolve, ms))
+}
+
+async function waitForChartContainer(container: HTMLElement) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await nextTick()
+    await waitForPaint()
+    if (!isMounted || !container.isConnected) {
+      return false
+    }
+    if (container.clientWidth > 0 && container.clientHeight > 0) {
+      return true
+    }
+    await wait(50)
+  }
+  return false
+}
+
 async function getEcharts() {
   if (!echartsModule) {
     const [core, charts, components, renderers] = await Promise.all([
@@ -646,6 +671,7 @@ async function renderProfileRadar() {
   await nextTick()
   const container = profileRadarChart.value
   if (!isMounted || !container || !container.isConnected) return
+  if (!(await waitForChartContainer(container))) return
   const echarts = await getEcharts()
   const theme = chartTheme()
   if (!radarChart) {
@@ -896,6 +922,9 @@ async function fetchCustomerDetail() {
     ElMessage.error('获取客户信息失败：' + (e.message || '未知错误'))
   } finally {
     loading.value = false
+    if (activeTab.value === 'basic') {
+      await renderProfileRadar()
+    }
   }
 }
 
