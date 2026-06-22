@@ -61,6 +61,11 @@ public interface AmlModelService {
     AmlModel iterateModel(Long id, ModelLifecycleRequest request);
 
     /**
+     * 回滚模型版本
+     */
+    AmlModel rollbackModel(Long id, ModelLifecycleRequest request);
+
+    /**
      * 归档模型
      */
     AmlModel archiveModel(Long id, ModelLifecycleRequest request);

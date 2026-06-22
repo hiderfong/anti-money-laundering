@@ -25,6 +25,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -130,7 +131,7 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         ensureModelCodeUnique(request.getModelCode(), null);
         AmlModel model = new AmlModel();
         applyRequest(model, request);
-        model.setLifecycleStatus(StringUtils.hasText(request.getLifecycleStatus()) ? request.getLifecycleStatus() : STATUS_DRAFT);
+        model.setLifecycleStatus(STATUS_DRAFT);
         model.setVersion(StringUtils.hasText(request.getVersion()) ? request.getVersion() : "1.0.0");
         model.setGovernanceLevel(StringUtils.hasText(request.getGovernanceLevel()) ? request.getGovernanceLevel() : "L2");
         model.setRiskLevel(StringUtils.hasText(request.getRiskLevel()) ? request.getRiskLevel() : "MEDIUM");
@@ -152,9 +153,7 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
         ensureModelCodeUnique(request.getModelCode(), id);
         String fromStatus = model.getLifecycleStatus();
         applyRequest(model, request);
-        if (!StringUtils.hasText(model.getLifecycleStatus())) {
-            model.setLifecycleStatus(fromStatus);
-        }
+        model.setLifecycleStatus(StringUtils.hasText(fromStatus) ? fromStatus : STATUS_DRAFT);
         modelMapper.updateById(model);
         addLog(model, "UPDATE", fromStatus, model.getLifecycleStatus(), "更新模型基础信息", null, null);
         return model;
@@ -169,6 +168,7 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     public AmlModel testModel(Long id, ModelLifecycleRequest request) {
         AmlModel model = loadModel(id);
         ensureNotArchived(model);
+        ensureLifecycleStatus(model, "测试", STATUS_DRAFT, STATUS_ITERATING, STATUS_TEST_PASSED);
         String fromStatus = model.getLifecycleStatus();
         model.setLifecycleStatus(STATUS_TEST_PASSED);
         model.setTestResult("PASS");
@@ -191,6 +191,10 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     public AmlModel deployModel(Long id, ModelLifecycleRequest request) {
         AmlModel model = loadModel(id);
         ensureNotArchived(model);
+        ensureLifecycleStatus(model, "部署", STATUS_TEST_PASSED);
+        if (!"PASS".equals(model.getTestResult())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "模型测试结果未通过，不能部署");
+        }
         String fromStatus = model.getLifecycleStatus();
         model.setLifecycleStatus(STATUS_DEPLOYED);
         model.setDeploymentEnv(firstText(request.getDeploymentEnv(), model.getDeploymentEnv(), "UAT"));
@@ -212,6 +216,7 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     public AmlModel monitorModel(Long id, ModelLifecycleRequest request) {
         AmlModel model = loadModel(id);
         ensureNotArchived(model);
+        ensureLifecycleStatus(model, "监控", STATUS_DEPLOYED, STATUS_MONITORING);
         String fromStatus = model.getLifecycleStatus();
         model.setLifecycleStatus(STATUS_MONITORING);
         model.setMonitorStatus(firstText(request.getMonitorStatus(), inferMonitorStatus(request), "NORMAL"));
@@ -233,6 +238,7 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     public AmlModel iterateModel(Long id, ModelLifecycleRequest request) {
         AmlModel model = loadModel(id);
         ensureNotArchived(model);
+        ensureLifecycleStatus(model, "迭代", STATUS_DEPLOYED, STATUS_MONITORING);
         String fromStatus = model.getLifecycleStatus();
         model.setLifecycleStatus(STATUS_ITERATING);
         model.setVersion(firstText(request.getTargetVersion(), bumpPatchVersion(model.getVersion())));
@@ -245,6 +251,35 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     }
 
     /**
+     * 模型回滚
+     * 已部署或监控中的模型可回滚到指定版本，并保留回滚记录。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AmlModel rollbackModel(Long id, ModelLifecycleRequest request) {
+        AmlModel model = loadModel(id);
+        ensureNotArchived(model);
+        ensureLifecycleStatus(model, "回滚", STATUS_DEPLOYED, STATUS_MONITORING);
+        if (!StringUtils.hasText(request.getTargetVersion())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "模型回滚必须指定目标版本");
+        }
+        String fromStatus = model.getLifecycleStatus();
+        String previousVersion = model.getVersion();
+        model.setLifecycleStatus(STATUS_DEPLOYED);
+        model.setVersion(request.getTargetVersion());
+        model.setDeploymentEnv(firstText(request.getDeploymentEnv(), model.getDeploymentEnv(), "UAT"));
+        model.setDeployedTime(LocalDateTime.now());
+        model.setMonitorStatus(firstText(request.getMonitorStatus(), "ATTENTION"));
+        modelMapper.updateById(model);
+        addLog(model, "ROLLBACK", fromStatus, STATUS_DEPLOYED,
+                firstText(request.getActionSummary(),
+                        "模型已完成回滚登记，原版本=" + firstText(previousVersion, "UNKNOWN")
+                                + "，目标版本=" + firstText(model.getVersion(), "UNKNOWN")),
+                metricsJson(model), request.getArtifactRef(), request.getOperator());
+        return model;
+    }
+
+    /**
      * 模型归档
      * 下线模型并记录归档原因，停止监控
      */
@@ -252,6 +287,7 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     @Transactional(rollbackFor = Exception.class)
     public AmlModel archiveModel(Long id, ModelLifecycleRequest request) {
         AmlModel model = loadModel(id);
+        ensureNotArchived(model);
         String fromStatus = model.getLifecycleStatus();
         model.setLifecycleStatus(STATUS_ARCHIVED);
         model.setArchiveReason(firstText(request.getArchiveReason(), request.getActionSummary(), "模型下线归档"));
@@ -310,6 +346,20 @@ public class AmlModelServiceImpl implements com.insurance.aml.module.modelmgmt.s
     private void ensureNotArchived(AmlModel model) {
         if (STATUS_ARCHIVED.equals(model.getLifecycleStatus())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "已归档模型不能继续变更");
+        }
+    }
+
+    /**
+     * 校验生命周期动作的前置状态，防止跳过测试/部署等治理节点。
+     */
+    private void ensureLifecycleStatus(AmlModel model, String actionName, String... allowedStatuses) {
+        String status = model.getLifecycleStatus();
+        boolean allowed = Arrays.asList(allowedStatuses).contains(status);
+        if (!allowed) {
+            throw new BusinessException(ResultCode.BAD_REQUEST,
+                    "模型当前状态为 " + firstText(status, "UNKNOWN")
+                            + "，不能执行" + actionName
+                            + "，允许状态：" + String.join(",", allowedStatuses));
         }
     }
 

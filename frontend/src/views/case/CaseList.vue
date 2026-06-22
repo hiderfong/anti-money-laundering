@@ -23,9 +23,9 @@
         </el-form-item>
         <el-form-item label="优先级">
           <el-select v-model="filterForm.priority" placeholder="全部优先级" clearable style="width:120px">
-            <el-option label="高" value="HIGH" />
-            <el-option label="中" value="MEDIUM" />
-            <el-option label="低" value="LOW" />
+            <el-option label="高" :value="4" />
+            <el-option label="中" :value="3" />
+            <el-option label="低" :value="2" />
           </el-select>
         </el-form-item>
         <el-form-item label="创建时间">
@@ -217,8 +217,8 @@
     <!-- 创建案件弹窗 -->
     <el-dialog v-model="createVisible" title="新建案件" width="520px" destroy-on-close>
       <el-form :model="createForm" :rules="createRules" ref="createFormRef" label-width="100px">
-        <el-form-item label="预警编号" prop="alertId">
-          <el-input v-model="createForm.alertId" placeholder="关联的预警编号（可选）" />
+        <el-form-item label="预警ID" prop="alertId">
+          <el-input v-model="createForm.alertId" placeholder="请输入已确认预警ID" />
         </el-form-item>
         <el-form-item label="案件类型" prop="caseType">
           <el-select v-model="createForm.caseType" placeholder="请选择案件类型" style="width:100%">
@@ -231,9 +231,9 @@
         </el-form-item>
         <el-form-item label="优先级" prop="priority">
           <el-select v-model="createForm.priority" placeholder="请选择优先级" style="width:100%">
-            <el-option label="高" value="HIGH" />
-            <el-option label="中" value="MEDIUM" />
-            <el-option label="低" value="LOW" />
+            <el-option label="高" :value="4" />
+            <el-option label="中" :value="3" />
+            <el-option label="低" :value="2" />
           </el-select>
         </el-form-item>
         <el-form-item label="摘要" prop="summary">
@@ -323,7 +323,7 @@ const pagination = reactive({ page: 1, size: 20, total: 0 })
 const filterForm = reactive({
   caseStatus: '',
   caseType: '',
-  priority: '',
+  priority: null as number | null,
   timeRange: null as string[] | null
 })
 
@@ -334,8 +334,9 @@ const detailData = ref<any>(null)
 // 创建案件
 const createVisible = ref(false)
 const createFormRef = ref<FormInstance>()
-const createForm = reactive({ alertId: '', caseType: '', priority: '', summary: '' })
+const createForm = reactive({ alertId: '', caseType: '', priority: null as number | null, summary: '' })
 const createRules: FormRules = {
+  alertId: [{ required: true, message: '请输入已确认预警ID', trigger: 'blur' }],
   caseType: [{ required: true, message: '请选择案件类型', trigger: 'change' }],
   priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
   summary: [{ required: true, message: '请输入案件摘要', trigger: 'blur' }]
@@ -372,11 +373,23 @@ const CASE_TYPE_MAP: Record<string, string> = {
   SUSPICIOUS_TX: '可疑交易', LARGE_TX: '大额交易', ABNORMAL_BEHAVIOR: '异常行为',
   BLACKLIST_HIT: '黑名单命中', OTHER: '其他'
 }
-const PRIORITY_MAP: Record<string, string> = { HIGH: '高', MEDIUM: '中', LOW: '低' }
+const PRIORITY_MAP: Record<string, string> = {
+  HIGH: '高',
+  MEDIUM: '中',
+  LOW: '低',
+  '5': '极高',
+  '4': '高',
+  '3': '中',
+  '2': '低',
+  '1': '低'
+}
 
 function statusLabel(s: string) { return STATUS_MAP[s] || s }
 function caseTypeLabel(s: string) { return CASE_TYPE_MAP[s] || s }
-function priorityLabel(s: string) { return PRIORITY_MAP[s] || s }
+function priorityLabel(s: string | number) {
+  const key = String(s ?? '')
+  return PRIORITY_MAP[key] || key || '-'
+}
 
 function displayCustomerName(row: any) {
   const raw = String(row?.customerName || '').trim()
@@ -390,8 +403,11 @@ function displayCustomerName(row: any) {
 function statusTagType(s: string): '' | 'success' | 'warning' | 'info' | 'danger' {
   return { DRAFT: 'info', INVESTIGATING: '', PENDING_APPROVAL: 'warning', SUBMITTED: 'success', CLOSED: 'info' }[s] as any || 'info'
 }
-function priorityTagType(p: string): '' | 'success' | 'warning' | 'info' | 'danger' {
-  return { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }[p] as any || 'info'
+function priorityTagType(p: string | number): '' | 'success' | 'warning' | 'info' | 'danger' {
+  const key = String(p ?? '')
+  if (['HIGH', '5', '4'].includes(key)) return 'danger'
+  if (['MEDIUM', '3'].includes(key)) return 'warning'
+  return 'info'
 }
 
 function caseTimelineItems(detail: any) {
@@ -484,10 +500,10 @@ async function loadData() {
     const params: any = { page: pagination.page, size: pagination.size }
     if (filterForm.caseStatus) params.caseStatus = filterForm.caseStatus
     if (filterForm.caseType) params.caseType = filterForm.caseType
-    if (filterForm.priority) params.priority = filterForm.priority
+    if (filterForm.priority !== null) params.priority = filterForm.priority
     if (filterForm.timeRange && filterForm.timeRange.length === 2) {
-      params.startTime = filterForm.timeRange[0]
-      params.endTime = filterForm.timeRange[1]
+      params.startTime = `${filterForm.timeRange[0]}T00:00:00`
+      params.endTime = `${filterForm.timeRange[1]}T23:59:59`
     }
     const res: any = await request.get('/cases/page', { params })
     tableData.value = res.data?.list || []
@@ -507,7 +523,7 @@ function handleSearch() {
 function handleReset() {
   filterForm.caseStatus = ''
   filterForm.caseType = ''
-  filterForm.priority = ''
+  filterForm.priority = null
   filterForm.timeRange = null
   handleSearch()
 }
@@ -544,7 +560,7 @@ async function openDetailFromRoute() {
 function showCreateDialog() {
   createForm.alertId = ''
   createForm.caseType = ''
-  createForm.priority = ''
+  createForm.priority = null
   createForm.summary = ''
   createVisible.value = true
 }
@@ -555,7 +571,7 @@ async function handleCreate() {
   submitLoading.value = true
   try {
     await request.post('/cases', {
-      alertId: createForm.alertId || undefined,
+      alertId: Number(createForm.alertId),
       caseType: createForm.caseType,
       priority: createForm.priority,
       summary: createForm.summary

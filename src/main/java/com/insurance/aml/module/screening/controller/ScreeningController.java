@@ -115,4 +115,17 @@ public class ScreeningController {
         whitelistMapper.insert(whitelist);
         return Result.success();
     }
+
+    /**
+     * 删除白名单条目
+     */
+    @DeleteMapping("/whitelist/{id}")
+    @Operation(summary = "删除白名单", description = "删除指定白名单条目")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('screening:execute')")
+    public Result<Void> deleteWhitelist(
+            @Parameter(description = "白名单ID", required = true) @PathVariable Long id) {
+        log.info("删除白名单，id={}", id);
+        whitelistMapper.deleteById(id);
+        return Result.success();
+    }
 }

@@ -433,6 +433,51 @@ CREATE TABLE IF NOT EXISTS t_freeze_seizure_deduction (
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_self_assessment (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  assessment_year INT NOT NULL,
+  assessment_period VARCHAR(32) NOT NULL,
+  assessment_status VARCHAR(32) DEFAULT 'CREATED',
+  assessor_id BIGINT,
+  inherent_risk_score INT,
+  control_effectiveness_score INT,
+  overall_score INT,
+  overall_risk_level VARCHAR(16),
+  conclusion CLOB,
+  approved_by VARCHAR(64),
+  approved_time TIMESTAMP,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_assessment_indicator (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  indicator_code VARCHAR(64) NOT NULL,
+  indicator_name VARCHAR(128) NOT NULL,
+  category VARCHAR(64) NOT NULL,
+  dimension VARCHAR(64),
+  weight DECIMAL(10,4) NOT NULL,
+  scoring_criteria CLOB,
+  max_score INT DEFAULT 100,
+  status VARCHAR(16) DEFAULT 'ENABLED',
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_assessment_score (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  assessment_id BIGINT NOT NULL,
+  indicator_id BIGINT NOT NULL,
+  raw_value DECIMAL(18,4),
+  score INT,
+  evidence CLOB,
+  data_source VARCHAR(128),
+  remark VARCHAR(512),
+  scored_by VARCHAR(64),
+  scored_time TIMESTAMP,
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS t_rectification_task (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   assessment_id BIGINT,
@@ -779,6 +824,9 @@ CREATE TABLE IF NOT EXISTS t_ai_risk_score_record (
   reviewed_at TIMESTAMP,
   model_probability DECIMAL(5,4) DEFAULT NULL,
   model_label_predicted VARCHAR(16) DEFAULT NULL,
+  follow_up_task_id BIGINT,
+  follow_up_created_at TIMESTAMP,
+  follow_up_created_by VARCHAR(64),
   created_by VARCHAR(64),
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by VARCHAR(64),

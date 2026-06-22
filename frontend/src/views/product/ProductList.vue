@@ -19,7 +19,7 @@
             <el-option label="低风险" value="LOW" />
             <el-option label="中风险" value="MEDIUM" />
             <el-option label="高风险" value="HIGH" />
-            <el-option label="极高风险" value="VERY_HIGH" />
+            <el-option label="极高风险" value="CRITICAL" />
             <el-option label="未评估" value="NOT_ASSESSED" />
           </el-select>
         </el-form-item>
@@ -110,7 +110,7 @@
             <el-option label="低风险" value="LOW" />
             <el-option label="中风险" value="MEDIUM" />
             <el-option label="高风险" value="HIGH" />
-            <el-option label="极高风险" value="VERY_HIGH" />
+            <el-option label="极高风险" value="CRITICAL" />
           </el-select>
         </el-form-item>
         <el-form-item label="产品描述" prop="description">
@@ -156,10 +156,18 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="riskScore" label="风险评分" width="100" />
-          <el-table-column prop="assessmentFactors" label="评估因素" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="assessedBy" label="评估人" width="120" />
-          <el-table-column prop="assessedTime" label="评估时间" width="170" />
+          <el-table-column label="风险评分" width="100">
+            <template #default="{ row }">
+              {{ assessmentScore(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="评估因素" min-width="260" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ assessmentFactorSummary(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="assessor" label="评估人" width="120" />
+          <el-table-column prop="assessmentDate" label="评估时间" width="140" />
         </el-table>
         <el-empty v-if="!assessmentLoading && assessmentList.length === 0" description="暂无评估记录" :image-size="60" />
       </template>
@@ -199,10 +207,16 @@ interface Assessment {
   id: number
   productId: number
   riskLevel: string
-  riskScore: number
-  assessmentFactors: string
-  assessedBy: string
-  assessedTime: string
+  totalScore?: number
+  riskScore?: number
+  clientGroupScore?: number
+  paymentModeScore?: number
+  productStructureScore?: number
+  surrenderScore?: number
+  beneficiaryScore?: number
+  channelScore?: number
+  assessor?: string
+  assessmentDate?: string
 }
 
 // ==================== 数据定义 ====================
@@ -292,6 +306,7 @@ const RISK_LEVEL_MAP: Record<string, string> = {
   LOW: '低风险',
   MEDIUM: '中风险',
   HIGH: '高风险',
+  CRITICAL: '极高风险',
   VERY_HIGH: '极高风险',
   NOT_ASSESSED: '未评估'
 }
@@ -309,6 +324,7 @@ function riskLevelTagType(r: string): '' | 'success' | 'warning' | 'info' | 'dan
     LOW: 'success',
     MEDIUM: 'warning',
     HIGH: 'danger',
+    CRITICAL: 'danger',
     VERY_HIGH: 'danger',
     NOT_ASSESSED: 'info'
   }
@@ -338,6 +354,25 @@ function productDescription(row: Product | null) {
   const beneficiary = row.beneficiaryChangeable === false ? '受益人不可变更' : '受益人可变更'
   const score = row.riskScore == null ? '未评分' : `${row.riskScore}分`
   return `${type}，缴费方式${payment}，${cashValue}，${investment}，${beneficiary}，当前风险评分${score}。`
+}
+
+function assessmentScore(row: Assessment) {
+  return row.totalScore ?? row.riskScore ?? '-'
+}
+
+function assessmentFactorSummary(row: Assessment) {
+  const items = [
+    ['客户群体', row.clientGroupScore],
+    ['缴费方式', row.paymentModeScore],
+    ['产品结构', row.productStructureScore],
+    ['退保风险', row.surrenderScore],
+    ['受益人风险', row.beneficiaryScore],
+    ['销售渠道', row.channelScore]
+  ]
+  return items
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([label, value]) => `${label}${value}分`)
+    .join('，') || '-'
 }
 
 // ==================== 数据加载 ====================
@@ -482,13 +517,40 @@ async function handleAssess(row: Product) {
 
   loading.value = true
   try {
-    await request.post(`/products/${row.id}/assess`)
-    ElMessage.success('风险评估已触发，正在处理中')
-    loadData()
+    await request.post(`/products/${row.id}/assess`, buildAssessmentPayload(row))
+    ElMessage.success('风险评估完成')
+    await loadData()
   } catch (e) {
     ElMessage.error('触发风险评估失败')
   } finally {
     loading.value = false
+  }
+}
+
+function buildAssessmentPayload(row: Product) {
+  const investmentScore = row.hasInvestmentFeature || row.productType === 'INVESTMENT_LINKED' ? 82 : 45
+  const cashValueScore = row.hasCashValue ? 68 : 38
+  const beneficiaryScore = row.beneficiaryChangeable === false ? 32 : 58
+  const typeScoreMap: Record<string, number> = {
+    LIFE: 38,
+    HEALTH: 42,
+    ACCIDENT: 32,
+    ANNUITY: 55,
+    INVESTMENT_LINKED: 86,
+    UNIVERSAL_LIFE: 76,
+    CROSS_BORDER: 88,
+    HIGH_NET_WORTH: 82
+  }
+
+  return {
+    productId: row.id,
+    assessor: '系统风险评估',
+    clientGroupScore: typeScoreMap[row.productType] ?? 52,
+    paymentModeScore: row.paymentMode === 'LUMP_SUM' ? 72 : 46,
+    productStructureScore: investmentScore,
+    surrenderScore: cashValueScore,
+    beneficiaryScore,
+    channelScore: row.productType === 'CROSS_BORDER' ? 82 : 45
   }
 }
 

@@ -42,4 +42,7 @@ public class AiRiskScoreRecord extends BaseEntity {
     private LocalDateTime reviewedAt;
     private BigDecimal modelProbability;
     private String modelLabelPredicted;
+    private Long followUpTaskId;
+    private LocalDateTime followUpCreatedAt;
+    private String followUpCreatedBy;
 }

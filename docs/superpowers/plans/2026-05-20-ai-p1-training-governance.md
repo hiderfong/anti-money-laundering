@@ -987,7 +987,7 @@ In `AiRiskScoringIntegrationTest.java`, add a new `@Test` method before the clas
 mvn -q test -Dtest=AiRiskScoringIntegrationTest
 ```
 
-Expected: surefire shows Tests run: 3, Failures: 0, Errors: 0. If the new method fails on auth (the @PreAuthorize 401/403), check that the integration test's admin token grants either `ROLE_ADMIN` or `model:manage`/`model:view`; the existing tests in this class already authenticate as `admin` with `admin123`, so they have the broadest scope.
+Expected: surefire shows Tests run: 3, Failures: 0, Errors: 0. If the new method fails on auth (the @PreAuthorize 401/403), check that the integration test's admin token grants either `ROLE_ADMIN` or `model:manage`/`model:view`; the existing tests in this class already authenticate as `admin` with the local test password, so they have the broadest scope.
 
 - [ ] **Step 3: Full AI + monitoring regression**
 

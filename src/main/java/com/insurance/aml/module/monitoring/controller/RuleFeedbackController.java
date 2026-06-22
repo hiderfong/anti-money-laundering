@@ -25,6 +25,7 @@ import java.util.List;
 @RequestMapping("/monitoring/rules/feedback")
 @RequiredArgsConstructor
 @Tag(name = "规则反馈闭环", description = "规则效果评估与阈值优化建议")
+@PreAuthorize("hasRole('ADMIN') or hasAuthority('monitoring:view')")
 public class RuleFeedbackController {
 
     private final RuleFeedbackService ruleFeedbackService;

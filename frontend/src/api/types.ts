@@ -730,12 +730,21 @@ export interface AiRiskReviewPoolItem {
   priorityLevel: string
   verificationBasis: string
   factorSummary: string
+  featureSnapshotJson?: string
+  factorSnapshotJson?: string
+  evidenceSnapshotJson?: string
+  recommendationJson?: string
+  modelProbability?: number
+  modelLabelPredicted?: string
   scoredAt: string
   manualReviewLabel?: string
   manualReviewLabelText?: string
   manualReviewComment?: string
   reviewedBy?: string
   reviewedAt?: string
+  followUpTaskId?: string
+  followUpCreatedAt?: string
+  followUpCreatedBy?: string
 }
 
 export interface AiRiskReviewPoolOverview {
@@ -755,6 +764,16 @@ export interface AiRiskReviewRequest {
   reviewLabel: string
   reviewComment?: string
   reviewer?: string
+}
+
+export interface AiRiskFollowUpTaskRequest {
+  taskType?: 'RECTIFICATION' | 'MONITORING'
+  issueCategory?: string
+  severity?: 'HIGH' | 'MEDIUM' | 'LOW'
+  responsibleDept?: string
+  responsiblePerson?: string
+  deadline?: string
+  comment?: string
 }
 
 // ===================== 法规及资料库模块 =====================
