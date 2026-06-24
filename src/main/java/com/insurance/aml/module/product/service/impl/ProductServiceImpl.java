@@ -240,8 +240,8 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
             return manualDescription;
         }
 
-        String productType = PRODUCT_TYPE_LABEL_MAP.getOrDefault(product.getProductType(), product.getProductType());
-        String paymentMode = PAYMENT_MODE_LABEL_MAP.getOrDefault(product.getPaymentMode(), "未配置");
+        String productType = labelOrDefault(PRODUCT_TYPE_LABEL_MAP, product.getProductType(), "保险");
+        String paymentMode = labelOrDefault(PAYMENT_MODE_LABEL_MAP, product.getPaymentMode(), "未配置");
         String cashValue = Boolean.TRUE.equals(product.getHasCashValue()) ? "具备现金价值" : "无现金价值";
         String investment = Boolean.TRUE.equals(product.getHasInvestmentFeature()) ? "含投资属性" : "不含投资属性";
         String beneficiary = Boolean.TRUE.equals(product.getBeneficiaryChangeable()) ? "受益人可变更" : "受益人不可变更";
@@ -254,6 +254,13 @@ public class ProductServiceImpl extends BaseServiceXImpl<ProductMapper, Product>
                 investment,
                 beneficiary,
                 riskScore);
+    }
+
+    private String labelOrDefault(Map<String, String> labels, String code, String fallback) {
+        if (!StringUtils.hasText(code)) {
+            return fallback;
+        }
+        return labels.getOrDefault(code, code);
     }
 
     private void applyProductDescription(Product product, String description) {
