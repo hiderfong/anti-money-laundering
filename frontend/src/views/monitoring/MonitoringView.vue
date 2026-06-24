@@ -889,6 +889,8 @@ function amountNodeSize(amount: unknown, base = 34) {
  * 根据模式分发到不同的解析器
  */
 function normalizeGraphPayload(payload: any, mode: GraphMode, customerId: string): NormalizedGraph {
+  // 图分析接口可能返回通用 nodes/links，也可能返回各检测场景的专用 DTO。
+  // 页面统一归一化成 NormalizedGraph，后续渲染和统计面板就不需要关心来源差异。
   if (Array.isArray(payload?.nodes) && Array.isArray(payload?.edges || payload?.links)) {
     return normalizeGenericGraph(payload, mode)
   }
@@ -1184,6 +1186,7 @@ function txTargetNode(row: any, parties: ReturnType<typeof parseChainParties>, i
  * 优先选择包含复杂链路的交易，并扩展关联节点
  */
 function pickFallbackRows(customerId: string) {
+  // 回退图谱优先扩展复杂链路交易，保证图数据库未返回关系时仍能展示“多跳/回流”的业务价值。
   const rowContexts = transactions.value.slice(0, 30).map((row, index) => ({
     row,
     index,
@@ -1245,6 +1248,8 @@ function buildFallbackGraphFromTransactions(customerId: string): NormalizedGraph
   })
   let totalAmount = 0
   relatedRows.forEach(({ row, index, parties }) => {
+    // 当前交易列表只有扁平行数据，回退图谱通过“来源 -> 交易 -> 账户/交易对手”
+    // 还原近似资金路径；共用账户会额外拆出账户节点，便于发现关联风险。
     const amount = toAmount(row.amount)
     totalAmount += amount
     const source = txSourceNode(row, parties)
@@ -1370,6 +1375,8 @@ async function refreshGraph(silent = false) {
   try {
     let normalized = normalizeGraphPayload(await fetchGraphPayload(), graphQuery.mode, customerId)
     if (!normalized.links.length) {
+      // 图数据库没有有效关系时不让页面空白，先用当前列表生成业务测试图谱；
+      // 同时通过 graphNotice 明确提示数据来源，避免误认为这是完整图数据库结果。
       const fallback = buildFallbackGraphFromTransactions(customerId)
       if (fallback.nodes.length) {
         normalized = fallback

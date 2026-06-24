@@ -611,6 +611,8 @@ let lifecycleChart: ECharts | null = null
 let healthChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
 
+// 模型管理页面同时承载三类工作台：生命周期治理、AI评分复核池、模型运行可视化。
+// 状态按业务区块分组，避免复核弹窗和模型生命周期弹窗互相污染。
 const overview = reactive({
   totalModels: 0,
   draftModels: 0,
@@ -685,6 +687,7 @@ const aiReviewQuery = reactive({
   subjectType: '',
   riskLevel: '',
   autoLabel: '',
+  // 默认只看 65 分以上且待处理的记录，适合没有专职复核人员时先做风险排序。
   minScore: 65,
   pendingOnly: true
 })
@@ -758,6 +761,7 @@ const manualReviewLabelOptions = [
 ]
 
 const aiFeatureLabels: Array<{ key: string; label: string }> = [
+  // 该映射只影响解释弹窗展示顺序；真实特征快照由后端评分记录保存。
   { key: 'transactionCount90d', label: '近90天交易笔数' },
   { key: 'totalAmount90d', label: '近90天交易总金额' },
   { key: 'maxAmount90d', label: '最大单笔金额' },
@@ -818,6 +822,7 @@ const aiExplainRecommendations = computed<string[]>(() =>
 )
 
 const aiExplainFeatureCards = computed(() =>
+  // 解释弹窗只展示有值的核心特征，避免把空特征噪声暴露给复核人员。
   aiFeatureLabels
     .map(item => ({ ...item, value: formatFeatureValue(aiExplainFeatures.value[item.key]) }))
     .filter(item => item.value !== '-')
@@ -855,6 +860,8 @@ async function loadAiReviewOverview() {
 async function loadAiReviewPool() {
   aiReviewLoading.value = true
   try {
+    // 复核池分页由后端基于评分记录和系统弱标签组装，
+    // 前端只传过滤条件，不在页面端重新推断有效风险/误报。
     const res: any = await modelApi.getAiRiskReviewPool({
       page: aiReviewQuery.page,
       size: aiReviewQuery.size,
@@ -878,6 +885,7 @@ async function refreshAiReview() {
 
 function openAiReview(row: AiRiskReviewPoolItem) {
   currentAiReviewItem.value = row
+  // 系统弱标签只是默认建议，保存后才成为人工复核结论。
   aiReviewForm.reviewLabel = row.manualReviewLabel || labelFromAutoLabel(row.autoLabel)
   aiReviewForm.reviewComment = row.manualReviewComment || ''
   aiReviewDialogVisible.value = true
@@ -910,6 +918,7 @@ function openAiFollowUp(row: AiRiskReviewPoolItem) {
     return
   }
   currentAiFollowUpItem.value = row
+  // 跟进任务默认值按风险等级生成，用户可在弹窗中覆盖责任人、期限和说明。
   Object.assign(aiFollowUpForm, {
     taskType: row.riskLevel === 'LOW' || row.riskLevel === 'MEDIUM' ? 'MONITORING' : 'RECTIFICATION',
     issueCategory: row.riskLevel === 'LOW' || row.riskLevel === 'MEDIUM' ? 'AI持续监控' : 'AI高风险核查',

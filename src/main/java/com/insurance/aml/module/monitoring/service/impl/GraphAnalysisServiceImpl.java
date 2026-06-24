@@ -41,6 +41,10 @@ import java.util.Optional;
  *   (:Customer)-[:OWNS]->(:Account)
  *   (:Account)-[:SENDS]->(:Transaction)
  *   (:Transaction)-[:TO]->(:Account)
+ *   (:Customer)-[:TRANSFERS_TO]->(:Customer)
+ *
+ * 业务上同时保留“账户-交易”细粒度路径和“客户-客户”快速边：
+ * 前者用于资金流向还原，后者用于环形、多层和密度检测，避免每次查询都展开完整交易链。
  *
  * @author AML Team
  */
@@ -237,6 +241,8 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
     /**
      * 环形交易检测
      * 从指定客户出发，检测是否存在环形路径：A -> B -> C -> A
+     *
+     * 查询失败时返回未命中而不是抛出异常，保证交易监测页面不会因图数据库短暂不可用而整体不可用。
      */
     @Override
     public RingTransactionResult detectRingTransactions(Long customerId) {
@@ -326,6 +332,8 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
     /**
      * 多层转账追踪
      * 追踪从指定客户出发的资金流向链，检测多层转账行为
+     *
+     * maxDepth 是业务层级，不是 Cypher path length；账户和交易节点会让图路径长度约等于业务层级的两倍。
      */
     @Override
     public MultiLayerTransferResult traceMultiLayerTransfer(Long customerId, int maxDepth) {
@@ -592,6 +600,8 @@ public class GraphAnalysisServiceImpl implements GraphAnalysisService {
             log.debug("[图分析] 查询对手方客户ID失败: counterpartyName={}, error={}",
                     counterpartyName, e.getMessage());
         }
+        // 对手方不一定已入 KYC 客户表，使用名称 hash 生成稳定 ID，
+        // 让同名交易对手在 Neo4j 中可以聚合成同一个关联节点。
         return Math.abs((long) counterpartyName.hashCode());
     }
 

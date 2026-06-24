@@ -102,6 +102,8 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
         Customer customer = findCustomer(customerId);
         AiRiskFeatureSummaryVO features = featureBuilder.buildCustomerFeatures(customer);
 
+        // 客户评分强调“静态身份 + KYC完整度 + 历史交易/处置 + 关系复杂度”的综合画像。
+        // 各因子保留独立证据，便于前端解释分值来源，也便于后续替换为真实模型特征。
         List<AiRiskFactorVO> factors = new ArrayList<>();
         factorEvaluator.addIdentityFactors(factors, customer);
         factorEvaluator.addKycFactor(factors, features);
@@ -199,6 +201,8 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
             return reviewService.toReviewPoolItem(record);
         }
 
+        // 跟进任务是 AI 识别结果进入人工治理闭环的入口：
+        // 高风险默认生成整改核查，低/中风险可作为持续监控事项沉淀到整改中心。
         AiRiskFollowUpTaskRequest safeRequest = request == null ? new AiRiskFollowUpTaskRequest() : request;
         AiRiskReviewPoolItemVO snapshot = reviewService.toReviewPoolItem(record);
         RectificationTaskRequest taskRequest = new RectificationTaskRequest();
@@ -289,6 +293,8 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
         result.setFeatureSummary(features);
         factors.sort(Comparator.comparingInt(AiRiskFactorVO::getContribution).reversed());
         result.setFactors(factors);
+        // 当前阶段采用可解释因子贡献分累加，保留 0-100 的监管可读区间；
+        // 监督模型概率只作为影子分写入，避免未充分验证的模型直接改变业务结论。
         int score = clamp(factors.stream().mapToInt(AiRiskFactorVO::getContribution).sum());
         result.setScore(score);
         result.setRiskLevel(toRiskLevel(score));
@@ -350,6 +356,8 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
         record.setScore(result.getScore());
         record.setRiskLevel(result.getRiskLevel());
         record.setConfidence(result.getConfidence());
+        // 快照字段用于“事后可解释”：即使客户、交易或规则后续变化，
+        // 复核人员仍能看到当次评分使用的特征、因子、证据和建议。
         record.setFactorSummary(buildFactorSummary(result));
         record.setFeatureSnapshotJson(toJson(result.getFeatureSummary()));
         record.setFactorSnapshotJson(toJson(result.getFactors()));
@@ -462,6 +470,7 @@ public class AiRiskScoringServiceImpl implements AiRiskScoringService {
         if (requestedDeadline != null && !requestedDeadline.isBefore(today)) {
             return requestedDeadline;
         }
+        // 未指定期限时按风险强度自动压缩处理时限，保证极高风险评分优先进入人工核查。
         int score = record.getScore() == null ? 0 : record.getScore();
         if (score >= 85 || "CRITICAL".equals(record.getRiskLevel())) {
             return today.plusDays(3);

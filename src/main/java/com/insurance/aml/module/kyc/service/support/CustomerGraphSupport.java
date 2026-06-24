@@ -13,6 +13,9 @@ import java.util.Objects;
 
 /**
  * 客户关系图谱节点、关系和字段转换辅助逻辑。
+ *
+ * <p>该类只负责“把分散业务数据整理成前端可视化结构”，不访问数据库。
+ * 节点与关系的业务含义由调用方决定，这里统一处理去重、类型转换、摘要和洞察文案。</p>
  */
 public final class CustomerGraphSupport {
 
@@ -134,6 +137,8 @@ public final class CustomerGraphSupport {
                                         List<Map<String, Object>> cases,
                                         List<Map<String, Object>> strReports,
                                         List<Map<String, Object>> screeningResults) {
+        // 摘要卡片用于让用户先判断图谱规模和风险来源，
+        // 因此统计口径与节点/关系保持一致，避免前端再次聚合产生偏差。
         CustomerRelationshipGraphVO.Summary summary = graph.getSummary();
         summary.setNodeCount(graph.getNodes().size());
         summary.setLinkCount(graph.getLinks().size());
@@ -159,6 +164,8 @@ public final class CustomerGraphSupport {
     }
 
     public static List<String> buildGraphInsights(CustomerVO customerVO, CustomerRelationshipGraphVO.Summary summary) {
+        // 洞察文案只做“辅助阅读”，不作为自动处置依据；
+        // 正式判断仍由预警、案件、STR 和人工复核流程完成。
         List<String> insights = new ArrayList<>();
         insights.add("已串联客户、受益关系、保单产品、交易行为与处置链路，共 " + summary.getNodeCount() + " 个节点、" + summary.getLinkCount() + " 条关系。");
         if (summary.getWatchlistHitCount() > 0 || Boolean.TRUE.equals(customerVO.getIsPep()) || Boolean.TRUE.equals(customerVO.getIsSanctioned())) {

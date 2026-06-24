@@ -76,6 +76,8 @@ public class AiRiskReviewService {
     }
 
     public AiRiskReviewPoolOverviewVO reviewPoolOverview() {
+        // 概览不是简单按分数聚合，而是把系统弱标签、人工复核状态和处置链路印证合并后统计，
+        // 便于在没有专职复核人员时先按优先级做抽查。
         List<AiRiskReviewPoolItemVO> items = scoreRecordMapper.selectList(new LambdaQueryWrapper<AiRiskScoreRecord>()
                         .orderByDesc(AiRiskScoreRecord::getScoredAt))
                 .stream()
@@ -174,6 +176,8 @@ public class AiRiskReviewService {
             wrapper.last("LIMIT " + maxRows);
         }
 
+        // autoLabel/pendingOnly 依赖处置链路推断，无法完全下推到单表 SQL；
+        // 先按基础字段收窄数据，再在内存中补充弱标签过滤。
         return scoreRecordMapper.selectList(wrapper).stream()
                 .map(this::toReviewPoolItem)
                 .filter(item -> !StringUtils.hasText(request.getAutoLabel()) || request.getAutoLabel().equals(item.getAutoLabel()))
@@ -201,6 +205,8 @@ public class AiRiskReviewService {
     }
 
     public AiRiskReviewPoolItemVO toReviewPoolItem(AiRiskScoreRecord record) {
+        // 待复核池展示的不是原始评分记录，而是“评分记录 + 系统弱标签 + 验证依据”的复合视图。
+        // 这样前端可以直接解释为什么某条评分被排到 P0/P1，而不需要重复拼接处置链路。
         String autoLabel = inferAutoLabel(record);
         String basis = buildVerificationBasis(record, autoLabel);
         return AiRiskReviewPoolItemVO.builder()
@@ -240,6 +246,8 @@ public class AiRiskReviewService {
     }
 
     private String inferAutoLabel(AiRiskScoreRecord record) {
+        // 弱标签只用于排序和抽查，不等同于正式人工复核结论。
+        // 正样本优先看确认可疑、案件、STR 等处置闭环；负样本只在明确排除时成立。
         if (hasExcludedDisposition(record)) {
             return AUTO_LABEL_FALSE_POSITIVE;
         }
@@ -327,6 +335,8 @@ public class AiRiskReviewService {
     }
 
     private String buildVerificationBasis(AiRiskScoreRecord record, String autoLabel) {
+        // 验证依据面向业务人员展示，因此用处置链路语言解释，
+        // 避免直接暴露数据库字段或模型内部指标。
         if (AUTO_LABEL_FALSE_POSITIVE.equals(autoLabel)) {
             return "处置链路显示已排除或疑似误报，可作为弱负样本观察。";
         }

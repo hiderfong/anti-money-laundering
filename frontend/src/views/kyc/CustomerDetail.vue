@@ -341,13 +341,14 @@ let echartsModule: EchartsModule | null = null
 let resizeHandler: (() => void) | null = null
 let isMounted = false
 
-// Data
+// 页面基础数据：客户主档、360视图、AI评分和关系图谱分开保存，
+// 便于详情、画像、图谱三个区域独立刷新。
 const customer = ref<any>({})
 const beneficialOwners = ref<any[]>([])
 const verificationRecords = ref<any[]>([])
 const riskRatingLogs = ref<any[]>([])
 
-// Computed
+// 展示层枚举映射：后端保留稳定代码值，前端负责转换成业务人员可读文本。
 const riskTagType = computed(() => {
   const map: Record<string, string> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger', CRITICAL: 'danger' }
   return (map[customer.value.riskLevel] || 'info') as any
@@ -389,6 +390,8 @@ const statusText = computed(() => {
 })
 
 const profileDimensions = computed(() => {
+  // 客户画像雷达图不是新的自动评级模型，而是把已有 AI 分、KYC、名单、
+  // 交易预警和受益关系归一化到 0-100，辅助人工快速发现风险来源。
   const riskScore = clampScore(aiRisk.value?.score ?? customer.value.riskScore ?? riskLevelScore(customer.value.riskLevel))
   const identitySensitivity = clampScore(
     (customer.value.isSanctioned ? 100 : 0)
@@ -680,6 +683,7 @@ async function renderProfileRadar() {
   }
 
   const dimensions = profileDimensions.value
+  // 雷达图每个维度都有解释文案，避免用户把单一维度误读为最终风险等级。
   radarChart.setOption({
     color: [theme.accent],
     tooltip: {
@@ -785,6 +789,7 @@ async function renderRelationshipGraph() {
     ensureResizeHandler()
   }
 
+  // 后端返回的是业务图谱语义，前端在这里补足 ECharts 所需的分类、大小和高风险高亮。
   const data = nodes.map((node: any) => {
     const categoryIndex = relationshipCategoryIndex(node.category, node.type)
     return {
@@ -890,7 +895,7 @@ async function renderRelationshipGraph() {
   relationChart.resize()
 }
 
-// API calls
+// API 调用：详情页首次加载并行取客户主档和 360 视图，AI评分和关系图谱单独刷新。
 async function fetchCustomerDetail() {
   loading.value = true
   try {

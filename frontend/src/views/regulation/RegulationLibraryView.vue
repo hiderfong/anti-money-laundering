@@ -271,6 +271,8 @@ let docTypeChart: ECharts | null = null
 let updateTimelineChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
 
+// 法规资料库复用同一套列表组件展示“知识库资料”和“监管/行业动态”。
+// activeTab 决定请求哪个接口，query 保持统一，方便后续扩展全文检索条件。
 const overview = reactive({
   totalDocuments: 0,
   regulationDocuments: 0,
@@ -381,6 +383,7 @@ async function loadCategories() {
 async function loadDocuments() {
   loading.value = true
   try {
+    // 两个页签字段一致，但数据语义不同：documents 面向知识库沉淀，updates 面向外部动态跟踪。
     const params = {
       page: query.page,
       size: query.size,
@@ -582,6 +585,7 @@ async function renderDocTypeChart() {
   const echarts = await getEcharts()
   if (!docTypeChart) docTypeChart = echarts.init(container)
 
+  // 资料类型占比用于判断知识库是否偏科，例如只有制度文件而缺少培训素材。
   const data = [
     { name: '法律法规', value: overview.regulationDocuments, itemStyle: { color: '#2563eb' } },
     { name: '制度文件', value: overview.policyDocuments, itemStyle: { color: '#16a34a' } },
@@ -617,6 +621,7 @@ async function renderUpdateTimelineChart() {
   const echarts = await getEcharts()
   if (!updateTimelineChart) updateTimelineChart = echarts.init(container)
 
+  // 动态趋势只基于当前列表计算，配合筛选条件可以查看某类监管动态的时间分布。
   const monthMap = new Map<string, { total: number; important: number }>()
   documents.value.forEach(item => {
     const key = monthLabel(item.publishDate)

@@ -179,7 +179,50 @@ npx playwright install chromium
 
 ---
 
-## 5.1 运行客户管理真实 UI 闭环 E2E
+## 5.1 运行全量人工仿真浏览器 E2E
+
+该脚本适合在本机、局域网测试服务器或外部 Agent 环境执行。它会使用真实浏览器登录、逐页巡检核心菜单、截图留痕，并核对客户、交易、预警、案件、报送、自评估、整改、模型、法规资料库、AI 风险复核池、交易图谱和预警处置链路等关键数据。
+
+```bash
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_USERNAME=admin \
+E2E_PASSWORD=<测试密码> \
+E2E_RUN_ID=$(date +%Y%m%d%H%M%S) \
+bash scripts/full-human-like-browser-e2e.sh
+```
+
+也可以在前端目录内直接运行：
+
+```bash
+cd frontend
+FRONTEND_URL=http://127.0.0.1:5173 \
+E2E_USERNAME=admin \
+E2E_PASSWORD=<测试密码> \
+npm run e2e:human-like
+```
+
+默认输出：
+
+- Markdown 报告：`/tmp/aml-human-like-browser-e2e/<E2E_RUN_ID>/human-like-browser-e2e-report.md`
+- 页面截图：`/tmp/aml-human-like-browser-e2e/<E2E_RUN_ID>/screenshots`
+
+可选环境变量：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `HUMAN_E2E_ARTIFACT_DIR` | `/tmp/aml-human-like-browser-e2e` | 报告和截图根目录 |
+| `HUMAN_E2E_REPORT` | 自动生成 | 指定 Markdown 报告路径 |
+| `HUMAN_E2E_GRAPH_CUSTOMER_ID` | `18` | 用于客户关系图谱和交易图谱核对的客户 ID |
+| `HUMAN_E2E_ALERT_ID` | `17` | 用于预警处置链路核对的预警 ID |
+| `HUMAN_E2E_DENSITY_THRESHOLD` | `4` | 交易异常网络密度检测阈值 |
+| `HUMAN_E2E_SYNC_GRAPH` | `false` | 设置为 `true` 时会先调用图数据库同步接口 |
+| `HEADLESS` | `true` | 设置为 `false` 可显示浏览器，便于观察人工仿真动作 |
+
+建议在补充测试数据后运行；如果目标环境客户 ID 或预警 ID 不同，通过 `HUMAN_E2E_GRAPH_CUSTOMER_ID` 和 `HUMAN_E2E_ALERT_ID` 指定对应记录。
+
+---
+
+## 5.2 运行客户管理真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -205,7 +248,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:customer
 
 ---
 
-## 5.2 运行名单筛查真实 UI 闭环 E2E
+## 5.3 运行名单筛查真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -231,7 +274,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:screening
 
 ---
 
-## 5.3 运行交易监测真实 UI 闭环 E2E
+## 5.4 运行交易监测真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -257,7 +300,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:monitoring
 
 ---
 
-## 5.4 运行预警管理真实 UI 闭环 E2E
+## 5.5 运行预警管理真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -283,7 +326,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:alert
 
 ---
 
-## 5.5 运行案件管理真实 UI 闭环 E2E
+## 5.6 运行案件管理真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -310,7 +353,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:case
 
 ---
 
-## 5.6 运行 STR 报告真实 UI 闭环 E2E
+## 5.7 运行 STR 报告真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -336,7 +379,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:str-report
 
 ---
 
-## 5.7 运行大额交易报告真实 UI 闭环 E2E
+## 5.8 运行大额交易报告真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -363,7 +406,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:large-report
 
 ---
 
-## 5.8 运行产品管理真实 UI 闭环 E2E
+## 5.9 运行产品管理真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -391,7 +434,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:product
 
 ---
 
-## 5.9 运行风险自评估真实 UI 闭环 E2E
+## 5.10 运行风险自评估真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -419,7 +462,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:assessment
 
 ---
 
-## 5.10 运行整改中心真实 UI 闭环 E2E
+## 5.11 运行整改中心真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
@@ -447,7 +490,7 @@ FRONTEND_URL=http://127.0.0.1:5173 npm run e2e:rectification
 
 ---
 
-## 5.11 运行通知中心案件通知真实 UI 闭环 E2E
+## 5.12 运行通知中心案件通知真实 UI 闭环 E2E
 
 ```bash
 FRONTEND_URL=http://127.0.0.1:5173 \
