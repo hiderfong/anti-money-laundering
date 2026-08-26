@@ -1,5 +1,6 @@
 package com.insurance.aml.module.reporting.controller;
 
+import com.insurance.aml.common.annotation.AuditLog;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.Result;
 import com.insurance.aml.module.reporting.model.dto.LargeTxnReportQueryRequest;
@@ -32,6 +33,7 @@ public class ReportingController {
     @PostMapping("/large-txn/generate")
     @Operation(summary = "生成大额交易报告", description = "根据交易ID生成大额交易报告草稿")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
+    @AuditLog(module = "监管报送", operationType = "CREATE", description = "生成大额交易报告")
     public Result<LargeTxnReport> generateReport(
             @Parameter(description = "交易ID", required = true) @RequestParam Long transactionId) {
         log.info("接收到生成大额交易报告请求，交易ID：{}", transactionId);
@@ -45,6 +47,7 @@ public class ReportingController {
     @PostMapping("/large-txn/{id}/review")
     @Operation(summary = "审核大额交易报告", description = "审核指定的大额交易报告")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
+    @AuditLog(module = "监管报送", operationType = "REVIEW", description = "审核大额交易报告")
     public Result<Void> reviewReport(
             @Parameter(description = "报告ID", required = true) @PathVariable Long id,
             @Parameter(description = "审核人", required = true) @RequestParam String reviewedBy) {
@@ -59,6 +62,7 @@ public class ReportingController {
     @PostMapping("/large-txn/{id}/submit")
     @Operation(summary = "提交大额交易报告", description = "将审核通过的报告提交至监管机构")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
+    @AuditLog(module = "监管报送", operationType = "SUBMIT", description = "提交大额交易报告")
     public Result<Void> submitReport(
             @Parameter(description = "报告ID", required = true) @PathVariable Long id) {
         log.info("接收到提交大额交易报告请求，报告ID：{}", id);
@@ -97,6 +101,7 @@ public class ReportingController {
     @PostMapping("/large-txn/retry-failed")
     @Operation(summary = "重试失败提交", description = "重试所有提交失败的大额交易报告")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
+    @AuditLog(module = "监管报送", operationType = "RETRY", description = "批量重试失败的大额交易报告")
     public Result<Void> retryFailedSubmissions() {
         log.info("接收到重试失败提交请求");
         largeTxnReportService.retryFailedSubmissions();

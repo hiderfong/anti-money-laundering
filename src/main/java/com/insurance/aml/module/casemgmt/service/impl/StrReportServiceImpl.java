@@ -19,10 +19,7 @@ import com.insurance.aml.module.casemgmt.service.CaseService;
 import com.insurance.aml.module.casemgmt.service.StrReportService;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.kyc.model.entity.Customer;
-import com.insurance.aml.module.reporting.mapper.ReportSubmitLogMapper;
-import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
-import com.insurance.aml.module.reporting.service.XmlGeneratorService;
-import com.insurance.aml.common.enums.SubmitStatus;
+import com.insurance.aml.module.reporting.service.RegulatorySubmissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -51,8 +48,7 @@ public class StrReportServiceImpl implements StrReportService {
     private final CaseMapper caseMapper;
     private final CustomerMapper customerMapper;
     private final IdGenerator idGenerator;
-    private final XmlGeneratorService xmlGeneratorService;
-    private final ReportSubmitLogMapper reportSubmitLogMapper;
+    private final RegulatorySubmissionService regulatorySubmissionService;
     @Lazy
     private final CaseService caseService;
 
@@ -196,27 +192,7 @@ public class StrReportServiceImpl implements StrReportService {
                     "只有已批准的报告才能提交至监管机构，当前状态=" + report.getReportStatus());
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        String xmlContent = xmlGeneratorService.generateSuspiciousTxnXml(report);
-        String responseData = buildRegulatorAcceptanceResponse(report);
-
-        report.setReportStatus(ReportStatus.SUBMITTED.getCode());
-        report.setSubmitTime(now);
-        report.setSubmitResult(responseData);
-        report.setUpdatedTime(now);
-        strReportMapper.updateById(report);
-
-        ReportSubmitLog submitLog = new ReportSubmitLog();
-        submitLog.setReportType("SUSPICIOUS");
-        submitLog.setReportId(reportId);
-        submitLog.setSubmitTime(now);
-        submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
-        submitLog.setRequestData(xmlContent);
-        submitLog.setResponseData(responseData);
-        submitLog.setRetryCount(0);
-        submitLog.setMaxRetries(3);
-        submitLog.setCreatedTime(now);
-        reportSubmitLogMapper.insert(submitLog);
+        regulatorySubmissionService.submitInitial("SUSPICIOUS", reportId, null);
 
         log.info("可疑交易报告已提交至监管机构，reportId={}", reportId);
     }
@@ -232,18 +208,6 @@ public class StrReportServiceImpl implements StrReportService {
 
         enrichReports(Collections.singletonList(report));
         return report;
-    }
-
-    private String buildRegulatorAcceptanceResponse(StrReport report) {
-        String receiptNo = "RCPT-SUSPICIOUS-" + report.getReportNo() + "-" + System.currentTimeMillis();
-        Long submittedBy = SecurityUtils.getCurrentUserId();
-        return String.format(
-                "{\"status\":\"ACCEPTED\",\"receiptNo\":\"%s\",\"reportType\":\"SUSPICIOUS\",\"reportNo\":\"%s\",\"submittedBy\":\"%s\",\"acceptedAt\":\"%s\"}",
-                receiptNo,
-                report.getReportNo(),
-                submittedBy == null ? "system" : submittedBy,
-                LocalDateTime.now()
-        );
     }
 
     private void enrichReports(List<StrReport> reports) {

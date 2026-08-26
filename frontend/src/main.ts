@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { ElAlert } from 'element-plus/es/components/alert/index.mjs'
 import { ElAside, ElContainer, ElHeader, ElMain } from 'element-plus/es/components/container/index.mjs'
 import { ElBreadcrumb, ElBreadcrumbItem } from 'element-plus/es/components/breadcrumb/index.mjs'
+import { ElBadge } from 'element-plus/es/components/badge/index.mjs'
 import { ElButton } from 'element-plus/es/components/button/index.mjs'
 import { ElCard } from 'element-plus/es/components/card/index.mjs'
 import { ElCheckbox, ElCheckboxGroup } from 'element-plus/es/components/checkbox/index.mjs'
@@ -12,6 +13,7 @@ import { ElConfigProvider } from 'element-plus/es/components/config-provider/ind
 import { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
 import { ElDescriptions, ElDescriptionsItem } from 'element-plus/es/components/descriptions/index.mjs'
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
+import { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
 import { ElDivider } from 'element-plus/es/components/divider/index.mjs'
 import { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus/es/components/dropdown/index.mjs'
 import { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
@@ -28,6 +30,7 @@ import { ElPopconfirm } from 'element-plus/es/components/popconfirm/index.mjs'
 import { ElProgress } from 'element-plus/es/components/progress/index.mjs'
 import { ElRadio, ElRadioButton, ElRadioGroup } from 'element-plus/es/components/radio/index.mjs'
 import { ElScrollbar } from 'element-plus/es/components/scrollbar/index.mjs'
+import { ElSegmented } from 'element-plus/es/components/segmented/index.mjs'
 import { ElSlider } from 'element-plus/es/components/slider/index.mjs'
 import { ElSwitch } from 'element-plus/es/components/switch/index.mjs'
 import { ElTabPane, ElTabs } from 'element-plus/es/components/tabs/index.mjs'
@@ -35,6 +38,8 @@ import { ElTable, ElTableColumn } from 'element-plus/es/components/table/index.m
 import { ElTag } from 'element-plus/es/components/tag/index.mjs'
 import { ElTimeline, ElTimelineItem } from 'element-plus/es/components/timeline/index.mjs'
 import { ElTooltip } from 'element-plus/es/components/tooltip/index.mjs'
+import { ElTree } from 'element-plus/es/components/tree/index.mjs'
+import { ElTreeSelect } from 'element-plus/es/components/tree-select/index.mjs'
 import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './assets/theme.css'
@@ -49,6 +54,7 @@ const app = createApp(App)
 const elementComponents = [
   ElAlert,
   ElAside,
+  ElBadge,
   ElBreadcrumb,
   ElBreadcrumbItem,
   ElButton,
@@ -62,6 +68,7 @@ const elementComponents = [
   ElDescriptions,
   ElDescriptionsItem,
   ElDialog,
+  ElDrawer,
   ElDivider,
   ElDropdown,
   ElDropdownItem,
@@ -89,6 +96,7 @@ const elementComponents = [
   ElSelect,
   ElSlider,
   ElScrollbar,
+  ElSegmented,
   ElSwitch,
   ElTabPane,
   ElTable,
@@ -97,7 +105,9 @@ const elementComponents = [
   ElTag,
   ElTimeline,
   ElTimelineItem,
-  ElTooltip
+  ElTooltip,
+  ElTree,
+  ElTreeSelect
 ]
 
 for (const component of elementComponents) {

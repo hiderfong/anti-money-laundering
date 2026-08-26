@@ -7,6 +7,8 @@ describe('router permission metadata', () => {
     expectRouteAccess('/reporting', ['ROLE_ADMIN', 'ROLE_COMPLIANCE'], ['report:view'])
     expectRouteAccess('/special-prevention', ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], ['special:view'])
     expectRouteAccess('/rectifications', ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], ['rectification:view'])
+    expectRouteAccess('/organizations', ['ROLE_ADMIN', 'ROLE_AML_MANAGER', 'ROLE_AML_OFFICER', 'ROLE_COMPLIANCE'], ['organization:view'])
+    expectRouteAccess('/integrations', ['ROLE_ADMIN', 'ROLE_AML_MANAGER', 'ROLE_COMPLIANCE'], ['integration:view'])
     expectRouteAccess('/system', ['ROLE_ADMIN'], ['system:view'])
   })
 

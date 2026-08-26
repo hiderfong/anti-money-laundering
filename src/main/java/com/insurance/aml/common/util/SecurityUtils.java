@@ -76,4 +76,17 @@ public final class SecurityUtils {
         }
         return null;
     }
+
+    /**
+     * 判断当前用户是否拥有指定角色。Spring Security 中角色会以 ROLE_ 前缀保存。
+     */
+    public static boolean hasRole(String role) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+        return authentication.getAuthorities().stream()
+                .anyMatch(item -> authority.equals(item.getAuthority()));
+    }
 }

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS t_user (
   phone VARCHAR(128),
   department VARCHAR(128),
   position VARCHAR(64),
+  organization_id BIGINT,
   status VARCHAR(16) DEFAULT 'ENABLED',
   last_login_time TIMESTAMP,
   last_login_ip VARCHAR(45),
@@ -648,10 +649,13 @@ CREATE TABLE IF NOT EXISTS t_report_submit_log (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   report_type VARCHAR(32) NOT NULL,
   report_id BIGINT NOT NULL,
+  submission_id BIGINT,
   submit_time TIMESTAMP NOT NULL,
   submit_status VARCHAR(16) NOT NULL,
   request_data CLOB,
   response_data VARCHAR(2048),
+  external_request_id VARCHAR(128),
+  receipt_no VARCHAR(128),
   error_message VARCHAR(512),
   retry_count INT DEFAULT 0,
   max_retries INT DEFAULT 3,
@@ -873,6 +877,240 @@ CREATE TABLE IF NOT EXISTS t_regulation_document (
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS t_aml_organization (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  org_code VARCHAR(64) NOT NULL UNIQUE,
+  org_name VARCHAR(256) NOT NULL,
+  unified_credit_code VARCHAR(32) NOT NULL UNIQUE,
+  lei_code VARCHAR(32),
+  org_type VARCHAR(32) NOT NULL,
+  parent_id BIGINT,
+  registered_address VARCHAR(512),
+  business_address VARCHAR(512),
+  legal_representative VARCHAR(128),
+  registered_capital DECIMAL(18,2),
+  business_scope CLOB,
+  regulator_name VARCHAR(256),
+  status VARCHAR(16) DEFAULT 'DISABLED',
+  registration_status VARCHAR(32) DEFAULT 'DRAFT',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_aml_org_person (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT NOT NULL,
+  person_type VARCHAR(32) NOT NULL,
+  person_name VARCHAR(128) NOT NULL,
+  title VARCHAR(128),
+  department VARCHAR(128),
+  phone VARCHAR(32),
+  email VARCHAR(128),
+  start_date DATE,
+  end_date DATE,
+  financial_experience VARCHAR(512),
+  primary_flag BOOLEAN DEFAULT FALSE,
+  status VARCHAR(16) DEFAULT 'ENABLED',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_aml_org_shareholder (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT NOT NULL,
+  shareholder_name VARCHAR(256) NOT NULL,
+  shareholder_type VARCHAR(32) NOT NULL,
+  registration_code VARCHAR(64),
+  ownership_percentage DECIMAL(7,4) NOT NULL,
+  controlling_flag BOOLEAN DEFAULT FALSE,
+  status VARCHAR(16) DEFAULT 'ENABLED',
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_aml_org_registration (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  registration_no VARCHAR(64) NOT NULL UNIQUE,
+  organization_id BIGINT NOT NULL,
+  registration_type VARCHAR(32) NOT NULL,
+  version INT DEFAULT 1,
+  status VARCHAR(32) DEFAULT 'DRAFT',
+  commitment_accepted BOOLEAN DEFAULT FALSE,
+  snapshot_json CLOB,
+  submitted_by VARCHAR(64),
+  submitted_at TIMESTAMP,
+  reviewed_by VARCHAR(64),
+  reviewed_at TIMESTAMP,
+  review_opinion VARCHAR(1024),
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_aml_org_review_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  registration_id BIGINT NOT NULL,
+  action_type VARCHAR(32) NOT NULL,
+  from_status VARCHAR(32),
+  to_status VARCHAR(32) NOT NULL,
+  opinion VARCHAR(1024),
+  operator VARCHAR(64),
+  operated_at TIMESTAMP NOT NULL,
+  created_by VARCHAR(64),
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64),
+  updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_integration_connector (
+    id BIGINT PRIMARY KEY,
+    connector_code VARCHAR(64) NOT NULL UNIQUE,
+    connector_name VARCHAR(128) NOT NULL,
+    business_type VARCHAR(64) NOT NULL,
+    transport_type VARCHAR(32) NOT NULL,
+    endpoint_url VARCHAR(512) NOT NULL,
+    auth_type VARCHAR(32) NOT NULL DEFAULT 'NONE',
+    credential_ref VARCHAR(128),
+    status VARCHAR(16) NOT NULL DEFAULT 'ENABLED',
+    health_status VARCHAR(16) NOT NULL DEFAULT 'UNKNOWN',
+    timeout_seconds INT NOT NULL DEFAULT 30,
+    max_retries INT NOT NULL DEFAULT 2,
+    retry_interval_seconds INT NOT NULL DEFAULT 30,
+    last_health_check_time TIMESTAMP,
+    last_success_time TIMESTAMP,
+    last_failure_time TIMESTAMP,
+    last_error_message VARCHAR(1024),
+    description VARCHAR(512),
+    created_by VARCHAR(64),
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(64),
+    updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS t_integration_job (
+    id BIGINT PRIMARY KEY,
+    job_code VARCHAR(64) NOT NULL UNIQUE,
+    job_name VARCHAR(128) NOT NULL,
+    connector_id BIGINT NOT NULL,
+    business_object VARCHAR(64) NOT NULL,
+    direction VARCHAR(16) NOT NULL,
+    cron_expression VARCHAR(64) NOT NULL,
+    batch_size INT NOT NULL DEFAULT 1000,
+    max_retries INT NOT NULL DEFAULT 2,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    execution_status VARCHAR(16) NOT NULL DEFAULT 'IDLE',
+    last_run_time TIMESTAMP,
+    next_run_time TIMESTAMP,
+    description VARCHAR(512),
+    created_by VARCHAR(64),
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(64),
+    updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_integration_job_connector FOREIGN KEY (connector_id) REFERENCES t_integration_connector(id)
+);
+
+CREATE TABLE IF NOT EXISTS t_integration_run (
+    id BIGINT PRIMARY KEY,
+    run_no VARCHAR(64) NOT NULL UNIQUE,
+    job_id BIGINT,
+    connector_id BIGINT NOT NULL,
+    retry_of_run_id BIGINT,
+    trigger_type VARCHAR(32) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    attempt_count INT NOT NULL DEFAULT 0,
+    retry_count INT NOT NULL DEFAULT 0,
+    records_read INT NOT NULL DEFAULT 0,
+    records_written INT NOT NULL DEFAULT 0,
+    records_skipped INT NOT NULL DEFAULT 0,
+    error_count INT NOT NULL DEFAULT 0,
+    started_time TIMESTAMP NOT NULL,
+    completed_time TIMESTAMP,
+    duration_ms BIGINT,
+    request_summary VARCHAR(1024),
+    response_summary VARCHAR(1024),
+    error_message VARCHAR(1024),
+    trace_id VARCHAR(64),
+    executed_by VARCHAR(64),
+    created_by VARCHAR(64),
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(64),
+    updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_integration_run_job FOREIGN KEY (job_id) REFERENCES t_integration_job(id),
+    CONSTRAINT fk_integration_run_connector FOREIGN KEY (connector_id) REFERENCES t_integration_connector(id)
+);
+
+CREATE TABLE IF NOT EXISTS t_regulatory_submission (
+    id BIGINT PRIMARY KEY,
+    submission_no VARCHAR(64) NOT NULL UNIQUE,
+    report_type VARCHAR(32) NOT NULL,
+    report_id BIGINT NOT NULL,
+    report_no VARCHAR(64) NOT NULL,
+    version_no INT NOT NULL DEFAULT 1,
+    parent_submission_id BIGINT,
+    connector_id BIGINT NOT NULL,
+    status VARCHAR(24) NOT NULL,
+    schema_version VARCHAR(64) NOT NULL,
+    payload_format VARCHAR(16) NOT NULL DEFAULT 'XML',
+    payload_content CLOB,
+    payload_hash VARCHAR(128),
+    signature_algorithm VARCHAR(64),
+    signature_value VARCHAR(1024),
+    external_request_id VARCHAR(128),
+    submitted_by VARCHAR(64),
+    submitted_time TIMESTAMP,
+    completed_time TIMESTAMP,
+    receipt_status VARCHAR(24),
+    receipt_no VARCHAR(128),
+    receipt_time TIMESTAMP,
+    return_code VARCHAR(64),
+    return_message VARCHAR(1024),
+    correction_note VARCHAR(1024),
+    failure_stage VARCHAR(32),
+    error_message VARCHAR(1024),
+    retry_count INT NOT NULL DEFAULT 0,
+    created_by VARCHAR(64),
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(64),
+    updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_regulatory_report_version UNIQUE (report_type, report_id, version_no),
+    CONSTRAINT fk_regulatory_submission_connector FOREIGN KEY (connector_id) REFERENCES t_integration_connector(id),
+    CONSTRAINT fk_regulatory_submission_parent FOREIGN KEY (parent_submission_id) REFERENCES t_regulatory_submission(id)
+);
+
+CREATE TABLE IF NOT EXISTS t_regulatory_receipt (
+    id BIGINT PRIMARY KEY,
+    submission_id BIGINT NOT NULL,
+    receipt_no VARCHAR(128),
+    receipt_status VARCHAR(24) NOT NULL,
+    receipt_code VARCHAR(64),
+    receipt_message VARCHAR(1024),
+    receipt_payload CLOB,
+    received_time TIMESTAMP NOT NULL,
+    receipt_source VARCHAR(32) NOT NULL,
+    created_by VARCHAR(64),
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(64),
+    updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_regulatory_receipt_submission FOREIGN KEY (submission_id) REFERENCES t_regulatory_submission(id)
+);
+
+INSERT INTO t_integration_connector (
+    id, connector_code, connector_name, business_type, transport_type, endpoint_url,
+    auth_type, status, health_status, timeout_seconds, max_retries, retry_interval_seconds,
+    description, created_by, updated_by
+) VALUES (
+    99001, 'TEST_REGULATOR_GATEWAY', '测试监管报送网关', 'REGULATORY_REPORTING', 'MOCK',
+    'mock://success?receipt=ACCEPTED', 'NONE', 'ENABLED', 'HEALTHY', 30, 2, 0,
+    '仅用于H2集成测试', 'system', 'system'
+);
+
 -- 插入测试数据，admin 密码为 admin123
 INSERT INTO t_user (id, username, password_hash, real_name, status) VALUES (1, 'admin', '$2a$10$c4ISGZ.nKFX0iC34wYd.8.OdmgqOLJXsrmyMocQY67X4j9gjoFojq', '系统管理员', 'ENABLED');
 INSERT INTO t_role (id, role_code, role_name) VALUES (1, 'ROLE_ADMIN', '系统管理员');
@@ -890,6 +1128,10 @@ INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (11, 'regulation:view', '法规资料库查看', 'API', '/regulation-library', 11, 'ENABLED');
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (12, 'regulation:manage', '法规资料库管理', 'API', '/regulation-library', 12, 'ENABLED');
 INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (13, 'MENU_REGULATION_LIBRARY', '法规及资料库菜单', 'MENU', '/regulation-library', 13, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (14, 'MENU_ORGANIZATION', '机构治理菜单', 'MENU', '/organizations', 14, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (15, 'organization:view', '机构治理查看', 'API', '/organizations', 15, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (16, 'organization:manage', '机构治理维护', 'API', '/organizations', 16, 'ENABLED');
+INSERT INTO t_permission (id, permission_code, permission_name, type, path, sort_order, status) VALUES (17, 'organization:review', '机构治理审批', 'API', '/organizations', 17, 'ENABLED');
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 1);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 2);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 3);
@@ -903,6 +1145,10 @@ INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 10);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 11);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 12);
 INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 13);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 14);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 15);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 16);
+INSERT INTO t_role_permission (role_id, permission_id) VALUES (1, 17);
 
 INSERT INTO t_aml_model (
   id, model_code, model_name, model_type, scenario, algorithm_type, version, lifecycle_status,

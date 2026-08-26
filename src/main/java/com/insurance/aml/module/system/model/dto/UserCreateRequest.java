@@ -59,4 +59,10 @@ public class UserCreateRequest implements Serializable {
      */
     @Schema(description = "职位")
     private String position;
+
+    /**
+     * 所属反洗钱机构ID
+     */
+    @Schema(description = "所属反洗钱机构ID")
+    private Long organizationId;
 }

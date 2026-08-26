@@ -57,6 +57,10 @@ import type {
   ReportingPageParams,
   ReportingRecord,
   ReportReviewParams,
+  RegulatorySubmissionOverview,
+  RegulatorySubmissionPageParams,
+  RegulatorySubmission,
+  RegulatorySubmissionDetail,
   // 产品
   ProductPageParams,
   ProductInfo,
@@ -97,6 +101,28 @@ import type {
   RegulationDocument,
   RegulationDocumentParams,
   RegulationOverview,
+  // 机构治理
+  AmlOrganization,
+  OrganizationPageParams,
+  OrganizationOverview,
+  OrganizationTreeNode,
+  OrganizationDetail,
+  OrganizationParams,
+  OrganizationPerson,
+  OrganizationPersonParams,
+  OrganizationShareholder,
+  OrganizationShareholderParams,
+  OrganizationRegistration,
+  // 外部集成
+  IntegrationOverview,
+  IntegrationConnector,
+  IntegrationConnectorParams,
+  IntegrationConnectorPageParams,
+  IntegrationJob,
+  IntegrationJobParams,
+  IntegrationJobPageParams,
+  IntegrationRun,
+  IntegrationRunPageParams,
   // 系统
   UserPageParams,
   SysUser,
@@ -376,6 +402,27 @@ export const reportingApi = {
   },
 }
 
+export const regulatorySubmissionApi = {
+  getOverview() {
+    return request.get<ApiResponse<RegulatorySubmissionOverview>>('/reporting/submissions/overview')
+  },
+  getPage(params: RegulatorySubmissionPageParams) {
+    return request.get<ApiResponse<PageResult<RegulatorySubmission>>>('/reporting/submissions/page', { params })
+  },
+  getDetail(id: string) {
+    return request.get<ApiResponse<RegulatorySubmissionDetail>>(`/reporting/submissions/${id}`)
+  },
+  submit(data: { reportType: string; reportId: string; connectorId?: string }) {
+    return request.post<ApiResponse<RegulatorySubmission>>('/reporting/submissions', data)
+  },
+  resubmit(id: string, data: { connectorId?: string; correctionNote: string; correctedPayload?: string }) {
+    return request.post<ApiResponse<RegulatorySubmission>>(`/reporting/submissions/${id}/resubmit`, data)
+  },
+  pollReceipt(id: string) {
+    return request.post<ApiResponse<RegulatorySubmission>>(`/reporting/submissions/${id}/poll-receipt`)
+  },
+}
+
 // ====== 产品管理模块 ======
 export const productApi = {
   /** 分页查询产品 */
@@ -593,6 +640,97 @@ export const regulationApi = {
   },
 }
 
+// ====== 机构治理模块 ======
+export const organizationApi = {
+  getOverview() {
+    return request.get<ApiResponse<OrganizationOverview>>('/organizations/overview')
+  },
+  getOrganizations(params: OrganizationPageParams) {
+    return request.get<ApiResponse<PageResult<AmlOrganization>>>('/organizations/page', { params })
+  },
+  getTree() {
+    return request.get<ApiResponse<OrganizationTreeNode[]>>('/organizations/tree')
+  },
+  getDetail(id: string) {
+    return request.get<ApiResponse<OrganizationDetail>>(`/organizations/${id}`)
+  },
+  createOrganization(data: OrganizationParams) {
+    return request.post<ApiResponse<AmlOrganization>>('/organizations', data)
+  },
+  updateOrganization(id: string, data: OrganizationParams) {
+    return request.put<ApiResponse<AmlOrganization>>(`/organizations/${id}`, data)
+  },
+  createPerson(organizationId: string, data: OrganizationPersonParams) {
+    return request.post<ApiResponse<OrganizationPerson>>(`/organizations/${organizationId}/persons`, data)
+  },
+  updatePerson(personId: string, data: OrganizationPersonParams) {
+    return request.put<ApiResponse<OrganizationPerson>>(`/organizations/persons/${personId}`, data)
+  },
+  createShareholder(organizationId: string, data: OrganizationShareholderParams) {
+    return request.post<ApiResponse<OrganizationShareholder>>(`/organizations/${organizationId}/shareholders`, data)
+  },
+  updateShareholder(shareholderId: string, data: OrganizationShareholderParams) {
+    return request.put<ApiResponse<OrganizationShareholder>>(`/organizations/shareholders/${shareholderId}`, data)
+  },
+  createRegistration(organizationId: string) {
+    return request.post<ApiResponse<OrganizationRegistration>>(`/organizations/${organizationId}/registrations`, {
+      commitmentAccepted: true,
+    })
+  },
+  submitRegistration(registrationId: string) {
+    return request.post<ApiResponse<OrganizationRegistration>>(`/organizations/registrations/${registrationId}/submit`)
+  },
+  reviewRegistration(registrationId: string, approved: boolean, opinion?: string) {
+    return request.post<ApiResponse<OrganizationRegistration>>(`/organizations/registrations/${registrationId}/review`, {
+      approved,
+      opinion,
+    })
+  },
+}
+
+// ====== 外部系统集成模块 ======
+export const integrationApi = {
+  getOverview() {
+    return request.get<ApiResponse<IntegrationOverview>>('/integrations/overview')
+  },
+  getConnectors(params: IntegrationConnectorPageParams) {
+    return request.get<ApiResponse<PageResult<IntegrationConnector>>>('/integrations/connectors/page', { params })
+  },
+  getEnabledConnectors() {
+    return request.get<ApiResponse<IntegrationConnector[]>>('/integrations/connectors/enabled')
+  },
+  createConnector(data: IntegrationConnectorParams) {
+    return request.post<ApiResponse<IntegrationConnector>>('/integrations/connectors', data)
+  },
+  updateConnector(id: string, data: IntegrationConnectorParams) {
+    return request.put<ApiResponse<IntegrationConnector>>(`/integrations/connectors/${id}`, data)
+  },
+  testConnector(id: string) {
+    return request.post<ApiResponse<IntegrationRun>>(`/integrations/connectors/${id}/test`)
+  },
+  getJobs(params: IntegrationJobPageParams) {
+    return request.get<ApiResponse<PageResult<IntegrationJob>>>('/integrations/jobs/page', { params })
+  },
+  createJob(data: IntegrationJobParams) {
+    return request.post<ApiResponse<IntegrationJob>>('/integrations/jobs', data)
+  },
+  updateJob(id: string, data: IntegrationJobParams) {
+    return request.put<ApiResponse<IntegrationJob>>(`/integrations/jobs/${id}`, data)
+  },
+  runJob(id: string) {
+    return request.post<ApiResponse<IntegrationRun>>(`/integrations/jobs/${id}/run`)
+  },
+  getRuns(params: IntegrationRunPageParams) {
+    return request.get<ApiResponse<PageResult<IntegrationRun>>>('/integrations/runs/page', { params })
+  },
+  getRun(id: string) {
+    return request.get<ApiResponse<IntegrationRun>>(`/integrations/runs/${id}`)
+  },
+  retryRun(id: string) {
+    return request.post<ApiResponse<IntegrationRun>>(`/integrations/runs/${id}/retry`)
+  },
+}
+
 // ====== 系统管理模块 ======
 export const systemApi = {
   /** 用户列表 */
@@ -739,6 +877,8 @@ export default {
   dashboardApi,
   modelApi,
   regulationApi,
+  organizationApi,
+  integrationApi,
   systemApi,
   dictApi,
   notificationApi,

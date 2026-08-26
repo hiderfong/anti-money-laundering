@@ -25,12 +25,13 @@ Usage:
   scripts/seed-e2e-business-data.sh [--execute] [--verify] [--sql-only] [--prefix E2E] [--run-id 20260511123000]
 
 Creates a test-only AML business data bundle:
+  - three-level organization tree, governance people, shareholders and registrations
   - E2E users for admin/compliance/investigator/viewer style flows
   - customers: normal, sanctions hit, PEP, corporate with beneficial owner
   - watchlist and screening request/result/whitelist data
   - product, policy, transactions, daily summary, rule execution logs
   - alerts, alert assignment/detail, case, investigation, STR report
-  - large transaction report and submission log
+  - large transaction report, versioned regulatory submissions and receipt history
   - self-assessment, indicators, scores, rectification, audit/notification data
 
 Options:
@@ -338,15 +339,219 @@ SET @password_hash := '${PASSWORD_HASH_SQL}';
 START TRANSACTION;
 
 -- ---------------------------------------------------------------------------
--- 1. E2E users and role bindings
+-- 1. Organization governance and registration samples
+-- ---------------------------------------------------------------------------
+SET @org_head_code := CONCAT(@prefix, 'ORGHQ', @run_key);
+SET @org_branch_code := CONCAT(@prefix, 'ORGBR', @run_key);
+SET @org_outlet_code := CONCAT(@prefix, 'ORGOT', @run_key);
+
+INSERT INTO t_aml_organization
+  (id, org_code, org_name, unified_credit_code, lei_code, org_type, parent_id, registered_address,
+   business_address, legal_representative, registered_capital, business_scope, regulator_name,
+   status, registration_status, created_by, created_time)
+SELECT UUID_SHORT(), @org_head_code, '华岳保险股份有限公司', CONCAT('91310000', @run_key, 'HQ'),
+       CONCAT('300300', @run_key), 'HEAD_OFFICE', NULL, '上海市浦东新区世纪大道100号',
+       '上海市浦东新区世纪大道100号', '周明远', 500000.00,
+       '人寿保险、健康保险及经批准的保险资金运用业务', '国家金融监督管理总局上海监管局',
+       'ENABLED', 'APPROVED', @seed_by, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM t_aml_organization WHERE org_code = @org_head_code);
+SELECT @org_head_id := id FROM t_aml_organization WHERE org_code = @org_head_code LIMIT 1;
+
+INSERT INTO t_aml_organization
+  (id, org_code, org_name, unified_credit_code, org_type, parent_id, registered_address, business_address,
+   legal_representative, business_scope, regulator_name, status, registration_status, created_by, created_time)
+SELECT UUID_SHORT(), @org_branch_code, '华岳保险股份有限公司上海分公司', CONCAT('91310115', @run_key, 'BR'),
+       'BRANCH', @org_head_id, '上海市浦东新区银城中路88号', '上海市浦东新区银城中路88号',
+       '陈景行', '经总公司授权开展保险业务及反洗钱客户管理', '国家金融监督管理总局上海监管局',
+       'ENABLED', 'APPROVED', @seed_by, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM t_aml_organization WHERE org_code = @org_branch_code);
+SELECT @org_branch_id := id FROM t_aml_organization WHERE org_code = @org_branch_code LIMIT 1;
+
+INSERT INTO t_aml_organization
+  (id, org_code, org_name, unified_credit_code, org_type, parent_id, registered_address, business_address,
+   legal_representative, business_scope, regulator_name, status, registration_status, created_by, created_time)
+SELECT UUID_SHORT(), @org_outlet_code, '华岳保险上海分公司浦东陆家嘴营销服务部', CONCAT('91310115', @run_key, 'OT'),
+       'OUTLET', @org_branch_id, '上海市浦东新区陆家嘴环路1000号', '上海市浦东新区陆家嘴环路1000号',
+       '许安澜', '保险咨询、保全服务和客户身份资料收集', '国家金融监督管理总局上海监管局',
+       'DISABLED', 'PENDING_REVIEW', @seed_by, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM t_aml_organization WHERE org_code = @org_outlet_code);
+SELECT @org_outlet_id := id FROM t_aml_organization WHERE org_code = @org_outlet_code LIMIT 1;
+
+INSERT INTO t_aml_org_person
+  (id, organization_id, person_type, person_name, title, department, phone, email, primary_flag, status, created_by, created_time)
+SELECT UUID_SHORT(), p.organization_id, p.person_type, p.person_name, p.title, p.department, p.phone, p.email,
+       p.primary_flag, 'ENABLED', @seed_by, NOW()
+FROM (
+  SELECT @org_head_id AS organization_id, 'AML_OFFICER' AS person_type, '顾清和' AS person_name,
+         '反洗钱合规负责人' AS title, '法律合规部' AS department, '021-68001234' AS phone,
+         CONCAT('aml.officer.', @run_key, '@example.test') AS email, 1 AS primary_flag
+  UNION ALL SELECT @org_head_id, 'CONTACT', '沈安宁', '监管联络专员', '法律合规部', '021-68005678', CONCAT('aml.contact.', @run_key, '@example.test'), 1
+  UNION ALL SELECT @org_branch_id, 'AML_OFFICER', '唐闻舟', '分公司合规经理', '风险合规部', '021-68881234', CONCAT('branch.aml.', @run_key, '@example.test'), 1
+  UNION ALL SELECT @org_branch_id, 'CONTACT', '叶知秋', '分公司监管联络人', '风险合规部', '021-68882345', CONCAT('branch.contact.', @run_key, '@example.test'), 1
+  UNION ALL SELECT @org_outlet_id, 'AML_OFFICER', '江云帆', '网点反洗钱专员', '综合管理部', '021-68884567', CONCAT('outlet.aml.', @run_key, '@example.test'), 1
+  UNION ALL SELECT @org_outlet_id, 'CONTACT', '林知夏', '网点合规联络人', '综合管理部', '021-68885678', CONCAT('outlet.contact.', @run_key, '@example.test'), 1
+) p
+WHERE NOT EXISTS (
+  SELECT 1 FROM t_aml_org_person x
+  WHERE x.organization_id = p.organization_id AND x.person_type = p.person_type AND x.person_name = p.person_name
+);
+
+INSERT INTO t_aml_org_shareholder
+  (id, organization_id, shareholder_name, shareholder_type, registration_code, ownership_percentage,
+   controlling_flag, status, created_by, created_time)
+SELECT UUID_SHORT(), @org_head_id, s.shareholder_name, 'ORGANIZATION', s.registration_code,
+       s.ownership_percentage, s.controlling_flag, 'ENABLED', @seed_by, NOW()
+FROM (
+  SELECT '华岳金融控股有限公司' AS shareholder_name, CONCAT('91310000HOLD', @run_key) AS registration_code,
+         65.0000 AS ownership_percentage, 1 AS controlling_flag
+  UNION ALL SELECT '海川产业投资有限公司', CONCAT('91310000INV', @run_key), 35.0000, 0
+) s
+WHERE NOT EXISTS (
+  SELECT 1 FROM t_aml_org_shareholder x
+  WHERE x.organization_id = @org_head_id AND x.shareholder_name = s.shareholder_name
+);
+
+INSERT INTO t_aml_org_registration
+  (id, registration_no, organization_id, registration_type, version, status, commitment_accepted,
+   snapshot_json, submitted_by, submitted_at, reviewed_by, reviewed_at, review_opinion, created_by, created_time)
+SELECT UUID_SHORT(), r.registration_no, r.organization_id, 'INITIAL', 1, r.status, 1,
+       CONCAT('{"seedRunId":"', @run_id, '","organizationCode":"', r.org_code, '"}'),
+       'e2e_compliance', DATE_SUB(NOW(), INTERVAL 1 DAY), r.reviewed_by, r.reviewed_at,
+       r.review_opinion, @seed_by, NOW()
+FROM (
+  SELECT CONCAT(@prefix, 'ORGREGHQ', @run_key) AS registration_no, @org_head_id AS organization_id,
+         @org_head_code AS org_code, 'APPROVED' AS status, 'e2e_seed_operator' AS reviewed_by,
+         NOW() AS reviewed_at, '机构登记资料完整，同意登记。' AS review_opinion
+  UNION ALL SELECT CONCAT(@prefix, 'ORGREGBR', @run_key), @org_branch_id, @org_branch_code,
+         'APPROVED', 'e2e_seed_operator', NOW(), '分支机构登记资料完整，同意登记。'
+  UNION ALL SELECT CONCAT(@prefix, 'ORGREGOT', @run_key), @org_outlet_id, @org_outlet_code,
+         'PENDING_REVIEW', NULL, NULL, NULL
+) r
+WHERE NOT EXISTS (SELECT 1 FROM t_aml_org_registration x WHERE x.registration_no = r.registration_no);
+
+INSERT INTO t_aml_org_review_log
+  (id, registration_id, action_type, from_status, to_status, opinion, operator, operated_at, created_by, created_time)
+SELECT UUID_SHORT(), r.id, l.action_type, l.from_status, l.to_status, l.opinion, l.operator, l.operated_at, @seed_by, NOW()
+FROM t_aml_org_registration r
+CROSS JOIN (
+  SELECT 'SUBMIT' AS action_type, 'DRAFT' AS from_status, 'PENDING_REVIEW' AS to_status,
+         '提交机构登记审核' AS opinion, 'e2e_compliance' AS operator, DATE_SUB(NOW(), INTERVAL 1 DAY) AS operated_at
+) l
+WHERE r.registration_no IN (CONCAT(@prefix, 'ORGREGHQ', @run_key), CONCAT(@prefix, 'ORGREGBR', @run_key), CONCAT(@prefix, 'ORGREGOT', @run_key))
+  AND NOT EXISTS (SELECT 1 FROM t_aml_org_review_log x WHERE x.registration_id = r.id AND x.action_type = 'SUBMIT');
+
+INSERT INTO t_aml_org_review_log
+  (id, registration_id, action_type, from_status, to_status, opinion, operator, operated_at, created_by, created_time)
+SELECT UUID_SHORT(), r.id, 'APPROVE', 'PENDING_REVIEW', 'APPROVED', r.review_opinion,
+       r.reviewed_by, r.reviewed_at, @seed_by, NOW()
+FROM t_aml_org_registration r
+WHERE r.registration_no IN (CONCAT(@prefix, 'ORGREGHQ', @run_key), CONCAT(@prefix, 'ORGREGBR', @run_key))
+  AND NOT EXISTS (SELECT 1 FROM t_aml_org_review_log x WHERE x.registration_id = r.id AND x.action_type = 'APPROVE');
+
+-- ---------------------------------------------------------------------------
+-- 2. External integration connectors, jobs and runs
+-- ---------------------------------------------------------------------------
+SET @connector_core_code := CONCAT(@prefix, 'INTCORE', @run_key);
+SET @connector_watchlist_code := CONCAT(@prefix, 'INTWL', @run_key);
+SET @connector_regulator_code := CONCAT(@prefix, 'INTREG', @run_key);
+SET @connector_identity_code := CONCAT(@prefix, 'INTID', @run_key);
+
+INSERT INTO t_integration_connector
+  (id, connector_code, connector_name, business_type, transport_type, endpoint_url, auth_type,
+   credential_ref, status, health_status, timeout_seconds, max_retries, retry_interval_seconds,
+   last_health_check_time, last_success_time, last_failure_time, last_error_message, description,
+   created_by, created_time)
+SELECT UUID_SHORT(), c.connector_code, c.connector_name, c.business_type, 'MOCK', c.endpoint_url, 'NONE',
+       NULL, 'ENABLED', c.health_status, 30, c.max_retries, 10, c.last_health_check_time,
+       c.last_success_time, c.last_failure_time, c.last_error_message,
+       CONCAT(@prefix, '集成中心业务闭环样本 ', @run_id), @seed_by, NOW()
+FROM (
+  SELECT @connector_core_code AS connector_code, '华岳核心业务交易数据交换平台' AS connector_name,
+         'CORE_BUSINESS' AS business_type, 'mock://success?read=500&written=498&skipped=2' AS endpoint_url,
+         'HEALTHY' AS health_status, 2 AS max_retries, NOW() AS last_health_check_time,
+         NOW() AS last_success_time, NULL AS last_failure_time, NULL AS last_error_message
+  UNION ALL SELECT @connector_watchlist_code, '国际制裁名单数据交换平台', 'WATCHLIST',
+         'mock://flaky?failures=1&read=120&written=120', 'HEALTHY', 2, NOW(), NOW(), NULL, NULL
+  UNION ALL SELECT @connector_regulator_code, '监管报送前置交换平台', 'REGULATORY_REPORTING',
+         'mock://success?receipt=ACCEPTED', 'HEALTHY', 1, NOW(), NOW(), DATE_SUB(NOW(), INTERVAL 40 MINUTE), NULL
+  UNION ALL SELECT @connector_identity_code, '客户身份联网核验平台', 'IDENTITY_VERIFICATION',
+         'mock://success?read=80&written=80', 'UNKNOWN', 2, NULL, NULL, NULL, NULL
+) c
+WHERE NOT EXISTS (SELECT 1 FROM t_integration_connector x WHERE x.connector_code = c.connector_code);
+
+SELECT @connector_core_id := id FROM t_integration_connector WHERE connector_code = @connector_core_code LIMIT 1;
+SELECT @connector_watchlist_id := id FROM t_integration_connector WHERE connector_code = @connector_watchlist_code LIMIT 1;
+SELECT @connector_regulator_id := id FROM t_integration_connector WHERE connector_code = @connector_regulator_code LIMIT 1;
+SELECT @connector_identity_id := id FROM t_integration_connector WHERE connector_code = @connector_identity_code LIMIT 1;
+
+SET @integration_job_core_code := CONCAT(@prefix, 'JOBTX', @run_key);
+SET @integration_job_watchlist_code := CONCAT(@prefix, 'JOBWL', @run_key);
+SET @integration_job_regulator_code := CONCAT(@prefix, 'JOBREG', @run_key);
+SET @integration_job_identity_code := CONCAT(@prefix, 'JOBID', @run_key);
+
+INSERT INTO t_integration_job
+  (id, job_code, job_name, connector_id, business_object, direction, cron_expression, batch_size,
+   max_retries, enabled, execution_status, last_run_time, next_run_time, description, created_by, created_time)
+SELECT UUID_SHORT(), j.job_code, j.job_name, j.connector_id, j.business_object, j.direction,
+       j.cron_expression, j.batch_size, j.max_retries, 1, j.execution_status, j.last_run_time,
+       j.next_run_time, CONCAT(@prefix, '集成任务闭环样本 ', @run_id), @seed_by, NOW()
+FROM (
+  SELECT @integration_job_core_code AS job_code, '核心业务交易增量同步' AS job_name,
+         @connector_core_id AS connector_id, 'TRANSACTION' AS business_object, 'INBOUND' AS direction,
+         '0 0/30 * * * ?' AS cron_expression, 1000 AS batch_size, 2 AS max_retries,
+         'SUCCESS' AS execution_status, DATE_SUB(NOW(), INTERVAL 20 MINUTE) AS last_run_time,
+         DATE_ADD(NOW(), INTERVAL 10 MINUTE) AS next_run_time
+  UNION ALL SELECT @integration_job_watchlist_code, '国际制裁名单增量更新', @connector_watchlist_id,
+         'WATCHLIST', 'INBOUND', '0 0 2 * * ?', 5000, 2, 'SUCCESS', DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 23 HOUR)
+  UNION ALL SELECT @integration_job_regulator_code, '可疑交易报告批量报送', @connector_regulator_id,
+         'REGULATORY_REPORT', 'OUTBOUND', '0 30 1 * * ?', 200, 1, 'FAILED', DATE_SUB(NOW(), INTERVAL 40 MINUTE), DATE_ADD(NOW(), INTERVAL 23 HOUR)
+  UNION ALL SELECT @integration_job_identity_code, '客户身份核验结果回收', @connector_identity_id,
+         'IDENTITY_RESULT', 'BIDIRECTIONAL', '0 0/15 * * * ?', 500, 2, 'IDLE', NULL, DATE_ADD(NOW(), INTERVAL 15 MINUTE)
+) j
+WHERE NOT EXISTS (SELECT 1 FROM t_integration_job x WHERE x.job_code = j.job_code);
+
+SELECT @integration_job_core_id := id FROM t_integration_job WHERE job_code = @integration_job_core_code LIMIT 1;
+SELECT @integration_job_watchlist_id := id FROM t_integration_job WHERE job_code = @integration_job_watchlist_code LIMIT 1;
+SELECT @integration_job_regulator_id := id FROM t_integration_job WHERE job_code = @integration_job_regulator_code LIMIT 1;
+
+INSERT INTO t_integration_run
+  (id, run_no, job_id, connector_id, retry_of_run_id, trigger_type, status, attempt_count, retry_count,
+   records_read, records_written, records_skipped, error_count, started_time, completed_time, duration_ms,
+   request_summary, response_summary, error_message, trace_id, executed_by, created_by, created_time)
+SELECT UUID_SHORT(), r.run_no, r.job_id, r.connector_id, NULL, r.trigger_type, r.status, r.attempt_count,
+       r.retry_count, r.records_read, r.records_written, r.records_skipped, r.error_count,
+       r.started_time, r.completed_time, r.duration_ms, CONCAT('E2E_RUN_ID=', @run_id),
+       r.response_summary, r.error_message, CONCAT(@prefix, 'INTTRACE', @run_key, r.trace_suffix),
+       r.executed_by, @seed_by, NOW()
+FROM (
+  SELECT CONCAT(@prefix, 'INTRUN', @run_key, '01') AS run_no, @integration_job_core_id AS job_id,
+         @connector_core_id AS connector_id, 'SCHEDULED' AS trigger_type, 'SUCCESS' AS status,
+         1 AS attempt_count, 0 AS retry_count, 500 AS records_read, 498 AS records_written,
+         2 AS records_skipped, 0 AS error_count, DATE_SUB(NOW(), INTERVAL 20 MINUTE) AS started_time,
+         DATE_ADD(DATE_SUB(NOW(), INTERVAL 20 MINUTE), INTERVAL 860000 MICROSECOND) AS completed_time,
+         860 AS duration_ms, '核心交易同步完成' AS response_summary, NULL AS error_message,
+         '01' AS trace_suffix, 'scheduler' AS executed_by
+  UNION ALL SELECT CONCAT(@prefix, 'INTRUN', @run_key, '02'), @integration_job_watchlist_id,
+         @connector_watchlist_id, 'SCHEDULED', 'SUCCESS', 2, 1, 120, 120, 0, 0,
+         DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_ADD(DATE_SUB(NOW(), INTERVAL 1 HOUR), INTERVAL 1240000 MICROSECOND),
+         1240, '名单同步在一次重试后完成', NULL, '02', 'scheduler'
+  UNION ALL SELECT CONCAT(@prefix, 'INTRUN', @run_key, '03'), @integration_job_regulator_id,
+         @connector_regulator_id, 'MANUAL', 'FAILED', 2, 1, 20, 0, 0, 20,
+         DATE_SUB(NOW(), INTERVAL 40 MINUTE), DATE_ADD(DATE_SUB(NOW(), INTERVAL 40 MINUTE), INTERVAL 720000 MICROSECOND),
+         720, NULL, '模拟监管前置平台维护中', '03', 'e2e_compliance'
+) r
+WHERE NOT EXISTS (SELECT 1 FROM t_integration_run x WHERE x.run_no = r.run_no);
+
+-- ---------------------------------------------------------------------------
+-- 3. E2E users and role bindings
 -- ---------------------------------------------------------------------------
 INSERT INTO t_user
-  (username, password_hash, real_name, email, phone, department, position, status, remark, created_by, created_time)
+  (username, password_hash, real_name, email, phone, department, position, organization_id, status, remark, created_by, created_time)
 VALUES
-  ('e2e_seed_operator', @password_hash, CONCAT(@prefix, '种子管理员'), CONCAT('e2e_seed_operator_', @run_key, '@test.local'), '13900002001', 'E2E测试部', '种子数据管理员', 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW()),
-  ('e2e_compliance', @password_hash, CONCAT(@prefix, '合规专员'), CONCAT('e2e_compliance_', @run_key, '@test.local'), '13900002002', 'E2E测试部', '合规专员', 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW()),
-  ('e2e_investigator', @password_hash, CONCAT(@prefix, '调查员'), CONCAT('e2e_investigator_', @run_key, '@test.local'), '13900002003', 'E2E测试部', '调查员', 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW()),
-  ('e2e_viewer', @password_hash, CONCAT(@prefix, '只读用户'), CONCAT('e2e_viewer_', @run_key, '@test.local'), '13900002004', 'E2E测试部', '只读用户', 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW())
+  ('e2e_seed_operator', @password_hash, CONCAT(@prefix, '种子管理员'), CONCAT('e2e_seed_operator_', @run_key, '@test.local'), '13900002001', 'E2E测试部', '种子数据管理员', @org_head_id, 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW()),
+  ('e2e_compliance', @password_hash, CONCAT(@prefix, '合规专员'), CONCAT('e2e_compliance_', @run_key, '@test.local'), '13900002002', 'E2E测试部', '合规专员', @org_head_id, 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW()),
+  ('e2e_investigator', @password_hash, CONCAT(@prefix, '调查员'), CONCAT('e2e_investigator_', @run_key, '@test.local'), '13900002003', 'E2E测试部', '调查员', @org_branch_id, 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW()),
+  ('e2e_viewer', @password_hash, CONCAT(@prefix, '只读用户'), CONCAT('e2e_viewer_', @run_key, '@test.local'), '13900002004', 'E2E测试部', '只读用户', @org_outlet_id, 'ENABLED', CONCAT(@prefix, '业务闭环种子用户 ', @run_id), @seed_by, NOW())
 ON DUPLICATE KEY UPDATE
   password_hash = VALUES(password_hash),
   real_name = VALUES(real_name),
@@ -354,6 +559,7 @@ ON DUPLICATE KEY UPDATE
   phone = VALUES(phone),
   department = VALUES(department),
   position = VALUES(position),
+  organization_id = VALUES(organization_id),
   status = 'ENABLED',
   remark = VALUES(remark),
   updated_by = @seed_by,
@@ -375,7 +581,7 @@ SELECT @compliance_id := COALESCE((SELECT id FROM t_user WHERE username = 'e2e_c
 SELECT @investigator_id := COALESCE((SELECT id FROM t_user WHERE username = 'e2e_investigator' LIMIT 1), @operator_id);
 
 -- ---------------------------------------------------------------------------
--- 2. Customers, KYC records, PEP and beneficial owner data
+-- 4. Customers, KYC records, PEP and beneficial owner data
 -- ---------------------------------------------------------------------------
 SET @normal_customer_no := CONCAT(@prefix, 'C', @run_key, '01');
 SET @sanction_customer_no := CONCAT(@prefix, 'C', @run_key, '02');
@@ -809,7 +1015,7 @@ WHERE case_id = @case_id AND LOCATE(@run_id, content) > 0;
 INSERT INTO t_str_report
   (report_no, case_id, customer_id, report_type, report_status, report_content, analysis_opinion, measures_taken, writer_id, writer_time, reviewer_id, reviewer_opinion, reviewer_time, approver_id, approver_opinion, approver_time, submit_time, submit_result, created_time)
 VALUES
-  (@str_report_no, @case_id, @sanction_customer_id, 'URGENT', 'SUBMITTED', CONCAT(@prefix, '可疑交易报告：客户 Grace Miller 命中国际制裁名单并发生柜面大额现金缴费，资金来源解释不足。', @run_id), '客户身份、名单命中和交易行为叠加呈现高风险特征，建议按可疑交易报送。', '已暂停后续高风险交易，要求补充资金来源材料并升级人工复核。', @compliance_id, NOW(), @compliance_id, '审核通过', NOW(), @operator_id, '签发通过', NOW(), NOW(), 'E2E_MOCK_ACCEPTED', NOW())
+  (@str_report_no, @case_id, @sanction_customer_id, 'URGENT', 'SUBMITTED', CONCAT(@prefix, '可疑交易报告：客户 Grace Miller 命中国际制裁名单并发生柜面大额现金缴费，资金来源解释不足。', @run_id), '客户身份、名单命中和交易行为叠加呈现高风险特征，建议按可疑交易报送。', '已暂停后续高风险交易，要求补充资金来源材料并升级人工复核。', @compliance_id, NOW(), @compliance_id, '审核通过', NOW(), @operator_id, '签发通过', NOW(), NOW(), '{"status":"SUBMITTED","receiptStatus":"PENDING","seed":true}', NOW())
 ON DUPLICATE KEY UPDATE
   case_id = VALUES(case_id),
   customer_id = VALUES(customer_id),
@@ -824,7 +1030,7 @@ SELECT @str_report_id := id FROM t_str_report WHERE report_no = @str_report_no L
 INSERT INTO t_large_txn_report
   (report_no, customer_id, customer_name, transaction_id, report_date, transaction_time, transaction_type, amount, currency, payment_method, counterparty_info, report_status, reviewed_by, reviewed_time, submitted_by, submitted_time, xml_content, submit_response, created_time)
 VALUES
-  (@large_report_no, @sanction_customer_id, @sanction_customer_name, @txn_large_id, CURDATE(), CONCAT(CURDATE(), ' 10:00:00'), 'PREMIUM', 260000.00, 'CNY', 'CASH', CONCAT('{"counterparty":"', @counterparty_large_name, '","bank":"', @large_bank_name, '","runId":"', @run_id, '"}'), 'SUBMITTED', '合规审批员', NOW(), '监管报送员', NOW(), CONCAT('<LargeTxnReport><CustomerName>Grace Miller</CustomerName><RunId>', @run_id, '</RunId></LargeTxnReport>'), '{"status":"ACCEPTED","seed":true}', NOW())
+  (@large_report_no, @sanction_customer_id, @sanction_customer_name, @txn_large_id, CURDATE(), CONCAT(CURDATE(), ' 10:00:00'), 'PREMIUM', 260000.00, 'CNY', 'CASH', CONCAT('{"counterparty":"', @counterparty_large_name, '","bank":"', @large_bank_name, '","runId":"', @run_id, '"}'), 'RESUBMITTED', '合规审批员', NOW(), '监管报送员', NOW(), NULL, '{"status":"ACCEPTED","versionNo":2,"seed":true}', NOW())
 ON DUPLICATE KEY UPDATE
   customer_id = VALUES(customer_id),
   customer_name = VALUES(customer_name),
@@ -840,15 +1046,115 @@ ON DUPLICATE KEY UPDATE
   updated_time = NOW();
 SELECT @large_report_id := id FROM t_large_txn_report WHERE report_no = @large_report_no LIMIT 1;
 
-INSERT INTO t_report_submit_log
-  (report_type, report_id, submit_time, submit_status, request_data, response_data, retry_count, max_retries, created_time)
-SELECT report_type, report_id, NOW(), 'SUCCESS', request_data, '{"status":"ACCEPTED","seed":true}', 0, 3, NOW()
+-- 监管报送版本链：大额报告首报退回后修正重报，STR保留等待回执场景。
+SET @large_submission_no_v1 := CONCAT(@prefix, 'REG', @run_key, 'L01');
+SET @large_submission_no_v2 := CONCAT(@prefix, 'REG', @run_key, 'L02');
+SET @str_submission_no_v1 := CONCAT(@prefix, 'REG', @run_key, 'S01');
+SET @large_payload_v1 := CONCAT('<?xml version="1.0" encoding="UTF-8"?><LargeTransactionReport><Header><ReportNo>', @large_report_no, '</ReportNo><ReportDate>', CURDATE(), '</ReportDate><InstitutionCode>INS001</InstitutionCode></Header><CustomerInfo><CustomerId>', @sanction_customer_id, '</CustomerId><CustomerName>Grace Miller</CustomerName></CustomerInfo><TransactionInfo><TransactionId>', @txn_large_id, '</TransactionId><Amount>260000.00</Amount><Currency>CNY</Currency></TransactionInfo><SeedRunId>', @run_id, '</SeedRunId></LargeTransactionReport>');
+SET @large_payload_v2 := REPLACE(@large_payload_v1, '</LargeTransactionReport>', '<CorrectionNote>补充交易对手开户行及资金来源说明</CorrectionNote></LargeTransactionReport>');
+SET @str_payload_v1 := CONCAT('<?xml version="1.0" encoding="UTF-8"?><SuspiciousTransactionReport><Header><ReportNo>', @str_report_no, '</ReportNo><InstitutionCode>INS001</InstitutionCode></Header><CaseInfo><CaseId>', @case_id, '</CaseId><CustomerId>', @sanction_customer_id, '</CustomerId></CaseInfo><ReportBody><Content>制裁名单命中叠加大额现金缴费</Content><AnalysisOpinion>建议持续增强监测并报送</AnalysisOpinion></ReportBody><SeedRunId>', @run_id, '</SeedRunId></SuspiciousTransactionReport>');
+
+INSERT INTO t_regulatory_submission
+  (id, submission_no, report_type, report_id, report_no, version_no, parent_submission_id,
+   connector_id, status, schema_version, payload_format, payload_content, payload_hash,
+   signature_algorithm, signature_value, external_request_id, submitted_by, submitted_time,
+   completed_time, receipt_status, receipt_no, receipt_time, return_code, return_message,
+   correction_note, retry_count, created_by, created_time, updated_by, updated_time)
+SELECT UUID_SHORT(), @large_submission_no_v1, 'LARGE_TXN', @large_report_id, @large_report_no, 1, NULL,
+       @connector_regulator_id, 'REJECTED', 'AML-MIS-LOCAL-1.0', 'XML', @large_payload_v1,
+       SHA2(@large_payload_v1, 256), 'SHA-256-MOCK', SHA2(@large_payload_v1, 256),
+       CONCAT(@prefix, 'REQ', @run_key, 'L01'), 'e2e_compliance', DATE_SUB(NOW(), INTERVAL 25 MINUTE),
+       DATE_SUB(NOW(), INTERVAL 24 MINUTE), 'REJECTED', CONCAT(@prefix, 'RCPT', @run_key, 'L01'),
+       DATE_SUB(NOW(), INTERVAL 24 MINUTE), 'E102', '交易对手开户行和资金来源说明不完整',
+       NULL, 0, @seed_by, DATE_SUB(NOW(), INTERVAL 25 MINUTE), @seed_by, DATE_SUB(NOW(), INTERVAL 24 MINUTE)
+WHERE NOT EXISTS (SELECT 1 FROM t_regulatory_submission WHERE submission_no = @large_submission_no_v1);
+SELECT @large_submission_v1_id := id FROM t_regulatory_submission WHERE submission_no = @large_submission_no_v1 LIMIT 1;
+
+INSERT INTO t_regulatory_submission
+  (id, submission_no, report_type, report_id, report_no, version_no, parent_submission_id,
+   connector_id, status, schema_version, payload_format, payload_content, payload_hash,
+   signature_algorithm, signature_value, external_request_id, submitted_by, submitted_time,
+   completed_time, receipt_status, receipt_no, receipt_time, return_code, return_message,
+   correction_note, retry_count, created_by, created_time, updated_by, updated_time)
+SELECT UUID_SHORT(), @large_submission_no_v2, 'LARGE_TXN', @large_report_id, @large_report_no, 2, @large_submission_v1_id,
+       @connector_regulator_id, 'ACCEPTED', 'AML-MIS-LOCAL-1.0', 'XML', @large_payload_v2,
+       SHA2(@large_payload_v2, 256), 'SHA-256-MOCK', SHA2(@large_payload_v2, 256),
+       CONCAT(@prefix, 'REQ', @run_key, 'L02'), 'e2e_compliance', DATE_SUB(NOW(), INTERVAL 15 MINUTE),
+       DATE_SUB(NOW(), INTERVAL 14 MINUTE), 'ACCEPTED', CONCAT(@prefix, 'RCPT', @run_key, 'L02'),
+       DATE_SUB(NOW(), INTERVAL 14 MINUTE), '0000', '报文校验通过并接收',
+       '补充交易对手开户行及资金来源说明', 1, @seed_by, DATE_SUB(NOW(), INTERVAL 15 MINUTE), @seed_by, DATE_SUB(NOW(), INTERVAL 14 MINUTE)
+WHERE NOT EXISTS (SELECT 1 FROM t_regulatory_submission WHERE submission_no = @large_submission_no_v2);
+SELECT @large_submission_v2_id := id FROM t_regulatory_submission WHERE submission_no = @large_submission_no_v2 LIMIT 1;
+
+INSERT INTO t_regulatory_submission
+  (id, submission_no, report_type, report_id, report_no, version_no, parent_submission_id,
+   connector_id, status, schema_version, payload_format, payload_content, payload_hash,
+   signature_algorithm, signature_value, external_request_id, submitted_by, submitted_time,
+   receipt_status, receipt_time, return_code, return_message, retry_count,
+   created_by, created_time, updated_by, updated_time)
+SELECT UUID_SHORT(), @str_submission_no_v1, 'SUSPICIOUS', @str_report_id, @str_report_no, 1, NULL,
+       @connector_regulator_id, 'SUBMITTED', 'AML-MIS-LOCAL-1.0', 'XML', @str_payload_v1,
+       SHA2(@str_payload_v1, 256), 'SHA-256-MOCK', SHA2(@str_payload_v1, 256),
+       CONCAT(@prefix, 'REQ', @run_key, 'S01'), 'e2e_compliance', DATE_SUB(NOW(), INTERVAL 5 MINUTE),
+       'PENDING', DATE_SUB(NOW(), INTERVAL 5 MINUTE), 'PENDING', '监管平台处理中', 0,
+       @seed_by, DATE_SUB(NOW(), INTERVAL 5 MINUTE), @seed_by, DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+WHERE NOT EXISTS (SELECT 1 FROM t_regulatory_submission WHERE submission_no = @str_submission_no_v1);
+SELECT @str_submission_v1_id := id FROM t_regulatory_submission WHERE submission_no = @str_submission_no_v1 LIMIT 1;
+
+INSERT INTO t_regulatory_receipt
+  (id, submission_id, receipt_no, receipt_status, receipt_code, receipt_message,
+   receipt_payload, received_time, receipt_source, created_by, created_time, updated_by, updated_time)
+SELECT UUID_SHORT(), r.submission_id, r.receipt_no, r.receipt_status, r.receipt_code, r.receipt_message,
+       r.receipt_payload, r.received_time, 'GATEWAY', @seed_by, r.received_time, @seed_by, r.received_time
 FROM (
-  SELECT 'LARGE_TXN' AS report_type, @large_report_id AS report_id, CONCAT(@prefix, '大额交易报送 ', @run_id) AS request_data
-  UNION ALL SELECT 'SUSPICIOUS', @str_report_id, CONCAT(@prefix, '可疑交易报送 ', @run_id)
+  SELECT @large_submission_v1_id AS submission_id, CONCAT(@prefix, 'RCPT', @run_key, 'L01') AS receipt_no,
+         'REJECTED' AS receipt_status, 'E102' AS receipt_code, '交易对手开户行和资金来源说明不完整' AS receipt_message,
+         CONCAT('{"status":"REJECTED","runId":"', @run_id, '"}') AS receipt_payload,
+         DATE_SUB(NOW(), INTERVAL 24 MINUTE) AS received_time
+  UNION ALL SELECT @large_submission_v2_id, CONCAT(@prefix, 'RCPT', @run_key, 'L02'),
+         'ACCEPTED', '0000', '报文校验通过并接收', CONCAT('{"status":"ACCEPTED","runId":"', @run_id, '"}'), DATE_SUB(NOW(), INTERVAL 14 MINUTE)
+  UNION ALL SELECT @str_submission_v1_id, NULL,
+         'PENDING', 'PENDING', '监管平台处理中', CONCAT('{"status":"PENDING","runId":"', @run_id, '"}'), DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+) r
+WHERE NOT EXISTS (
+  SELECT 1 FROM t_regulatory_receipt x
+  WHERE x.submission_id = r.submission_id AND x.receipt_status = r.receipt_status AND x.receipt_source = 'GATEWAY'
+);
+
+UPDATE t_large_txn_report
+SET report_status = 'RESUBMITTED', xml_content = @large_payload_v2,
+    submit_response = CONCAT('{"status":"ACCEPTED","submissionNo":"', @large_submission_no_v2, '","versionNo":2,"seed":true}'),
+    updated_time = NOW()
+WHERE id = @large_report_id;
+
+UPDATE t_str_report
+SET report_status = 'SUBMITTED',
+    submit_result = CONCAT('{"status":"SUBMITTED","submissionNo":"', @str_submission_no_v1, '","receiptStatus":"PENDING","seed":true}'),
+    updated_time = NOW()
+WHERE id = @str_report_id;
+
+INSERT INTO t_report_submit_log
+  (report_type, report_id, submission_id, submit_time, submit_status, request_data, response_data,
+   external_request_id, receipt_no, retry_count, max_retries, created_time)
+SELECT report_type, report_id, submission_id, submit_time, submit_status, request_data, response_data,
+       external_request_id, receipt_no, retry_count, 3, submit_time
+FROM (
+  SELECT 'LARGE_TXN' AS report_type, @large_report_id AS report_id, @large_submission_v1_id AS submission_id,
+         DATE_SUB(NOW(), INTERVAL 25 MINUTE) AS submit_time, 'FAILED' AS submit_status,
+         @large_payload_v1 AS request_data, '{"status":"REJECTED","code":"E102","seed":true}' AS response_data,
+         CONCAT(@prefix, 'REQ', @run_key, 'L01') AS external_request_id,
+         CONCAT(@prefix, 'RCPT', @run_key, 'L01') AS receipt_no, 0 AS retry_count
+  UNION ALL SELECT 'LARGE_TXN', @large_report_id, @large_submission_v2_id,
+         DATE_SUB(NOW(), INTERVAL 15 MINUTE), 'SUCCESS', @large_payload_v2,
+         '{"status":"ACCEPTED","code":"0000","seed":true}', CONCAT(@prefix, 'REQ', @run_key, 'L02'),
+         CONCAT(@prefix, 'RCPT', @run_key, 'L02'), 1
+  UNION ALL SELECT 'SUSPICIOUS', @str_report_id, @str_submission_v1_id,
+         DATE_SUB(NOW(), INTERVAL 5 MINUTE), 'SUCCESS', @str_payload_v1,
+         '{"status":"SUBMITTED","receiptStatus":"PENDING","seed":true}', CONCAT(@prefix, 'REQ', @run_key, 'S01'),
+         NULL, 0
 ) l
 WHERE NOT EXISTS (
-  SELECT 1 FROM t_report_submit_log s WHERE s.report_type = l.report_type AND s.report_id = l.report_id AND LOCATE(@run_id, COALESCE(s.request_data, '')) > 0
+  SELECT 1 FROM t_report_submit_log s WHERE s.submission_id = l.submission_id
 );
 
 -- ---------------------------------------------------------------------------
@@ -942,6 +1248,24 @@ SELECT 'users' AS artifact, COUNT(*) AS seeded_rows
 FROM t_user
 WHERE username IN ('e2e_seed_operator', 'e2e_compliance', 'e2e_investigator', 'e2e_viewer')
 UNION ALL
+SELECT 'organizations', COUNT(*) FROM t_aml_organization WHERE org_code IN (CONCAT(@prefix, 'ORGHQ', @run_key), CONCAT(@prefix, 'ORGBR', @run_key), CONCAT(@prefix, 'ORGOT', @run_key))
+UNION ALL
+SELECT 'organization_persons', COUNT(*) FROM t_aml_org_person WHERE organization_id IN (
+  SELECT id FROM t_aml_organization WHERE org_code IN (CONCAT(@prefix, 'ORGHQ', @run_key), CONCAT(@prefix, 'ORGBR', @run_key), CONCAT(@prefix, 'ORGOT', @run_key))
+)
+UNION ALL
+SELECT 'organization_shareholders', COUNT(*) FROM t_aml_org_shareholder WHERE organization_id = (
+  SELECT id FROM t_aml_organization WHERE org_code = CONCAT(@prefix, 'ORGHQ', @run_key) LIMIT 1
+)
+UNION ALL
+SELECT 'organization_registrations', COUNT(*) FROM t_aml_org_registration WHERE registration_no IN (CONCAT(@prefix, 'ORGREGHQ', @run_key), CONCAT(@prefix, 'ORGREGBR', @run_key), CONCAT(@prefix, 'ORGREGOT', @run_key))
+UNION ALL
+SELECT 'integration_connectors', COUNT(*) FROM t_integration_connector WHERE connector_code IN (CONCAT(@prefix, 'INTCORE', @run_key), CONCAT(@prefix, 'INTWL', @run_key), CONCAT(@prefix, 'INTREG', @run_key), CONCAT(@prefix, 'INTID', @run_key))
+UNION ALL
+SELECT 'integration_jobs', COUNT(*) FROM t_integration_job WHERE job_code IN (CONCAT(@prefix, 'JOBTX', @run_key), CONCAT(@prefix, 'JOBWL', @run_key), CONCAT(@prefix, 'JOBREG', @run_key), CONCAT(@prefix, 'JOBID', @run_key))
+UNION ALL
+SELECT 'integration_runs', COUNT(*) FROM t_integration_run WHERE run_no IN (CONCAT(@prefix, 'INTRUN', @run_key, '01'), CONCAT(@prefix, 'INTRUN', @run_key, '02'), CONCAT(@prefix, 'INTRUN', @run_key, '03'))
+UNION ALL
 SELECT 'customers', COUNT(*) FROM t_customer WHERE customer_no IN (CONCAT(@prefix, 'C', @run_key, '01'), CONCAT(@prefix, 'C', @run_key, '02'), CONCAT(@prefix, 'C', @run_key, '03'), CONCAT(@prefix, 'C', @run_key, '04'))
 UNION ALL
 SELECT 'complex_graph_customers', COUNT(*) FROM t_customer WHERE customer_no IN (CONCAT(@prefix, 'C', @run_key, '05'), CONCAT(@prefix, 'C', @run_key, '06'), CONCAT(@prefix, 'C', @run_key, '07'))
@@ -973,6 +1297,12 @@ UNION ALL
 SELECT 'str_reports', COUNT(*) FROM t_str_report WHERE report_no = CONCAT(@prefix, 'STR', @run_key)
 UNION ALL
 SELECT 'large_txn_reports', COUNT(*) FROM t_large_txn_report WHERE report_no = CONCAT(@prefix, 'LTR', @run_key)
+UNION ALL
+SELECT 'regulatory_submissions', COUNT(*) FROM t_regulatory_submission WHERE submission_no IN (CONCAT(@prefix, 'REG', @run_key, 'L01'), CONCAT(@prefix, 'REG', @run_key, 'L02'), CONCAT(@prefix, 'REG', @run_key, 'S01'))
+UNION ALL
+SELECT 'regulatory_receipts', COUNT(*) FROM t_regulatory_receipt WHERE submission_id IN (
+  SELECT id FROM t_regulatory_submission WHERE submission_no IN (CONCAT(@prefix, 'REG', @run_key, 'L01'), CONCAT(@prefix, 'REG', @run_key, 'L02'), CONCAT(@prefix, 'REG', @run_key, 'S01'))
+)
 UNION ALL
 SELECT 'self_assessments', COUNT(*) FROM t_self_assessment WHERE conclusion LIKE CONCAT('%', @run_id, '%')
 UNION ALL
@@ -1013,6 +1343,8 @@ else
     echo "Dry-run only. No data was written."
     echo ""
     echo "This run will create/update a full E2E business data bundle for:"
+    echo "  Organizations: ${E2E_PREFIX}ORGHQ${RUN_KEY}, ${E2E_PREFIX}ORGBR${RUN_KEY}, ${E2E_PREFIX}ORGOT${RUN_KEY}"
+    echo "  Integrations: 4 connectors, 4 jobs and 3 run records for ${RUN_KEY}"
     echo "  Customers: ${E2E_PREFIX}C${RUN_KEY}01..04"
     echo "  Transactions: ${E2E_PREFIX}TX${RUN_KEY}01..03 plus complex graph chain ${E2E_PREFIX}TX${RUN_KEY}C01..C06"
     echo "  Alerts: ${E2E_PREFIX}AL${RUN_KEY}01..02"

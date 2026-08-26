@@ -96,6 +96,8 @@ const menuItems: MenuItem[] = [
   { path: '/special-prevention', titleKey: 'menu.specialPrevention', icon: 'Operation', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['special:view'] },
   { path: '/rectifications', titleKey: 'menu.rectifications', icon: 'Check', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR', 'ROLE_VIEWER'], permissions: ['rectification:view'] },
   { path: '/investigations', titleKey: 'menu.investigations', icon: 'Search', roles: ['ROLE_ADMIN', 'ROLE_COMPLIANCE', 'ROLE_INVESTIGATOR'], permissions: ['investigation:view'] },
+  { path: '/organizations', titleKey: 'menu.organizations', icon: 'OfficeBuilding', roles: ['ROLE_ADMIN', 'ROLE_AML_MANAGER', 'ROLE_AML_OFFICER', 'ROLE_COMPLIANCE'], permissions: ['organization:view'] },
+  { path: '/integrations', titleKey: 'menu.integrations', icon: 'Connection', roles: ['ROLE_ADMIN', 'ROLE_AML_MANAGER', 'ROLE_COMPLIANCE'], permissions: ['integration:view'] },
   { path: '/models', titleKey: 'menu.models', icon: 'DataAnalysis', roles: ['ROLE_ADMIN'], permissions: ['model:view'] },
   { path: '/regulation-library', titleKey: 'menu.regulationLibrary', icon: 'Document', roles: ['ROLE_ADMIN'], permissions: ['regulation:view'] },
   { path: '/notifications', titleKey: 'menu.notifications', icon: 'Notification' },

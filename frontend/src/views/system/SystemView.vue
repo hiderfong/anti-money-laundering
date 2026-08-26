@@ -14,10 +14,11 @@
           <el-table-column prop="realName" label="姓名" width="100" />
           <el-table-column prop="phone" label="手机号" width="130" />
           <el-table-column prop="email" label="邮箱" min-width="160" />
+          <el-table-column prop="organizationName" label="所属机构" min-width="180" show-overflow-tooltip />
           <el-table-column prop="status" label="状态" width="80">
             <template #default="{ row }">
-              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '启用' : '禁用' }}
+              <el-tag :type="row.status === 'ENABLED' ? 'success' : 'info'" size="small">
+                {{ row.status === 'ENABLED' ? '启用' : '禁用' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -189,12 +190,15 @@
       destroy-on-close
       @closed="resetUserForm"
     >
-      <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="80px">
+      <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="90px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="userForm.username" :disabled="userMode === 'edit'" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="姓名" prop="realName">
           <el-input v-model="userForm.realName" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item v-if="userMode === 'create'" label="初始密码" prop="password">
+          <el-input v-model="userForm.password" type="password" show-password placeholder="请输入初始密码" />
         </el-form-item>
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="userForm.phone" placeholder="请输入手机号" />
@@ -202,10 +206,19 @@
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="userForm.email" placeholder="请输入邮箱" />
         </el-form-item>
+        <el-form-item label="所属机构">
+          <el-tree-select
+            v-model="userForm.organizationId"
+            :data="organizationTree"
+            :props="{ label: 'orgName', value: 'id', children: 'children' }"
+            check-strictly clearable default-expand-all placeholder="请选择所属机构"
+            style="width:100%"
+          />
+        </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="userForm.status">
-            <el-radio value="ACTIVE">启用</el-radio>
-            <el-radio value="INACTIVE">禁用</el-radio>
+            <el-radio value="ENABLED">启用</el-radio>
+            <el-radio value="DISABLED">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -255,6 +268,7 @@ const activeTab = ref('users')
 // ========== 用户管理 ==========
 const loadingUsers = ref(false)
 const users = ref<any[]>([])
+const organizationTree = ref<any[]>([])
 const userPage = reactive({ pageNum: 1, pageSize: 10, total: 0 })
 
 const userDialogVisible = ref(false)
@@ -262,10 +276,11 @@ const userMode = ref<'create' | 'edit'>('create')
 const userDialogTitle = computed(() => (userMode.value === 'create' ? '新建用户' : '编辑用户'))
 const submitting = ref(false)
 const userFormRef = ref<FormInstance>()
-const userForm = reactive({ id: 0, username: '', realName: '', phone: '', email: '', status: 'ACTIVE' })
+const userForm = reactive({ id: 0, username: '', password: '', realName: '', phone: '', email: '', organizationId: '', status: 'ENABLED' })
 const userRules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入初始密码', trigger: 'blur' }],
 }
 
 const roleDialogVisible = ref(false)
@@ -277,7 +292,7 @@ async function fetchUsers() {
   loadingUsers.value = true
   try {
     const res: any = await request.get('/system/users/page', {
-      params: { pageNum: userPage.pageNum, pageSize: userPage.pageSize },
+      params: { page: userPage.pageNum, size: userPage.pageSize },
     })
     const data = res.data || res
     users.value = data.records || data.list || []
@@ -288,9 +303,9 @@ async function fetchUsers() {
 function openUserDialog(mode: 'create' | 'edit', row?: any) {
   userMode.value = mode
   if (mode === 'edit' && row) {
-    Object.assign(userForm, { id: row.id, username: row.username, realName: row.realName, phone: row.phone, email: row.email, status: row.status })
+    Object.assign(userForm, { id: row.id, username: row.username, password: '', realName: row.realName, phone: row.phone, email: row.email, organizationId: row.organizationId || '', status: row.status })
   } else {
-    Object.assign(userForm, { id: 0, username: '', realName: '', phone: '', email: '', status: 'ACTIVE' })
+    Object.assign(userForm, { id: 0, username: '', password: '', realName: '', phone: '', email: '', organizationId: '', status: 'ENABLED' })
   }
   userDialogVisible.value = true
 }
@@ -305,10 +320,24 @@ async function submitUser() {
   submitting.value = true
   try {
     if (userMode.value === 'create') {
-      await request.post('/system/users', { ...userForm })
+      await request.post('/system/users', {
+        username: userForm.username,
+        password: userForm.password,
+        realName: userForm.realName,
+        phone: userForm.phone,
+        email: userForm.email,
+        organizationId: userForm.organizationId || undefined,
+      })
       ElMessage.success('用户创建成功')
     } else {
-      await request.put(`/system/users/${userForm.id}`, { ...userForm })
+      await request.put(`/system/users/${userForm.id}`, {
+        realName: userForm.realName,
+        phone: userForm.phone,
+        email: userForm.email,
+        organizationId: userForm.organizationId || undefined,
+        clearOrganization: !userForm.organizationId,
+        status: userForm.status,
+      })
       ElMessage.success('用户更新成功')
     }
     userDialogVisible.value = false
@@ -464,6 +493,7 @@ function onTabChange(tab: string) {
 
 onMounted(() => {
   fetchUsers()
+  request.get('/organizations/tree').then((res: any) => { organizationTree.value = res.data || [] }).catch(() => {})
 })
 </script>
 

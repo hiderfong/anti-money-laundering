@@ -8,6 +8,8 @@ import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.module.system.mapper.SysRoleMapper;
 import com.insurance.aml.module.system.mapper.SysUserMapper;
 import com.insurance.aml.module.system.mapper.SysUserRoleMapper;
+import com.insurance.aml.module.organization.mapper.AmlOrganizationMapper;
+import com.insurance.aml.module.organization.model.entity.AmlOrganization;
 import com.insurance.aml.module.system.model.dto.*;
 import com.insurance.aml.module.system.model.entity.SysRole;
 import com.insurance.aml.module.system.model.entity.SysUser;
@@ -36,6 +38,7 @@ public class UserServiceImpl implements UserService {
     private final SysUserMapper sysUserMapper;
     private final SysUserRoleMapper sysUserRoleMapper;
     private final SysRoleMapper sysRoleMapper;
+    private final AmlOrganizationMapper organizationMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
@@ -61,6 +64,8 @@ public class UserServiceImpl implements UserService {
         user.setPhone(req.getPhone());
         user.setDepartment(req.getDepartment());
         user.setPosition(req.getPosition());
+        validateOrganization(req.getOrganizationId());
+        user.setOrganizationId(req.getOrganizationId());
         user.setStatus(USER_STATUS_ENABLED);
         user.setLoginFailCount(0);
 
@@ -96,6 +101,12 @@ public class UserServiceImpl implements UserService {
         }
         if (StringUtils.hasText(req.getPosition())) {
             user.setPosition(req.getPosition());
+        }
+        if (Boolean.TRUE.equals(req.getClearOrganization())) {
+            user.setOrganizationId(null);
+        } else if (req.getOrganizationId() != null) {
+            validateOrganization(req.getOrganizationId());
+            user.setOrganizationId(req.getOrganizationId());
         }
         if (StringUtils.hasText(req.getStatus())) {
             user.setStatus(req.getStatus());
@@ -218,6 +229,13 @@ public class UserServiceImpl implements UserService {
         UserVO vo = new UserVO();
         BeanUtils.copyProperties(user, vo);
 
+        if (user.getOrganizationId() != null) {
+            AmlOrganization organization = organizationMapper.selectById(user.getOrganizationId());
+            if (organization != null) {
+                vo.setOrganizationName(organization.getOrgName());
+            }
+        }
+
         // 加载角色名称列表
         List<Long> roleIds = sysUserRoleMapper.findRoleIdsByUserId(user.getId());
         if (roleIds != null && !roleIds.isEmpty()) {
@@ -231,5 +249,11 @@ public class UserServiceImpl implements UserService {
         }
 
         return vo;
+    }
+
+    private void validateOrganization(Long organizationId) {
+        if (organizationId != null && organizationMapper.selectById(organizationId) == null) {
+            throw new BusinessException(ResultCode.ORGANIZATION_NOT_FOUND);
+        }
     }
 }

@@ -59,6 +59,11 @@ public class SysUser implements Serializable {
     private String position;
 
     /**
+     * 所属反洗钱机构ID，用于机构级数据范围控制。
+     */
+    private Long organizationId;
+
+    /**
      * 状态：ENABLED-启用，DISABLED-禁用，LOCKED-锁定
      */
     private String status;

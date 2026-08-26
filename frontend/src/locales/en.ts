@@ -49,6 +49,8 @@ export default {
     specialPrevention: 'Special Prevention',
     rectifications: 'Rectification Center',
     investigations: 'Investigation Assistance',
+    organizations: 'Organization Governance',
+    integrations: 'Integration Center',
     models: 'Model Management',
     regulationLibrary: 'Regulation Library',
     system: 'System',

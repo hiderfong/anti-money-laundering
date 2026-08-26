@@ -455,6 +455,75 @@ export interface ReportReviewParams {
   comment: string
 }
 
+export interface RegulatorySubmissionOverview {
+  totalSubmissions: number
+  pendingReceipts: number
+  acceptedSubmissions: number
+  rejectedSubmissions: number
+  failedSubmissions: number
+  resubmissions: number
+  acceptanceRate: number
+}
+
+export interface RegulatorySubmissionPageParams extends PageParams {
+  keyword?: string
+  reportType?: string
+  status?: string
+  receiptStatus?: string
+  connectorId?: string
+}
+
+export interface RegulatorySubmission {
+  id: string
+  submissionNo: string
+  reportType: string
+  reportId: string
+  reportNo: string
+  versionNo: number
+  parentSubmissionId?: string
+  connectorId: string
+  connectorName?: string
+  status: string
+  schemaVersion: string
+  payloadFormat: string
+  payloadContent?: string
+  payloadHash?: string
+  signatureAlgorithm?: string
+  signatureValue?: string
+  externalRequestId?: string
+  submittedBy?: string
+  submittedTime?: string
+  completedTime?: string
+  receiptStatus?: string
+  receiptNo?: string
+  receiptTime?: string
+  returnCode?: string
+  returnMessage?: string
+  correctionNote?: string
+  failureStage?: string
+  errorMessage?: string
+  retryCount: number
+  createdTime: string
+  updatedTime?: string
+}
+
+export interface RegulatoryReceipt {
+  id: string
+  submissionId: string
+  receiptNo?: string
+  receiptStatus: string
+  receiptCode?: string
+  receiptMessage?: string
+  receiptPayload?: string
+  receivedTime: string
+  receiptSource: string
+}
+
+export interface RegulatorySubmissionDetail {
+  submission: RegulatorySubmission
+  receipts: RegulatoryReceipt[]
+}
+
 // ===================== 产品管理模块 =====================
 
 export interface ProductPageParams extends PageParams {
@@ -880,6 +949,8 @@ export interface SysUser {
   phone: string
   status: number
   roles: string[]
+  organizationId?: string
+  organizationName?: string
   createdAt: string
   lastLoginTime: string
 }
@@ -891,6 +962,7 @@ export interface UserCreateParams {
   email: string
   phone: string
   roles: string[]
+  organizationId?: string
 }
 
 export interface UserUpdateParams {
@@ -899,6 +971,270 @@ export interface UserUpdateParams {
   phone?: string
   status?: number
   roles?: string[]
+  organizationId?: string
+  clearOrganization?: boolean
+}
+
+// ===================== 机构治理模块 =====================
+
+export interface AmlOrganization {
+  id: string
+  orgCode: string
+  orgName: string
+  unifiedCreditCode: string
+  leiCode?: string
+  orgType: 'HEAD_OFFICE' | 'BRANCH' | 'OUTLET'
+  parentId?: string
+  registeredAddress?: string
+  businessAddress?: string
+  legalRepresentative?: string
+  registeredCapital?: number
+  businessScope?: string
+  regulatorName?: string
+  status: 'ENABLED' | 'DISABLED'
+  registrationStatus: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED'
+  createdTime?: string
+  updatedTime?: string
+}
+
+export interface OrganizationPageParams extends PageParams {
+  keyword?: string
+  orgType?: string
+  status?: string
+  registrationStatus?: string
+  parentId?: string
+  treeRootId?: string
+}
+
+export interface OrganizationOverview {
+  totalOrganizations: number
+  headOffices: number
+  branches: number
+  outlets: number
+  pendingReviews: number
+  rejectedRegistrations: number
+  amlOfficers: number
+}
+
+export interface OrganizationTreeNode {
+  id: string
+  orgCode: string
+  orgName: string
+  orgType: string
+  status: string
+  children: OrganizationTreeNode[]
+}
+
+export interface OrganizationPerson {
+  id: string
+  organizationId: string
+  personType: 'SENIOR_MANAGER' | 'AML_OFFICER' | 'CONTACT'
+  personName: string
+  title?: string
+  department?: string
+  phone?: string
+  email?: string
+  startDate?: string
+  endDate?: string
+  financialExperience?: string
+  primaryFlag: boolean
+  status: string
+}
+
+export interface OrganizationShareholder {
+  id: string
+  organizationId: string
+  shareholderName: string
+  shareholderType: 'INDIVIDUAL' | 'ORGANIZATION'
+  registrationCode?: string
+  ownershipPercentage: number
+  controllingFlag: boolean
+  status: string
+}
+
+export interface OrganizationRegistration {
+  id: string
+  registrationNo: string
+  organizationId: string
+  registrationType: 'INITIAL' | 'CHANGE'
+  version: number
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED'
+  commitmentAccepted: boolean
+  submittedBy?: string
+  submittedAt?: string
+  reviewedBy?: string
+  reviewedAt?: string
+  reviewOpinion?: string
+  createdTime?: string
+}
+
+export interface OrganizationReviewLog {
+  id: string
+  registrationId: string
+  actionType: string
+  fromStatus?: string
+  toStatus: string
+  opinion?: string
+  operator?: string
+  operatedAt: string
+}
+
+export interface OrganizationDetail {
+  organization: AmlOrganization
+  persons: OrganizationPerson[]
+  shareholders: OrganizationShareholder[]
+  registrations: OrganizationRegistration[]
+  reviewLogs: OrganizationReviewLog[]
+}
+
+export interface OrganizationParams {
+  orgCode: string
+  orgName: string
+  unifiedCreditCode: string
+  leiCode?: string
+  orgType: string
+  parentId?: string
+  registeredAddress?: string
+  businessAddress?: string
+  legalRepresentative?: string
+  registeredCapital?: number
+  businessScope?: string
+  regulatorName?: string
+  status?: string
+}
+
+export type OrganizationPersonParams = Omit<OrganizationPerson, 'id' | 'organizationId'>
+export type OrganizationShareholderParams = Omit<OrganizationShareholder, 'id' | 'organizationId'>
+
+// ===================== 外部集成模块 =====================
+
+export interface IntegrationOverview {
+  totalConnectors: number
+  healthyConnectors: number
+  unhealthyConnectors: number
+  enabledJobs: number
+  runningJobs: number
+  failedRunsToday: number
+  recordsWrittenToday: number
+  successRateToday: number
+}
+
+export interface IntegrationConnector {
+  id: string
+  connectorCode: string
+  connectorName: string
+  businessType: string
+  transportType: string
+  endpointUrl: string
+  authType: string
+  credentialRef?: string
+  status: string
+  healthStatus: string
+  timeoutSeconds: number
+  maxRetries: number
+  retryIntervalSeconds: number
+  lastHealthCheckTime?: string
+  lastSuccessTime?: string
+  lastFailureTime?: string
+  lastErrorMessage?: string
+  description?: string
+  updatedTime?: string
+}
+
+export interface IntegrationConnectorParams {
+  connectorCode: string
+  connectorName: string
+  businessType: string
+  transportType: string
+  endpointUrl: string
+  authType: string
+  credentialRef?: string
+  status: string
+  timeoutSeconds: number
+  maxRetries: number
+  retryIntervalSeconds: number
+  description?: string
+}
+
+export interface IntegrationConnectorPageParams extends PageParams {
+  keyword?: string
+  businessType?: string
+  transportType?: string
+  status?: string
+  healthStatus?: string
+}
+
+export interface IntegrationJob {
+  id: string
+  jobCode: string
+  jobName: string
+  connectorId: string
+  connectorName?: string
+  businessObject: string
+  direction: string
+  cronExpression: string
+  batchSize: number
+  maxRetries: number
+  enabled: boolean
+  executionStatus: string
+  lastRunTime?: string
+  nextRunTime?: string
+  description?: string
+  updatedTime?: string
+}
+
+export interface IntegrationJobParams {
+  jobCode: string
+  jobName: string
+  connectorId: string
+  businessObject: string
+  direction: string
+  cronExpression: string
+  batchSize: number
+  maxRetries: number
+  enabled: boolean
+  description?: string
+}
+
+export interface IntegrationJobPageParams extends PageParams {
+  keyword?: string
+  connectorId?: string
+  businessObject?: string
+  enabled?: boolean
+  executionStatus?: string
+}
+
+export interface IntegrationRun {
+  id: string
+  runNo: string
+  jobId?: string
+  jobName?: string
+  connectorId: string
+  connectorName?: string
+  retryOfRunId?: string
+  triggerType: string
+  status: string
+  attemptCount: number
+  retryCount: number
+  recordsRead: number
+  recordsWritten: number
+  recordsSkipped: number
+  errorCount: number
+  startedTime: string
+  completedTime?: string
+  durationMs?: number
+  requestSummary?: string
+  responseSummary?: string
+  errorMessage?: string
+  traceId?: string
+  executedBy?: string
+}
+
+export interface IntegrationRunPageParams extends PageParams {
+  jobId?: string
+  connectorId?: string
+  status?: string
+  triggerType?: string
 }
 
 // ===================== 字典模块 =====================

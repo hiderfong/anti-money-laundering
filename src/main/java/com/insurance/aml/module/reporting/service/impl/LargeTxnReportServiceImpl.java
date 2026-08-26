@@ -7,7 +7,6 @@ import com.insurance.aml.common.result.ResultCode;
 import com.insurance.aml.common.enums.ReportStatus;
 import com.insurance.aml.common.enums.SubmitStatus;
 import com.insurance.aml.common.util.IdGenerator;
-import com.insurance.aml.common.util.SecurityUtils;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
 import com.insurance.aml.module.kyc.model.entity.Customer;
 import com.insurance.aml.module.monitoring.mapper.TransactionMapper;
@@ -19,7 +18,10 @@ import com.insurance.aml.module.reporting.model.dto.LargeTxnReportVO;
 import com.insurance.aml.module.reporting.model.entity.LargeTxnReport;
 import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
 import com.insurance.aml.module.reporting.service.LargeTxnReportService;
+import com.insurance.aml.module.reporting.service.RegulatorySubmissionService;
 import com.insurance.aml.module.reporting.service.XmlGeneratorService;
+import com.insurance.aml.module.reporting.model.dto.RegulatoryResubmitRequest;
+import com.insurance.aml.module.reporting.model.entity.RegulatorySubmission;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
@@ -44,6 +46,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
     private final CustomerMapper customerMapper;
     private final IdGenerator idGenerator;
     private final XmlGeneratorService xmlGeneratorService;
+    private final RegulatorySubmissionService regulatorySubmissionService;
 
     /**
      * 生成大额交易报告
@@ -161,36 +164,7 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
             throw new BusinessException("只有已审核状态的报告才能提交，当前状态：" + report.getReportStatus());
         }
 
-        // 生成XML报文
-        String xmlContent = generateXml(reportId);
-
-        // 更新报告状态
-        report.setXmlContent(xmlContent);
-        report.setReportStatus(ReportStatus.SUBMITTED.getCode());
-        String submittedBy = SecurityUtils.getCurrentUsername();
-        if (submittedBy == null || submittedBy.isBlank()) {
-            submittedBy = "system";
-        }
-        String responseData = buildRegulatorAcceptanceResponse("LARGE_TXN", report.getReportNo(), submittedBy);
-
-        report.setSubmittedBy(submittedBy);
-        report.setSubmittedTime(LocalDateTime.now());
-        report.setSubmitResponse(responseData);
-        report.setUpdatedTime(LocalDateTime.now());
-        largeTxnReportMapper.updateById(report);
-
-        // 记录提交日志
-        ReportSubmitLog submitLog = new ReportSubmitLog();
-        submitLog.setReportType("LARGE_TXN");
-        submitLog.setReportId(reportId);
-        submitLog.setSubmitTime(LocalDateTime.now());
-        submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
-        submitLog.setRequestData(xmlContent);
-        submitLog.setResponseData(responseData);
-        submitLog.setRetryCount(0);
-        submitLog.setMaxRetries(3);
-        submitLog.setCreatedTime(LocalDateTime.now());
-        reportSubmitLogMapper.insert(submitLog);
+        regulatorySubmissionService.submitInitial("LARGE_TXN", reportId, null);
 
         log.info("大额交易报告提交完成，报告编号：{}", report.getReportNo());
     }
@@ -258,12 +232,19 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
                 submitLog.setNextRetryTime(LocalDateTime.now().plusMinutes(5 * submitLog.getRetryCount()));
                 reportSubmitLogMapper.updateById(submitLog);
 
-                // 重新提交报告
-                submitReport(submitLog.getReportId());
+                if (submitLog.getSubmissionId() == null) {
+                    log.warn("跳过缺少统一报送版本ID的历史失败日志，logId={}", submitLog.getId());
+                    continue;
+                }
+                RegulatoryResubmitRequest request = new RegulatoryResubmitRequest();
+                request.setCorrectionNote("系统自动重试传输失败报送");
+                RegulatorySubmission retried = regulatorySubmissionService.resubmit(
+                        submitLog.getSubmissionId(), request);
 
                 // 更新日志状态为成功
-                submitLog.setSubmitStatus(SubmitStatus.SUCCESS.getCode());
-                submitLog.setErrorMessage(null);
+                boolean success = "ACCEPTED".equals(retried.getStatus()) || "SUBMITTED".equals(retried.getStatus());
+                submitLog.setSubmitStatus(success ? SubmitStatus.SUCCESS.getCode() : SubmitStatus.FAILED.getCode());
+                submitLog.setErrorMessage(success ? null : retried.getErrorMessage());
                 reportSubmitLogMapper.updateById(submitLog);
 
                 log.info("报告重试提交成功，报告ID：{}", submitLog.getReportId());
@@ -284,15 +265,4 @@ public class LargeTxnReportServiceImpl implements LargeTxnReportService {
         return vo;
     }
 
-    private String buildRegulatorAcceptanceResponse(String reportType, String reportNo, String submittedBy) {
-        String receiptNo = "RCPT-" + reportType + "-" + reportNo + "-" + System.currentTimeMillis();
-        return String.format(
-                "{\"status\":\"ACCEPTED\",\"receiptNo\":\"%s\",\"reportType\":\"%s\",\"reportNo\":\"%s\",\"submittedBy\":\"%s\",\"acceptedAt\":\"%s\"}",
-                receiptNo,
-                reportType,
-                reportNo,
-                submittedBy,
-                LocalDateTime.now()
-        );
-    }
 }

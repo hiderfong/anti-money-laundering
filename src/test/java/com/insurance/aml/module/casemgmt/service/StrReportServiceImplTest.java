@@ -13,13 +13,10 @@ import com.insurance.aml.module.casemgmt.model.entity.StrReport;
 import com.insurance.aml.module.casemgmt.service.CaseService;
 import com.insurance.aml.module.casemgmt.service.impl.StrReportServiceImpl;
 import com.insurance.aml.module.kyc.mapper.CustomerMapper;
-import com.insurance.aml.module.reporting.mapper.ReportSubmitLogMapper;
-import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
-import com.insurance.aml.module.reporting.service.XmlGeneratorService;
+import com.insurance.aml.module.reporting.service.RegulatorySubmissionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -52,8 +49,7 @@ class StrReportServiceImplTest {
     @Mock CaseMapper caseMapper;
     @Mock CustomerMapper customerMapper;
     @Mock IdGenerator idGenerator;
-    @Mock XmlGeneratorService xmlGeneratorService;
-    @Mock ReportSubmitLogMapper reportSubmitLogMapper;
+    @Mock RegulatorySubmissionService regulatorySubmissionService;
     @Mock CaseService caseService;
 
     @InjectMocks StrReportServiceImpl service;
@@ -216,24 +212,18 @@ class StrReportServiceImplTest {
     void submitToRegulator_nonApproved_throws() {
         when(strReportMapper.selectById(100L)).thenReturn(reportWithStatus(ReportStatus.PENDING_REVIEW.getCode()));
         assertThrows(BusinessException.class, () -> service.submitToRegulator(100L));
-        verify(reportSubmitLogMapper, never()).insert(any());
+        verify(regulatorySubmissionService, never()).submitInitial(anyString(), any(), any());
     }
 
     @Test
-    @DisplayName("提交监管-APPROVED-转SUBMITTED并生成XML写成功日志")
-    void submitToRegulator_approved_submitsAndLogs() {
+    @DisplayName("提交监管-APPROVED-交由统一监管报送服务处理")
+    void submitToRegulator_approved_delegatesToRegulatorySubmission() {
         StrReport r = reportWithStatus(ReportStatus.APPROVED.getCode());
         when(strReportMapper.selectById(100L)).thenReturn(r);
-        when(xmlGeneratorService.generateSuspiciousTxnXml(r)).thenReturn("<str/>");
 
         service.submitToRegulator(100L);
 
-        assertEquals(ReportStatus.SUBMITTED.getCode(), r.getReportStatus());
-        verify(xmlGeneratorService, times(1)).generateSuspiciousTxnXml(r);
-        ArgumentCaptor<ReportSubmitLog> captor = ArgumentCaptor.forClass(ReportSubmitLog.class);
-        verify(reportSubmitLogMapper, times(1)).insert(captor.capture());
-        assertEquals("SUSPICIOUS", captor.getValue().getReportType());
-        assertEquals("SUCCESS", captor.getValue().getSubmitStatus());
+        verify(regulatorySubmissionService, times(1)).submitInitial("SUSPICIOUS", 100L, null);
     }
 
     // ---- getReportDetail ----

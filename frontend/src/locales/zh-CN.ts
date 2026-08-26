@@ -49,6 +49,8 @@ export default {
     specialPrevention: '特别预防',
     rectifications: '整改中心',
     investigations: '调查协查',
+    organizations: '机构治理',
+    integrations: '集成中心',
     models: '模型管理',
     regulationLibrary: '法规及资料库',
     system: '系统管理',

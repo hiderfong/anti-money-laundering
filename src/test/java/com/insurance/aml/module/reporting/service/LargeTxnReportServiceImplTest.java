@@ -11,12 +11,13 @@ import com.insurance.aml.module.monitoring.model.entity.Transaction;
 import com.insurance.aml.module.reporting.mapper.LargeTxnReportMapper;
 import com.insurance.aml.module.reporting.mapper.ReportSubmitLogMapper;
 import com.insurance.aml.module.reporting.model.entity.LargeTxnReport;
+import com.insurance.aml.module.reporting.model.entity.RegulatorySubmission;
 import com.insurance.aml.module.reporting.model.entity.ReportSubmitLog;
+import com.insurance.aml.module.reporting.model.dto.RegulatoryResubmitRequest;
 import com.insurance.aml.module.reporting.service.impl.LargeTxnReportServiceImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +29,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -49,6 +51,7 @@ class LargeTxnReportServiceImplTest {
     @Mock CustomerMapper customerMapper;
     @Mock IdGenerator idGenerator;
     @Mock XmlGeneratorService xmlGeneratorService;
+    @Mock RegulatorySubmissionService regulatorySubmissionService;
 
     @InjectMocks LargeTxnReportServiceImpl service;
 
@@ -202,21 +205,14 @@ class LargeTxnReportServiceImplTest {
     }
 
     @Test
-    @DisplayName("提交-REVIEWED-转SUBMITTED并写成功日志")
-    void submitReport_reviewed_submitsAndLogs() {
+    @DisplayName("提交-REVIEWED-交由统一监管报送服务处理")
+    void submitReport_reviewed_delegatesToRegulatorySubmission() {
         LargeTxnReport r = reportWithStatus(ReportStatus.REVIEWED.getCode());
         when(largeTxnReportMapper.selectById(200L)).thenReturn(r);
-        when(transactionMapper.selectById(5L)).thenReturn(txn());
-        when(customerMapper.selectById(9L)).thenReturn(customer());
-        when(xmlGeneratorService.generateLargeTxnXml(any(), any(), any())).thenReturn("<ctr/>");
 
         service.submitReport(200L);
 
-        assertEquals(ReportStatus.SUBMITTED.getCode(), r.getReportStatus());
-        ArgumentCaptor<ReportSubmitLog> captor = ArgumentCaptor.forClass(ReportSubmitLog.class);
-        verify(reportSubmitLogMapper, times(1)).insert(captor.capture());
-        assertEquals("LARGE_TXN", captor.getValue().getReportType());
-        assertEquals(SubmitStatus.SUCCESS.getCode(), captor.getValue().getSubmitStatus());
+        verify(regulatorySubmissionService, times(1)).submitInitial("LARGE_TXN", 200L, null);
     }
 
     // ---- retryFailedSubmissions ----
@@ -229,16 +225,18 @@ class LargeTxnReportServiceImplTest {
         failed.setSubmitStatus(SubmitStatus.FAILED.getCode());
         failed.setRetryCount(0);
         failed.setMaxRetries(3);
+        failed.setSubmissionId(300L);
         when(reportSubmitLogMapper.selectList(any())).thenReturn(List.of(failed));
-        when(largeTxnReportMapper.selectById(200L)).thenReturn(reportWithStatus(ReportStatus.REVIEWED.getCode()));
-        when(transactionMapper.selectById(5L)).thenReturn(txn());
-        when(customerMapper.selectById(9L)).thenReturn(customer());
-        when(xmlGeneratorService.generateLargeTxnXml(any(), any(), any())).thenReturn("<ctr/>");
+        RegulatorySubmission retried = new RegulatorySubmission();
+        retried.setStatus("ACCEPTED");
+        when(regulatorySubmissionService.resubmit(eq(300L), any(RegulatoryResubmitRequest.class)))
+                .thenReturn(retried);
 
         service.retryFailedSubmissions();
 
         assertEquals(SubmitStatus.SUCCESS.getCode(), failed.getSubmitStatus());
         assertEquals(1, failed.getRetryCount());
+        verify(regulatorySubmissionService).resubmit(eq(300L), any(RegulatoryResubmitRequest.class));
         verify(reportSubmitLogMapper, atLeast(2)).updateById(any());
     }
 }

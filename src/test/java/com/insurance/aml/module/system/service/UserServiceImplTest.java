@@ -1,6 +1,7 @@
 package com.insurance.aml.module.system.service;
 
 import com.insurance.aml.module.system.mapper.SysRoleMapper;
+import com.insurance.aml.module.organization.mapper.AmlOrganizationMapper;
 import com.insurance.aml.module.system.mapper.SysUserMapper;
 import com.insurance.aml.module.system.mapper.SysUserRoleMapper;
 import com.insurance.aml.module.system.model.dto.UserCreateRequest;
@@ -36,6 +37,9 @@ class UserServiceImplTest {
 
     @Mock
     private SysRoleMapper sysRoleMapper;
+
+    @Mock
+    private AmlOrganizationMapper organizationMapper;
 
     @InjectMocks
     private UserServiceImpl userService;

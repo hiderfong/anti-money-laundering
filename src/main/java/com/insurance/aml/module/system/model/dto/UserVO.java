@@ -62,6 +62,18 @@ public class UserVO implements Serializable {
     private String position;
 
     /**
+     * 所属反洗钱机构ID
+     */
+    @Schema(description = "所属反洗钱机构ID")
+    private Long organizationId;
+
+    /**
+     * 所属反洗钱机构名称
+     */
+    @Schema(description = "所属反洗钱机构名称")
+    private String organizationName;
+
+    /**
      * 状态
      */
     @Schema(description = "状态")

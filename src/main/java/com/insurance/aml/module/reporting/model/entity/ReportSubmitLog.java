@@ -35,6 +35,9 @@ public class ReportSubmitLog implements Serializable {
      */
     private Long reportId;
 
+    /** 关联的统一监管报送版本ID。 */
+    private Long submissionId;
+
     /**
      * 提交时间
      */
@@ -55,6 +58,12 @@ public class ReportSubmitLog implements Serializable {
      * 响应数据
      */
     private String responseData;
+
+    /** 监管网关请求号。 */
+    private String externalRequestId;
+
+    /** 监管回执号。 */
+    private String receiptNo;
 
     /**
      * 错误信息

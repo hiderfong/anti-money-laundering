@@ -40,6 +40,8 @@ const routes = [
   { path: '/special-prevention', title: '特别预防', signals: ['特别预防', '名单命中'] },
   { path: '/rectifications', title: '整改中心', signals: ['整改中心', '整改任务'] },
   { path: '/investigations', title: '调查协查', signals: ['调查协查', '协查请求'] },
+  { path: '/organizations', title: '机构治理', signals: ['机构治理', '机构层级', '登记状态'] },
+  { path: '/integrations', title: '集成中心', signals: ['集成中心', '连接器', '同步任务', '运行记录'] },
   { path: '/models', title: '模型管理', signals: ['模型管理', '模型治理'] },
   { path: '/regulation-library', title: '法规及资料库', signals: ['法规及资料库', '知识库'] },
   { path: '/notifications', title: '通知中心', signals: ['通知中心', '案件通知', '未读通知', '全部已读', '通知类型'] },
@@ -97,6 +99,20 @@ const apiChecks = [
     validate: data => pageTotal(data) >= 10
   },
   {
+    name: '监管报送工作台具备退回、重报和待回执样本',
+    url: '/api/reporting/submissions/overview',
+    validate: data => Number(data.totalSubmissions || 0) >= 3
+      && Number(data.pendingReceipts || 0) >= 1
+      && Number(data.rejectedSubmissions || 0) >= 1
+      && Number(data.resubmissions || 0) >= 1
+  },
+  {
+    name: '监管报送版本列表具备完整版本链',
+    url: '/api/reporting/submissions/page?page=1&size=10',
+    validate: data => pageTotal(data) >= 3
+      && asArray(data).some(item => Number(item.versionNo || 0) > 1)
+  },
+  {
     name: '风险自评估列表具备评估记录',
     url: '/api/assessments/list',
     validate: data => asArray(data).length >= 4
@@ -116,6 +132,18 @@ const apiChecks = [
     name: '调查协查概览具备协查数据',
     url: '/api/investigations/overview',
     validate: data => Object.values(data || {}).some(value => Number(value || 0) > 0)
+  },
+  {
+    name: '机构治理概览接口可用',
+    url: '/api/organizations/overview',
+    validate: data => Number.isFinite(Number(data.totalOrganizations))
+      && Number.isFinite(Number(data.pendingReviews))
+  },
+  {
+    name: '外部集成中心概览接口可用',
+    url: '/api/integrations/overview',
+    validate: data => Number.isFinite(Number(data.totalConnectors))
+      && Number.isFinite(Number(data.enabledJobs))
   },
   {
     name: '模型治理概览具备模型数据',
@@ -461,6 +489,29 @@ async function checkGraphAndLinkedChains(page) {
 }
 
 async function checkHumanInteractions(page) {
+  await page.goto(`${frontendUrl}/reporting`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
+  await page.locator('main').waitFor({ state: 'visible', timeout: assertionTimeout })
+  const workbenchOption = page.getByText('报送工作台', { exact: true }).first()
+  if (await workbenchOption.count()) {
+    await workbenchOption.click()
+    await page.getByText('报送流水号', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
+    const mainText = await pageText(page, 'main')
+    if (/待回执|已退回|修正重报/.test(mainText)) {
+      pass('人工仿真交互：监管报送工作台可查看回执与重报状态')
+    } else {
+      fail('人工仿真交互：监管报送工作台缺少回执或重报状态')
+    }
+    const firstSubmissionDetail = page.locator('main .el-table button:has-text("详情")').first()
+    if (await firstSubmissionDetail.count()) {
+      await firstSubmissionDetail.click()
+      await page.getByText('报送证据链', { exact: true }).first().waitFor({ state: 'visible', timeout: assertionTimeout })
+      pass('人工仿真交互：监管报送版本可打开证据链详情')
+    }
+    await screenshot(page, '监管报送-工作台与证据链')
+  } else {
+    fail('人工仿真交互：未找到报送工作台切换项')
+  }
+
   await page.goto(`${frontendUrl}/monitoring`, { waitUntil: 'domcontentloaded', timeout: navigationTimeout })
   await page.locator('main').waitFor({ state: 'visible', timeout: assertionTimeout })
   const customerInput = page.locator('main').getByPlaceholder('选择或输入客户ID').first()

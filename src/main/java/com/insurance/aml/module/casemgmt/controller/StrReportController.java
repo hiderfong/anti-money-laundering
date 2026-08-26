@@ -1,5 +1,6 @@
 package com.insurance.aml.module.casemgmt.controller;
 
+import com.insurance.aml.common.annotation.AuditLog;
 import com.insurance.aml.common.result.PageResult;
 import com.insurance.aml.common.result.Result;
 import com.insurance.aml.module.casemgmt.model.dto.StrReportCreateRequest;
@@ -47,6 +48,7 @@ public class StrReportController {
     @PostMapping
     @Operation(summary = "创建可疑交易报告", description = "为案件创建可疑交易报告")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
+    @AuditLog(module = "STR报告", operationType = "CREATE", description = "创建可疑交易报告")
     public Result<StrReport> createReport(@Valid @RequestBody StrReportCreateRequest req) {
         log.info("收到创建可疑交易报告请求，caseId={}, reportType={}", req.getCaseId(), req.getReportType());
         StrReport report = strReportService.createReport(req);
@@ -59,6 +61,7 @@ public class StrReportController {
     @PostMapping("/{id}/submit-review")
     @Operation(summary = "提交报告审核", description = "将草稿状态的报告提交审核")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:str')")
+    @AuditLog(module = "STR报告", operationType = "SUBMIT_REVIEW", description = "提交可疑交易报告审核")
     public Result<Void> submitForReview(
             @Parameter(description = "报告ID") @PathVariable Long id) {
         log.info("收到提交报告审核请求，reportId={}", id);
@@ -72,6 +75,7 @@ public class StrReportController {
     @PostMapping("/{id}/review")
     @Operation(summary = "审核报告", description = "对报告进行审核，可批准或拒绝")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
+    @AuditLog(module = "STR报告", operationType = "REVIEW", description = "审核可疑交易报告")
     public Result<Void> reviewReport(
             @Parameter(description = "报告ID") @PathVariable Long id,
             @Valid @RequestBody StrReportReviewRequest req) {
@@ -87,6 +91,7 @@ public class StrReportController {
     @PostMapping("/{id}/submit-regulator")
     @Operation(summary = "提交至监管机构", description = "将已批准的报告提交至监管机构")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:submit')")
+    @AuditLog(module = "STR报告", operationType = "SUBMIT", description = "提交可疑交易报告至监管机构")
     public Result<Void> submitToRegulator(
             @Parameter(description = "报告ID") @PathVariable Long id) {
         log.info("收到提交报告至监管机构请求，reportId={}", id);

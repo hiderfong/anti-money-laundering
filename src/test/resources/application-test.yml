@@ -60,6 +60,9 @@ encryption:
   key: TestEncryptKey2024DevEnv!
 
 aml:
+  integration:
+    scheduler:
+      enabled: false
   neo4j:
     enabled: false
   kafka:

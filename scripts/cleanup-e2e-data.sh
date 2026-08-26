@@ -99,6 +99,42 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 SET collation_connection = 'utf8mb4_unicode_ci';
 SET @prefix := '${PREFIX_SQL}';
 
+DROP TEMPORARY TABLE IF EXISTS e2e_organization_ids;
+CREATE TEMPORARY TABLE e2e_organization_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_organization_ids
+SELECT id FROM t_aml_organization
+WHERE LEFT(org_code, LENGTH(@prefix)) = @prefix
+   OR created_by = CONCAT(@prefix, '-business-seed');
+
+DROP TEMPORARY TABLE IF EXISTS e2e_org_registration_ids;
+CREATE TEMPORARY TABLE e2e_org_registration_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_org_registration_ids
+SELECT id FROM t_aml_org_registration
+WHERE organization_id IN (SELECT id FROM e2e_organization_ids)
+   OR LEFT(registration_no, LENGTH(@prefix)) = @prefix;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_integration_connector_ids;
+CREATE TEMPORARY TABLE e2e_integration_connector_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_integration_connector_ids
+SELECT id FROM t_integration_connector
+WHERE LEFT(connector_code, LENGTH(@prefix)) = @prefix
+   OR created_by = CONCAT(@prefix, '-business-seed');
+
+DROP TEMPORARY TABLE IF EXISTS e2e_integration_job_ids;
+CREATE TEMPORARY TABLE e2e_integration_job_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_integration_job_ids
+SELECT id FROM t_integration_job
+WHERE connector_id IN (SELECT id FROM e2e_integration_connector_ids)
+   OR LEFT(job_code, LENGTH(@prefix)) = @prefix;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_integration_run_ids;
+CREATE TEMPORARY TABLE e2e_integration_run_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_integration_run_ids
+SELECT id FROM t_integration_run
+WHERE job_id IN (SELECT id FROM e2e_integration_job_ids)
+   OR connector_id IN (SELECT id FROM e2e_integration_connector_ids)
+   OR LEFT(run_no, LENGTH(@prefix)) = @prefix;
+
 DROP TEMPORARY TABLE IF EXISTS e2e_customer_ids;
 CREATE TEMPORARY TABLE e2e_customer_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
 INSERT IGNORE INTO e2e_customer_ids
@@ -181,6 +217,15 @@ FROM t_large_txn_report
 WHERE customer_id IN (SELECT id FROM e2e_customer_ids)
    OR transaction_id IN (SELECT id FROM e2e_transaction_ids)
    OR LEFT(COALESCE(customer_name, ''), LENGTH(@prefix)) = @prefix;
+
+DROP TEMPORARY TABLE IF EXISTS e2e_regulatory_submission_ids;
+CREATE TEMPORARY TABLE e2e_regulatory_submission_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
+INSERT IGNORE INTO e2e_regulatory_submission_ids
+SELECT id
+FROM t_regulatory_submission
+WHERE (report_type = 'LARGE_TXN' AND report_id IN (SELECT id FROM e2e_large_report_ids))
+   OR (report_type = 'SUSPICIOUS' AND report_id IN (SELECT id FROM e2e_str_report_ids))
+   OR LEFT(submission_no, LENGTH(@prefix)) = @prefix;
 
 DROP TEMPORARY TABLE IF EXISTS e2e_screening_request_ids;
 CREATE TEMPORARY TABLE e2e_screening_request_ids (id BIGINT PRIMARY KEY) ENGINE=MEMORY;
@@ -312,6 +357,11 @@ WHERE username LIKE 'e2e!_%' ESCAPE '!'
    OR LOCATE(LOWER(@prefix), LOWER(COALESCE(email, ''))) > 0;
 
 SELECT 'customers' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_customer_ids;
+SELECT 'organizations' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_organization_ids;
+SELECT 'organization_registrations' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_org_registration_ids;
+SELECT 'integration_connectors' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_integration_connector_ids;
+SELECT 'integration_jobs' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_integration_job_ids;
+SELECT 'integration_runs' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_integration_run_ids;
 SELECT 'transactions' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_transaction_ids;
 SELECT 'screening_requests' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_screening_request_ids;
 SELECT 'watchlist_sources' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_watchlist_source_ids;
@@ -321,6 +371,9 @@ SELECT 'alerts' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_alert_ids;
 SELECT 'cases' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_case_ids;
 SELECT 'str_reports' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_str_report_ids;
 SELECT 'large_txn_reports' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_large_report_ids;
+SELECT 'regulatory_submissions' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_regulatory_submission_ids;
+SELECT 'regulatory_receipts' AS artifact, COUNT(*) AS rows_to_clean
+FROM t_regulatory_receipt WHERE submission_id IN (SELECT id FROM e2e_regulatory_submission_ids);
 SELECT 'products' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_product_ids;
 SELECT 'policies' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_policy_ids;
 SELECT 'rules' AS artifact, COUNT(*) AS rows_to_clean FROM e2e_rule_ids;
@@ -349,7 +402,16 @@ WHERE user_id IN (SELECT id FROM e2e_user_ids)
 
 DELETE FROM t_report_submit_log
 WHERE (report_type = 'LARGE_TXN' AND report_id IN (SELECT id FROM e2e_large_report_ids))
-   OR (report_type = 'SUSPICIOUS' AND report_id IN (SELECT id FROM e2e_str_report_ids));
+   OR (report_type = 'SUSPICIOUS' AND report_id IN (SELECT id FROM e2e_str_report_ids))
+   OR submission_id IN (SELECT id FROM e2e_regulatory_submission_ids);
+
+DELETE FROM t_regulatory_receipt
+WHERE submission_id IN (SELECT id FROM e2e_regulatory_submission_ids);
+DELETE FROM t_regulatory_submission
+WHERE id IN (SELECT id FROM e2e_regulatory_submission_ids)
+  AND parent_submission_id IS NOT NULL;
+DELETE FROM t_regulatory_submission
+WHERE id IN (SELECT id FROM e2e_regulatory_submission_ids);
 
 DELETE FROM t_str_report WHERE id IN (SELECT id FROM e2e_str_report_ids);
 DELETE FROM t_large_txn_report WHERE id IN (SELECT id FROM e2e_large_report_ids);
@@ -414,6 +476,16 @@ DELETE FROM t_assessment_indicator WHERE id IN (SELECT id FROM e2e_indicator_ids
 
 DELETE FROM t_user_role WHERE user_id IN (SELECT id FROM e2e_user_ids);
 DELETE FROM t_user WHERE id IN (SELECT id FROM e2e_user_ids);
+
+DELETE FROM t_integration_run WHERE id IN (SELECT id FROM e2e_integration_run_ids);
+DELETE FROM t_integration_job WHERE id IN (SELECT id FROM e2e_integration_job_ids);
+DELETE FROM t_integration_connector WHERE id IN (SELECT id FROM e2e_integration_connector_ids);
+
+DELETE FROM t_aml_org_review_log WHERE registration_id IN (SELECT id FROM e2e_org_registration_ids);
+DELETE FROM t_aml_org_registration WHERE id IN (SELECT id FROM e2e_org_registration_ids);
+DELETE FROM t_aml_org_person WHERE organization_id IN (SELECT id FROM e2e_organization_ids);
+DELETE FROM t_aml_org_shareholder WHERE organization_id IN (SELECT id FROM e2e_organization_ids);
+DELETE FROM t_aml_organization WHERE id IN (SELECT id FROM e2e_organization_ids);
 
 DELETE FROM t_audit_log
 WHERE username LIKE 'e2e!_%' ESCAPE '!'

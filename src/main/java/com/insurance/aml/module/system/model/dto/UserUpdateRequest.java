@@ -53,6 +53,18 @@ public class UserUpdateRequest implements Serializable {
     private String position;
 
     /**
+     * 所属反洗钱机构ID
+     */
+    @Schema(description = "所属反洗钱机构ID")
+    private Long organizationId;
+
+    /**
+     * 是否清除所属机构。用于区分“未传字段”和“明确解除机构绑定”。
+     */
+    @Schema(description = "是否清除所属机构")
+    private Boolean clearOrganization;
+
+    /**
      * 状态
      */
     @Schema(description = "状态")
